@@ -52,6 +52,7 @@ that the code and docs do not readily tell you.
   shared include loads, before its `case`, only what each of its operations reaches: the context, the
   front door, the one family include. Anything else is sourced in the branch or function that needs it,
   in the form `type <Fn> > /dev/null 2>&1 || . "<path>"`, and repeated where two branches need it. A
+
   static list, or a value one branch reads, is written in that branch, never at file scope.
 - **One arm per group of operations.** A family arm sources one include, or several when one gets too
   big. Size is the only reason to split. A family arm works only because every stub of that family
@@ -189,7 +190,7 @@ that the code and docs do not readily tell you.
 - **The bootstrap guard `[ -z "$MDLT_ORIGIN" ] || ! type DistroSystemContext` is what makes a later
   `Distro <Tool>` resolve.** Never remove it as redundant. A new site that needs those functions needs
   the same two lines.
-- **`Require <Tool> || :` comes before `Distro <Tool>`.** `Require` resolves by file through
+- **`Require <Tool> ||:` comes before `Distro <Tool>`.** `Require` resolves by file through
   `$MDLT_ORIGIN`; `Distro` tries `type`, then `PATH`. The `|| :` leaves the verdict to `Distro`'s exit.
   Sourcing `SystemContext.include` alone is not enough: `Distro` still fails, because only a console
   session has `sh-scripts` on `PATH`.
@@ -219,7 +220,7 @@ that the code and docs do not readily tell you.
   a stale copy answers confidently. This is why the `myx.distro` MCP registration writes no `env` object.
 - **A command run through an operation inherits the resolved environment.** That is why the MCP
   `execute` lives here: `myx.common`'s MCP path does no environment init.
-- **Reaching a `List*` tool.** `Require <Tool> || :`, then `var="$( Distro <Tool> … )" || status=$?`,
+- **Reaching a `List*` tool.** `Require <Tool> ||:`, then `var="$(Distro <Tool> …)" || status=$?`,
   which keeps `ListDistroDeclares`' own `set -e` inside the subshell. Never spawn
   `ListDistroProjects.fn.sh` by path: a new process rebuilds every index (see `myx.distro-system`
   MAGIC.md).
@@ -232,19 +233,23 @@ that the code and docs do not readily tell you.
   `myx.common` registration; `remove/agentMcp` would delete it. Call `myx.common` public commands only;
   copy an internal idiom rather than reach into it.
 
+- **`MDLT_ORIGIN` is the folder whose child is `myx/`.** So `$MDLT_ORIGIN/myx/<package>/...` resolves: `$MMDAPP/source` for a source tree, `$MMDAPP/.local` for an install. Point it at the package root, and every include resolves under a doubled `myx/myx/`. The run then refuses at once with `No such file or directory`.
+
 ## 3. Shell and awk gotchas
 
 - **An `EXIT` trap set inside an op replaces the caller's.** Every op is an arm of one function in one
   process, and `trap - EXIT` then clears the caller's too, silently. An op reached through `$( )` runs
+
   in a subshell and cannot do this; a plain call can. Explicit cleanup on every return path misses
   `set -e` aborts and signals. The form with neither defect is a trap inside a `( … )` subshell, armed
+
   before the file is created (examples: `--owner-workspace-forget`, `LocalTools.Config.include`).
   `--intern-op-slack-call` installs and clears its own trap, so callers of it install none.
-- **`$( … )` returns when the pipe has no writers, not when the command exits.** Never capture an
+- **`$(…)` returns when the pipe has no writers, not when the command exits.** Never capture an
   arbitrary or caller-supplied command that way: a background child holds the pipe open forever. Write
   to a file and read it back; `wait "$pid"` where needed. `$( )` is fine for our own self-contained
   commands. A `$( )` capture also truncates bytes at the first NUL.
-- **`set -e` containment around executed code**: `( set -e ; eval "$( cat )" ) || execStatus=$?`, then
+- **`set -e` containment around executed code**: `(set -e; eval "$(cat)") || execStatus=$?`, then
   `set +e` before returning non-zero. Dropping the `||` kills a long-running server on any failing
   script.
 - **A bracket range in a `case` pattern is collation-dependent.** Under `en_US.UTF-8`, `[a-z]` matches
@@ -432,7 +437,8 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   `.pulling.txt` is the one-pull lock, made only where absent. The messages of a UTC month stand
   in its `YYYYMM` folder, one a line in `messages.txt`; a long body is its own file, and a file a
   message carried is fetched once, on demand. `.local/cache/comms/.interest/<service>-<id>` is the
-  channel's last read, and one older than a week is deleted. Each reader keeps its own floor.
+  channel's last read. A read stops refreshing a mark once it is 48 hours old, and the hourly
+  clean deletes one at 240 hours. Each reader keeps its own floor.
 - **Primary sources and our indices** (in `.local/agents`):
   - hooks: `AgentsToolsClientToolPolicyHookRecords` (`AgentsTools.ClientToolPolicy.include`) →
     `harness.hooks.index`, valid while its version and the `cksum` of the policy and
@@ -686,7 +692,7 @@ User steps are in [docs/installation.md](docs/installation.md).
   (`panel.js:122` and `:42`). Both keep the surface script-free; a header rewrite would drop the only
   policy it holds. The meta form cannot carry `frame-ancestors`, `sandbox` or a report target, and the
   host supplies those.
-- **The panel's identity block is read from the skillset on every draw.** `draw()` rebuilds it from
+- **The panel's identity block is read from the skillset on every draw.** `draw` rebuilds it from
   `magic-team.basic.md`'s `## Public Information` section, at the installed copy beside `panel.js` or at
   the development layout through `../../skillset/magic-team/magic-team/` (`panel.js:38` to `:58`). To
   change what the panel says about the team, edit that skillset section: the next redraw shows it, with
@@ -767,7 +773,7 @@ User steps are in [docs/installation.md](docs/installation.md).
   code. A floor that reads empty is refused, said, and no decision treats it as a floor naming no tool.
   A member `*` row of any other package is a standing row of every member. Then comes `grants.index`, every workspace's registry fully unrolled
   per member, with the places' ceilings, deepest first. It carries the floor:
-  - a write of `.local/temp/**` in every tooling workspace;
+  - a write of `.local/temp/**` in every workspace an index is built for, a rig's own included;
   - where agents are installed, a read of `source/**/{MAGIC.md,README.md}` and `source/**/docs/**.md`,
     and a write of `source/**/MAGIC.md`;
   - the readable member directories and reference roots.
@@ -1141,8 +1147,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **The manager screen is the entry `sh-lib/manager/LocalManagerScreen.py` of `myx.distro-.local` plus its parts**, the files
   `AgentsManagerScreen.<Part>.py` here beside this package's own list. The entry holds the start, the list of parts each package
   declares in its `sh-lib/config/screen-parts.list`, and `loadParts()`. The entry runs each part in its own namespace, so
+
   the screen stays one module whatever its files are. A declaration names a
   function by its name (`globals()[name]`), and a test replaces a function of
+
   the screen by assigning it to the module. A part is plain text of the screen and is
   never run by itself. The declarations come first (`Looks`, `Roots`, `Styles`, `Windows`, `State`).
   Then come the engine and the kinds of view, then the root sections of the
@@ -1830,6 +1838,7 @@ contracts are here.
   a boundary: in-process it would poison the server's `MMDAPP`.
 - **fd 4 is the daemon stream.** Each launch site opens fd 4 as a copy of stderr before merging.
   `AgentsToolsDaemonLine` writes `( printf '%s\n' "$*" ) 2>/dev/null >&4 || printf '%s\n' "$*" >&2`; a line
+
   may appear twice, never be lost. `merge_stderr:false` sends a script's stderr to fd 4. Linux `/bin/sh`
   is unchecked.
 - **`--intern-mcp-execute`** takes the script on stdin and nothing else; stdout carries only the
@@ -1942,7 +1951,7 @@ contracts are here.
 - **Required response fields** (`id`, `name`, `arguments`) are read through `AgentsWireResponseField`, a
   stated exit 1 on absence. `function.arguments` is a JSON string, parsed by running the same reader
   twice. Every value rebuilt into outgoing JSON goes through `AgentsMcpJsonEscape.awk`.
-- **Rounds.** No round cap by default (`MDAT_HARNESS_MAX_ROUNDS`); cost is the real unit. Reaching a cap makes one closing request with `tool_choice` off, never
+- **Rounds.** A run stops itself at 2000 rounds by default (`MDAT_HARNESS_MAX_ROUNDS`; 0 = off). Reaching a cap makes one closing request with `tool_choice` off, never
   removing `tools`, which some wires validate and which is in the cache
   prefix. It then prints the model's account, and exits 3. The closing round itself is
   unprotected.
@@ -1953,7 +1962,7 @@ contracts are here.
   from unchanged `$harnessSystemText` and `$harnessPrompt`. A threshold less
   than half that window is warned of at start, since it restarts the run
   early. The signal is one round's `total_tokens`, not the running sum. An empty summary ends
-  at exit 1. `MDAT_HARNESS_MAX_RESTARTS` bounds restarts; a spent budget closes at exit 3. With no usage
+  at exit 1. `MDAT_HARNESS_MAX_RESTARTS` bounds restarts, 12 by default and 0 for off. With no usage
   reported, round 1 warns once. One round can still overshoot. The Messages wire requires `max_tokens`;
   the chat wire omits it where undeclared.
 - **Streaming.** `curl -N` SSE. One awk per round consumes the stream
@@ -1965,8 +1974,9 @@ contracts are here.
   `--speed-limit 1 --speed-time 45`; no `--max-time`.
 - **Prompt caching is a byte-prefix match.** The tools literal is rendered once; the request appends in a
   fixed order. A re-serialised array stays valid and silently loses the cache; on the Anthropic wire a
-  changed set mid-leg is a 400 at replay. `stream_options.include_usage` is sent; spend is recorded, not
-  enforced.
+  changed set mid-leg is a 400 at replay. `stream_options.include_usage` is sent, and every bound states the spend it stopped.
+- **Every bound states the spend it stopped.** `AgentsHarnessSpendSay` prints one `SPEND:` line at each bound that closes the run with tools off: the round ceiling and the restart ceiling. The line carries the rounds, the figures `in cache-read cache-write out`, their total and the bound that fired, summed from `stream.usage.detail` across the leg. The same line is appended beside the run record as `<session>.spend`, where the `.restarts` and `.refused` markers already sit. The start line states both ceilings, so a default nobody chose is visible before it stops anything.
+- **A quiet run stops idling.** Twenty idle-wait keepalive rounds in a row, with nothing arriving, end a duty's idling: `harnessQuietRounds` stays 0 until a keepalive comes back with no arrival. The run then reaches its plain-reply end, which gives the handback and the CheckList gate.
 - **`AgentsAnthropicMessagesWire.sh` replays the assistant turn byte for byte**, thinking block and
   signature included, in stream order (GAP-2 in the Anthropic stub's record). The one exception is a
   `tool_use` name the provider broke with its own markup: the API matches it against the declared tools,
@@ -1985,8 +1995,8 @@ contracts are here.
 - **`progressLineSafe` is its own file.** `-v progressLineCap=<bytes>` makes it render stdin standalone;
   loaded with `-f` ahead of a formatter, it is a library. A formatter loaded without it dies at the first
   call.
-- **`Bash` tool**: output to a scratch file, never `$( )`; containment
-  `( cd … && set -e && eval … ) || status=$?`; only its cwd is bounded to the roots. Its watchdog
+- **`Bash` tool**: output to a scratch file, never `$`; containment
+  `( cd … && set -e && eval … ) || status=0`; only its cwd is bounded to the roots. Its watchdog
   `sleep` must redirect `>/dev/null`, or it holds the capture pipe for the whole timeout. Bound only
   where `MDAT_HARNESS_RUN_TIMEOUT` or the call's `timeout` sets one; Darwin has no `timeout` binary, so
   the shell watchdog is the live path.
@@ -2000,6 +2010,7 @@ contracts are here.
   context is established (`Distro`, `Require`, `Action`, `DistroSystemContext`
   defined, `MMDAPP`/`MDLT_ORIGIN` set). It runs `DistroAgentsTools --intern-mcp-execute` in a fresh process, output to
   a file and the pid waited on, never `$( )`. Its watchdog ends the process
+
   group, as `execute` ends its own. The MCP server serves its own `execute` instead, so this tool is in
   `mcpUnservedToolNames` beside `Bash`.
 - **Wait bounds**: `MDAT_HARNESS_WAIT_TIMEOUT` caps a harness `Wait` (unset: wait until something
@@ -2236,7 +2247,9 @@ contracts are here.
   given, or at once if it had already handed back.
 - **`ToolSearch`** reads the catalogue rendered by `AgentsHarnessMcpMirror.sh` (cached in
   `toolsearch.floor`, since the call runs in `$( )`) plus `$harnessMcpToolsJson`; `AgentsHarnessToolSearch.awk`
+
   reads all three envelopes. Query through the environment; terms matched with `index()`.
+
 - **Read cap** (`AgentsHarnessReadCap.include`): 200000 bytes for a hosted model, 48000 for an MCP client
   (`MDAT_READ_CAP_BYTES` overrides the mirror). Descriptions carry `{{READ_CAP_BYTES}}`, filled per
   renderer.
@@ -2280,7 +2293,7 @@ contracts are here.
   is made from. It then prints its path, which is what the `Skill` read asks.
   A rebuild that fails keeps the old index, read as it stood.
   `--make-harness-indices tool-index` builds it too.
-- **`Edit`** replaces an exact literal that occurs exactly once, counted with the same `index()` that
+- **`Edit`** replaces an exact literal that occurs exactly once, counted with the same `index` that
   substitutes (never `grep -c`). One call carries one edit, or a list of them in `edits`. Each is read as the
   top level is and applied in order, each to the text the edit before it left.
   Uniqueness is required per edit, unless that edit's own `replace_all` lifts
@@ -2321,7 +2334,8 @@ contracts are here.
   every file. It then calls `--intern-artifact-publish` and posts what it
   printed (`ARTIFACT_URL`, `ARTIFACT_TITLE`, `ARTIFACT_KIND`). A publish that fails after the document exists says its URL and posts nothing.
   The publish never goes through the `--magic-`/`--client-` page-create stubs: it is the caller
-  acting with its own credentials, gated by the permission alone (human-owner, 2026-10-10).
+  acting with its own credentials, gated by the permission alone ().
+
 
 ### The Wait includes: the notes their comments held
 
@@ -2370,6 +2384,7 @@ is returned by the next one, whichever mode it names. Only an explicit
 them. A tag, a direct message and a mention keep a floor the same way (`floor
 tagged:<member>`, `floor dms:<member>`, `floor mentions:<member>`), so a message posted
 into any of them between two calls is not lost either. A :conversation thread with no stored floor starts at the session's own last post
+
 in that thread (sessions/<id>/last-own-post, written by the harness send), else at the
 spawn's launch (the mtime of $MDAT_SPAWN_LAUNCH_MARKER), whichever applies and is older
 than the wait; every other source with none starts at the wait's start. A floor only ever advances to the newest
@@ -2393,11 +2408,13 @@ A source never read once during the wait is named on the line right after it:
 
     WAIT-NEVER-READ: [<kind>:<target>] ...
 
+
 absent when every source was read at least once. It changes neither the outcome
 nor the return code; a caller watching one thread reads it to tell a quiet
 thread from one it could not see at all.
 
-A NAMED SET REPLACES THE STORED SET, THE FLOOR IS ALWAYS ADDED, A CLOSED ASK LEAVES (owner rulings 2026-10-31; sketch 3.2: "either OWN
+A NAMED SET REPLACES THE STORED SET, THE FLOOR IS ALWAYS ADDED, A CLOSED ASK LEAVES (; sketch 3.2: "either OWN
+
 set / either adding OWN implicit floor to current set"). A --wait-default call that names sources watches those in place of the defaults
 (the session thread, or the team channel and the owner DM), which it watches where it names none; the floor -- the replies to its posts,
 its session chat, its DMs and tags, its mentions and its wake marker -- is added either way, and what the stored wait holds comes beside
@@ -2410,6 +2427,7 @@ later reply in its thread reaches the asker as the session floor's (replies:, ch
 The header says which session thread is on record for the session (`# session thread:`), or that none is.
 
 RECEIVED on a thread source (slack:<channel>:<ts>, or its :conversation form)
+
 also names the newest message it just printed:
 
     WAIT-LAST-TS: <ts>
@@ -2455,6 +2473,7 @@ adapter does not ignore it: on a thread it is what makes a reply an answer,
 together with our own message being the floor it must come after.
 
 The sixth argument is INCLUDE OWN POSTS -- true on a :conversation thread source
+
 lifts this operation's own default skip of the caller's own posts there. An
 adapter with no such skip ignores it, same as an adapter that cannot tell one
 author from another ignores the fifth.
@@ -2573,7 +2592,7 @@ message just posted is another clock's "now", so a floor that close ahead is sti
 moment that has passed; one further ahead is not, and is refused before anything is waited on.
 ~~~
 
-- Above `AgentsWaitProbedFlush(){`
+- Above `AgentsWaitProbedFlush{`
 
 ~~~text
 THE STATE OF A WAIT, stored: its sources, addressee, include-own, modes and floors (the newest ts returned for a slack source), the baselines of the rest. Run in the wait's own
@@ -2583,7 +2602,7 @@ Writes the check times of this wait's costly sources to the session's `probed`, 
 write. Run in the wait's own scope.
 ~~~
 
-- Above `AgentsWaitActivityIdle(){ ## the sources of the wait, as they stand after the floor is added`
+- Above `AgentsWaitActivityIdle{ ## the sources of the wait, as they stand after the floor is added`
 
 ~~~text
 A WAIT ON ITS FLOOR ALONE IS IDLE (S27.4). The harness marks a Wait call `tool Wait`, which the registry reads as `waiting`. Where every source of
@@ -2595,20 +2614,21 @@ thread), the run is idle: the mark is rewritten, in the round it holds, as `idle
 - Above `local waitKeepList waitKeepAt waitKeepCount=0 storeIndex=0 storeAsk="" storeSource`
 
 ~~~text
-WHAT IS STORED IS WHAT IS STILL OPEN. A closed ask leaves the stored wait (owner ruling 2026-10-31): its record is closed, so
+WHAT IS STORED IS WHAT IS STILL OPEN. A closed ask leaves the stored wait (): its record is closed, so
+
 nothing it watches can still answer it. The one call that shows its closed note carries it (AgentsWaitProbeAsk), and this write
 is that call's own, so it is stored no more. A kept source keeps its base and floor files at the place it takes in the STORED
 list, which is the place the next call reads them by, so the place it had in this call's round is kept beside it (waitKeepAt).
 ~~~
 
-- Above `case " $waitNamedSources " in *" $storeSource "*) ;; *) continue ;; esac`
+- Above `case " $waitNamedSources " in *" $storeSource "*);; *) continue;; esac`
 
 ~~~text
 A closed ask the caller NAMED is stored with its own base, so a later call naming it again stays quiet
 (AgentsWaitAskBaselineCarryCheck); one carried out of the stored set leaves the list here.
 ~~~
 
-- Above `AgentsWaitAddressConv(){ ## member, source`
+- Above `AgentsWaitAddressConv{ ## member, source`
 
 ~~~text
 The conversation a message's reply address is built in (AgentsWaitReplyAddress.awk), for a source whose own name is
@@ -2616,7 +2636,7 @@ not one: a bare channel id, or an alias such as `magic-team` resolved to its cha
 none -- a file, a process, a board -- and the address pass then invents nothing.
 ~~~
 
-- Above `AgentsWaitSeenIds(){ ## member, source, the rendering file, the member's own Slack id`
+- Above `AgentsWaitSeenIds{ ## member, source, the rendering file, the member's own Slack id`
 
 ~~~text
 The ids (`<conversation>:<ts>`) of the messages a person wrote in the rendering of one source that a wait returned: the conversation is the one the source names, or the
@@ -2624,7 +2644,7 @@ one the rendering names before its messages (`# in <conversation>`, `# replies t
 name is resolved. The member's own and anything that is not a user id are left out.
 ~~~
 
-- Above `AgentsWaitTtlOwn(){ ## source`
+- Above `AgentsWaitTtlOwn{ ## source`
 
 ~~~text
 THE FORM OF A SOURCE THE CALLER ADDS (F3.3, Settled). Short or full is the caller's choice when it adds the source, written after it,
@@ -2639,7 +2659,7 @@ Prints the form of a source, nothing for none.
 The TTL a caller gave a source (#ttl=<seconds>, --wait-source-ttl), nothing for none: the table's then holds (AgentsWaitTtlOf).
 ~~~
 
-- Above `AgentsWaitProbeFunctionName(){`
+- Above `AgentsWaitProbeFunctionName{`
 
 ~~~text
 `slack` -> `AgentsWaitProbeSlack`, without ${var^} -- bash 3.2 has no such
@@ -2649,21 +2669,21 @@ processes a call, and this is read once per source per tick. A kind the list doe
 name keeps the generic form, which is right for one this file never met.
 ~~~
 
-- Above `AgentsWaitSameFile(){ ## a, b`
+- Above `AgentsWaitSameFile{ ## a, b`
 
 ~~~text
 Two renderings hold the same bytes -- rc 0 when they do. A builtin read either side, in
 place of a cmp process a tick.
 ~~~
 
-- Above `AgentsWaitCopy(){ ## from, to`
+- Above `AgentsWaitCopy{ ## from, to`
 
 ~~~text
 A file copied only where the copy differs from it, and an empty one made only where it is not empty already: a quiet call
 writes no baseline. rc as cp's.
 ~~~
 
-- Above `AgentsWaitNewestActivity(){ ## call start (epoch), session id, sources, floors used ("<source>=<ts> ...")`
+- Above `AgentsWaitNewestActivity{ ## call start (epoch), session id, sources, floors used ("<source>=<ts>...")`
 
 ~~~text
 THE BACKOFF IS MEASURED FROM THE NEWEST ACTIVITY on what a wait watches, never from
@@ -2675,14 +2695,14 @@ would carry its reply -- that thread, an ask's thread, or a whole conversation. 
 "<epoch seconds>\t<what>", <what> one of start, floor, question, own-post.
 ~~~
 
-- Above `AgentsWaitBackoffNap(){ ## now (epoch), newest activity (epoch)`
+- Above `AgentsWaitBackoffNap{ ## now (epoch), newest activity (epoch)`
 
 ~~~text
 One nap of the default backoff, in seconds: 5, plus 1 for every 20 since the newest
 activity, capped at 300 -- the formula and cap as ever, only its base is the activity.
 ~~~
 
-- Above `AgentsWaitRemind(){ ## session id (may be empty), sources, the wait's working directory`
+- Above `AgentsWaitRemind{ ## session id (may be empty), sources, the wait's working directory`
 
 ~~~text
 THE REMINDERS OF A WAIT. An ask still waiting on a person is reminded on its schedule
@@ -2697,7 +2717,7 @@ a call, and a run that could not start is said there too. MDAT_WAIT_REMIND=off s
 it off for a call: the test runner sets it for every test (sh-test/AgentsRunTests.sh).
 ~~~
 
-- Above `` AgentsWaitFolderSweep(){ ## member -- keeps this shell's own `<pid> <start>` for the record (agentsWaitFolderShell) ``
+- Above `` AgentsWaitFolderSweep{ ## member -- keeps this shell's own `<pid> <start>` for the record (agentsWaitFolderShell) ``
 
 ~~~text
 THE WORKING DIRECTORY OF A WAIT, AND WHOSE IT IS. Every wait makes one of its own (mktemp,
@@ -2718,12 +2738,13 @@ A directory its wait kept for whoever looks into it (`kept`, AgentsWaitLost belo
 same day, whoever owned it.
 ~~~
 
-- Above `AgentsWaitFolderEnd(){`
+- Above `AgentsWaitFolderEnd{`
 
 ~~~text
 The record the sweep reads, written by the wait into the directory it just made. A shell the
 process list did not give keeps no process there: its directory is then one with no whole record.
 The end of a Wait's folder: a kept one only lets its hold go, one of its own under .local/temp goes whole. Run in the wait's scope.
+
 ~~~
 
 - Above `:`
@@ -2740,7 +2761,7 @@ The member stub and its implementation, one arm. A wait reads and reacts under t
 a spawned session names only itself; tooling calls --intern-op-wait-for-input directly.
 ~~~
 
-- Above `if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && LC_ALL=C grep -q -s '^routine-lock: ' "${MMDAPP%/}"/.local/agents/spawned/*/"$MDAT_SPAWN_SESSION_ID.spawn.md" 2> /dev/null ; then`
+- Above `if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && LC_ALL=C grep -q -s '^routine-lock: ' "${MMDAPP%/}"/.local/agents/spawned/*/"$MDAT_SPAWN_SESSION_ID.spawn.md" 2> /dev/null; then`
 
 ~~~text
 A run that holds the lock of its routine keeps it held while it waits (AgentsToolsRoutineLockRefreshOwn): the record of the run is looked at first,
@@ -2759,7 +2780,8 @@ the same source again, explicitly, on a later call is unaffected by this.
 
 ~~~text
 A source the caller adds may end in #short or #full, chosen when it is added (F3.3, AgentsWaitSourceModeApply), and in
-#ttl=<seconds>, its own TTL (owner 2026-10-29); --wait-source-ttl before it gives the same. Either, both or neither.
+#ttl=<seconds>, its own TTL (); --wait-source-ttl before it gives the same. Either, both or neither.
+
 ~~~
 
 - Above `waitAddressee="$waitAddressee$2 "`
@@ -2814,10 +2836,12 @@ in. This member's own, and only those whose wait is proven gone (AgentsWaitFolde
 ~~~text
 What mktemp says of a failure is kept and said: the wait then ends on one line, never on a
 name that is no directory. A directory its record cannot be written into holds no rendering either.
-ONE WORKING FOLDER A MEMBER KEEPS IN ITS SESSION, across its Waits (owner 2026-10-29): sessions/<id>/wait/work.<member>,
+ONE WORKING FOLDER A MEMBER KEEPS IN ITS SESSION, across its Waits (): sessions/<id>/wait/work.<member>,
+
 held by one Wait at a time (.held, its owner a live process). A quiet first round then finds its files as the last Wait
 left them, and the keys of what it read in seen.txt, so it writes nothing. A Wait with no session, or one that finds the
 folder held, takes one of its own under .local/temp, as before.
+
 ~~~
 
 - Above `local waitBaselineMode="first-probe"`
@@ -2850,7 +2874,7 @@ so the file adapter keeps comparing whole renderings and a file already
 sitting there still does not count as an arrival.
 ~~~
 
-- Above `local waitFloorOf=() waitFloorNew=() waitFloorsUsed="" floorIndex=0 floorStored floorStoredIndex floorStoredSource`
+- Above `local waitFloorOf= waitFloorNew= waitFloorsUsed="" floorIndex=0 floorStored floorStoredIndex floorStoredSource`
 
 ~~~text
 One floor per source. LOSSLESS: a stored floor is never dropped. Without an explicit
@@ -2859,6 +2883,7 @@ question is the root an answer must follow), and any other Slack source takes th
 OLDER of the two, so a since newer than the stored floor -- the ts of a reply the
 caller posted after the last wait returned -- cannot skip what landed in between.
 With neither, a :conversation thread starts at the session's own last post in
+
 that thread, else at the spawn's launch, and every other source at the wait's start.
 Every Slack source's baseline is empty: its rendering holds only what is after its
 floor, so whatever is there is new, including a post made before the first read.
@@ -2907,7 +2932,7 @@ THE TTL HOLDS ACROSS WAITS (sketch 3.2, sources of different frequencies): a sou
 included, only once its TTL has passed since its last check by any Wait of the session (`probed` beside the stored wait).
 ~~~
 
-- Above `local waitRoundFn=() waitRoundIndex=0 waitRoundSource`
+- Above `local waitRoundFn= waitRoundIndex=0 waitRoundSource`
 
 ~~~text
 The probe function of each source, resolved once: it cannot change while this wait
@@ -2917,7 +2942,8 @@ runs, and reading it per tick cost a subshell and three processes a source.
 - Above `local waitCacheTtl=1`
 
 ~~~text
-THE AGE A SLACK LOOK IS SERVED AT (owner design 2026-10-31: Slack is read through the comms cache, so a Wait never
+THE AGE A SLACK LOOK IS SERVED AT (: Slack is read through the comms cache, so a Wait never
+
 re-reads Slack itself). A thread the cache holds is served; one second past its newest pull it brings in only what
 came after and merges that in, so a round asks Slack for nothing an earlier pull already covers. Reading the thread
 whole instead cannot end inside a bound its caller gives: a 258-message thread renders in 145 s here, so the round is
@@ -2941,7 +2967,7 @@ inside it, the source is skipped on this pass, the first included. A source skip
 it is not one never read.
 ~~~
 
-- Above `if [ "$waitBackoff" = "true" ] ; then`
+- Above `if [ "$waitBackoff" = "true" ]; then`
 
 ~~~text
 THE TICK AND THE SLOW LOOK: a local source is read every tick, a costly one only once the slow gap has
@@ -2951,7 +2977,7 @@ actually due, so a quiet tick over local files spends nothing on the activity re
 Round 1 included: a costly source the last Wait of the session read within its gap is not read again (sketch 3.2).
 ~~~
 
-- Above `if [ "$roundKind" = "slack" ] ; then`
+- Above `if [ "$roundKind" = "slack" ]; then`
 
 ~~~text
 A named Slack source has its own TTL floor too (AgentsTools.SourceTtl.include), the same
@@ -2962,21 +2988,23 @@ branch: a caller naming its own --wait-poll-interval still reads every round.
 - Above `roundQuietFrom="${waitFloorOf[$roundIndex]%%.*}"`
 
 ~~~text
-BACKED OFF while the source brings nothing (owner 2026-10-29): from its TTL to twenty times it, reached after two
+BACKED OFF while the source brings nothing (): from its TTL to twenty times it, reached after two
+
 hundred times the TTL since its floor -- the newest it returned, or its since -- kept by the session across Waits.
 ~~~
 
-- Above `if [ $(( roundNow - ${waitProbedAt[$roundIndex]:-0} )) -lt "$roundSlowGap" ] ; then`
+- Above `if [ $((roundNow - ${waitProbedAt[$roundIndex]:-0})) -lt "$roundSlowGap" ]; then`
 
 ~~~text
 A source skipped so was read within its own slow gap, by this Wait or an earlier one of the session: it is not
 one never read, as the TTL skips above say of their own.
 ~~~
 
-- Above `if [ "$roundKind" = "scan" ] && { [ "$waitOutcome" = "RECEIVED" ] || { [ -n "$waitDeadline" ] && [ "$roundNow" -lt "$waitDeadline" ] && [ $(( waitStart + SECONDS - waitSecs0 )) -ge "$waitDeadline" ] ; } ; } ; then`
+- Above `if [ "$roundKind" = "scan" ] && { [ "$waitOutcome" = "RECEIVED" ] || { [ -n "$waitDeadline" ] && [ "$roundNow" -lt "$waitDeadline" ] && [ $((waitStart + SECONDS - waitSecs0)) -ge "$waitDeadline" ]; }; }; then`
 
 ~~~text
-A ROUND READS EVERY SOURCE IT HOLDS (owner ruling 2026-10-31). An arrival already in hand is returned once the round has
+A ROUND READS EVERY SOURCE IT HOLDS (). An arrival already in hand is returned once the round has
+
 read the rest of them, and a probe that cannot finish inside the bound is handed to the task wrapper as it always is
 (roundProbeTimeout). A source the round could not read -- a probe that failed, or a scan not begun -- shows in WAIT-NEVER-READ.
 A scan takes minutes, so one that has not begun is not begun once something has arrived in this round (the arrival wakes
@@ -2984,7 +3012,7 @@ the caller, and the scan is read at the next wait, its report being compared wit
 bound has passed in it. It then shows in WAIT-NEVER-READ.
 ~~~
 
-- Above `if [ -n "$waitProbedFile" ] ; then`
+- Above `if [ -n "$waitProbedFile" ]; then`
 
 ~~~text
 Its check is kept for the next Wait of the session: written with the others at most every 30 s, and when the wait
@@ -3016,7 +3044,7 @@ chat and replies are excluded here (S21.15, agentsWaitKindUnbounded above): each
 call on its own TTL and must not be exempt from the bound wrapper the way a genuinely local kind is.
 ~~~
 
-- Above `*) [ -z "$waitDeadline" ] || [ "${waitTimeout:-0}" = "0" ] || roundProbeTimeout=$(( waitDeadline - roundNow )) ;;`
+- Above `*) [ -z "$waitDeadline" ] || [ "${waitTimeout:-0}" = "0" ] || roundProbeTimeout=$((waitDeadline - roundNow));;`
 
 ~~~text
 A ZERO BOUND IS ONE PASS AND NO WAIT: the round is the whole call, so the probe is read in line and
@@ -3027,7 +3055,8 @@ ends on a detached probe with nothing to return.
 - Above `case "$roundProbeTimeout" in`
 
 ~~~text
-A WRAPPER IS NEVER GIVEN THE LAST SECOND (owner ruling 2026-10-31: a round reads every source it
+A WRAPPER IS NEVER GIVEN THE LAST SECOND (: a round reads every source it
+
 holds). Its own start -- a process, its includes and its files -- costs about a second, so a probe
 wrapped on less has no time to read, detaches, and its arrival is lost: the call says TIMEOUT and
 names a source never read for a message already there (AgentsWaitSourceModeCheck, section 4).
@@ -3053,11 +3082,12 @@ as the earlier ruling says: one past the bound is a source this round did not re
 on to its remaining sources, as S21.6 says, instead of naming every one of them unread with it.
 ~~~
 
-- Above `if [ "$roundRc" = "4" ] ; then`
+- Above `if [ "$roundRc" = "4" ]; then`
 
 ~~~text
 A source that cannot be read for want of a permission is an error of its own, said in the header, and no source never
 read: what the member is denied is known, so it never stands for an unknown (rc 4, its reason in the rendering's .permission).
+
 ~~~
 
 - Above `case "$waitProbeFailures" in`
@@ -3068,7 +3098,7 @@ over the sources that can: one unreachable source must not
 turn a multi-source wait into silence.
 ~~~
 
-- Above `if [ "$roundKind" = "wake" ] ; then`
+- Above `if [ "$roundKind" = "wake" ]; then`
 
 ~~~text
 THE WAKE MARKER IS NO ARRIVAL OF ITS OWN (AgentsTools.WakeMarker.include). One of our own members
@@ -3096,7 +3126,7 @@ Unbounded, a first round that could read no source at all returns at once rather
 than wait forever on sources nothing is known about: TIMEOUT with WAIT-NEVER-READ.
 ~~~
 
-- Above `if [ -n "$waitWakeSeen" ] ; then`
+- Above `if [ -n "$waitWakeSeen" ]; then`
 
 ~~~text
 THE MARKER WAS WRITTEN: read every source again now, the costly kinds included, and do not sleep
@@ -3110,7 +3140,7 @@ a tick would run it sixty times a minute. An unchanged scan is still left to its
 the TTL is for.
 ~~~
 
-- Above `if [ "$waitNow" -ge "$waitRemindNext" ] ; then`
+- Above `if [ "$waitNow" -ge "$waitRemindNext" ]; then`
 
 ~~~text
 The asks this wait stands for are reminded from here (AgentsWaitRemind): after a
@@ -3131,6 +3161,7 @@ estate, one file source, 15 further poll rounds: 1.00 processes a round before, 
 and the descriptor is closed before the result is written. A wait that cannot make the fifo falls back
 to `sleep`, so a read-only temp folder costs the old one fork a round and nothing more. The read
 returns 1 when it waited out its time, as `sleep` returns 0: the guard `|| :` carries that, or `set -e`
+
 ends the wait at its first quiet second. A read of 300 seconds is woken by TERM as promptly as a sleep
 is (measured on bash 3.2.57), so a wait is still ended the way it was.
 ~~~
@@ -3147,7 +3178,7 @@ its locals and its arguments, and ends by dot-sourcing the next part and returni
 
 ~~~
 
-- Above `if [ "$waitListOnly" = "true" ] ; then`
+- Above `if [ "$waitListOnly" = "true" ]; then`
 
 ~~~text
 Asked what it can wait on, it answers and waits on nothing. This is the
@@ -3160,20 +3191,23 @@ may name, with no second list to keep in step.
 ~~~text
 slack:session-current and slack:session-parent each name that session's thread, as the Wait tool
 takes them: the one address resolver gives the thread, and it is waited on as its :conversation
+
 source, before anything below checks or stores a source. With :<ts> the name is one message in
+
 that thread's conversation, and the source is the thread of that message: plain for an answer
 to it, with :conversation for any new post there. A name that names nowhere is refused by the
+
 resolver's own line.
 ~~~
 
-- Above `if [ -n "${MDAT_SPAWN_LAUNCH_MARKER:-}" ] && [ -f "$MDAT_SPAWN_LAUNCH_MARKER" ] ; then`
+- Above `if [ -n "${MDAT_SPAWN_LAUNCH_MARKER:-}" ] && [ -f "$MDAT_SPAWN_LAUNCH_MARKER" ]; then`
 
 ~~~text
 When this spawn launched: the launcher's own marker file, written once at launch.
 The floor of a session or conversation thread with no stored floor and no own post.
 ~~~
 
-- Above `if [ -z "$waitSources" ] ; then`
+- Above `if [ -z "$waitSources" ]; then`
 
 ~~~text
 Defaults. A caller inside a coworking session defaults to that session's
@@ -3204,12 +3238,13 @@ beside them its own session thread once that is on record, as any new post there
 but its own (AgentsToolsSessionCurrentThreadFind). With no record, these two alone.
 ~~~
 
-- Above `if [ "$waitMode" = "default" ] && [ -n "$waitStoredSources" ] ; then`
+- Above `if [ "$waitMode" = "default" ] && [ -n "$waitStoredSources" ]; then`
 
 ~~~text
 An asked question's wait item (ask:<pending-id>) is carried while its record is OPEN, a named set included: its answer has no
 other watcher. A CLOSED one leaves the stored wait at the next write (AgentsWaitStateStore), which is the write of the one call
-that shows its closed note (owner ruling 2026-10-31). A later reply in that thread reaches the asker as the session floor's,
+that shows its closed note (). A later reply in that thread reaches the asker as the session floor's,
+
 replies: or chat:, never as a CLARIFIED of the question.
 The rest of the stored set is carried by a call that names NO source of its own: a named set REPLACES the stored one (owner
 ruling 2026-10-31), which is how a stale thread leaves the wait it was stored in.
@@ -3223,7 +3258,7 @@ itself is retained forever (T9), so its mere existence carries this
 forward with no end otherwise.
 ~~~
 
-- Above `if [ -n "$waitSessionId" ] && { [ "$waitMode" = "default" ] || [ "$waitMode" = "continue" ] ; } ; then`
+- Above `if [ -n "$waitSessionId" ] && { [ "$waitMode" = "default" ] || [ "$waitMode" = "continue" ]; }; then`
 
 ~~~text
 THE FLOOR (sketch 12.1). A session's wait -- a default or a continued one -- holds its one session thread, read from the
@@ -3249,7 +3284,7 @@ wake marker (wake:), each on its own TTL. Read after what the call names (and be
 check of them never holds back the read of a named source in a round.
 ~~~
 
-- Above `if [ -n "$waitSessionId" ] && { [ "$waitMode" = "default" ] || [ "$waitMode" = "continue" ] ; } ; then`
+- Above `if [ -n "$waitSessionId" ] && { [ "$waitMode" = "default" ] || [ "$waitMode" = "continue" ]; }; then`
 
 ~~~text
 THE SCANS ARE READ LAST. A scan is the one source whose read takes minutes (the work-duty scan runs the inbox, the owner's
@@ -3274,7 +3309,7 @@ A given interval (--wait-poll-interval, else MDAT_WAIT_POLL_SECONDS) stays fixed
 as it always did.
 ~~~
 
-- Above `if [ -n "$waitSessionId" ] ; then`
+- Above `if [ -n "$waitSessionId" ]; then`
 
 ~~~text
 THE ROUND OF A SESSION'S WAIT. A wait that belongs to a session -- a mode, with its
@@ -3336,7 +3371,7 @@ its sidecars with it: resolved there too, as AgentsWaitProbeAsk does, so the
 session that asked can still wait on the question it asked.
 ~~~
 
-- Above `if [ "$waitMode" = "add" ] || [ "$waitMode" = "drop" ] ; then`
+- Above `if [ "$waitMode" = "add" ] || [ "$waitMode" = "drop" ]; then`
 
 ~~~text
 --wait-add and --wait-drop change the stored wait's source list and wait on nothing. A
@@ -3355,7 +3390,7 @@ either of those is refused here rather than waited on.
 no addressee, sibling to today's named `slack:magic-team` etc. targets.
 ~~~
 
-- Above `if [ "$checkUnfloored" -gt 0 ] && [ -z "$waitSince" ] && [ "$waitMode" != "continue" ] && [ "$waitMode" != "close" ] ; then`
+- Above `if [ "$checkUnfloored" -gt 0 ] && [ -z "$waitSince" ] && [ "$waitMode" != "continue" ] && [ "$waitMode" != "close" ]; then`
 
 ~~~text
 A continued or closed wait has its floors stored, so no since is asked for. A
@@ -3363,10 +3398,10 @@ A continued or closed wait has its floors stored, so no since is asked for. A
 post there, or the wait's start (below), any of which is a floor.
 ~~~
 
-- Above `if [ "$waitIncludeOwn" = "true" ] && [ "$checkConversation" = "0" ] ; then`
+- Above `if [ "$waitIncludeOwn" = "true" ] && [ "$checkConversation" = "0" ]; then`
 
 ~~~text
---wait-include-own only changes anything on a :conversation thread source,
+--wait-include-own only changes anything on a:conversation thread source,
 the one place this operation skips the caller's own posts by default (see
 AgentsSlackThreadAnswers.awk). Everywhere else already includes them, so the
 flag would be a silent no-op there -- refused instead, same shape as the
@@ -3630,6 +3665,7 @@ flag would be a silent no-op there -- refused instead, same shape as the
   `AgentsToolsBoardActiveItems`). Those list item names only.
 - **No input scan is an agent's call.** A scan is the operation `--intern-op-<scan>-input-scan`, named by a routine's
   repeatable `input-scan-def: <scan> [--option value ...]` line (`none` alone
+
   for no scan). The spawner runs it at start, after the lock, in the order
   written, for the member of the start. The results are saved to
   `input/<spawn-id>/input-scan.md`, in the run's own input folder, and named in the brief. One parser reads the
@@ -4010,6 +4046,7 @@ op's own option arm.
 - **`AgentsSlackBlocksBuild.awk`** (markdown → Block Kit):
   - Backslash escapes run before every other branch, including code spans. The
     punctuation set is spelled out there, not taken from `isPunctCh()`, which
+
     drops backtick and quotes on purpose.
   - only `"# "` makes a `header` block; deeper headings become bold lines;
   - `[label](url)` is consumed in one step, after code spans. `(` nests in the
@@ -4081,7 +4118,7 @@ op's own option arm.
   escapes-and-linkifies it with `AgentsEmailHtmlBuild.awk`, which escapes HTML once, in `wrapStyle`;
   bare URLs link, bare addresses are bold blue with no `mailto:`. `AGENTS_EMAIL_SEND_BUILD_ONLY=true`
   builds without sending.
-- **Email reads** fetch in a subshell redirected to a file (a `$( )` loses NULs and leaks `set +e`).
+- **Email reads** fetch in a subshell redirected to a file (a `$` loses NULs and leaks `set +e`).
 - **`--get-path-history`** runs `git log` only, with `GIT_OPTIONAL_LOCKS=0`, no pager. Containment is on the resolved path against the workspace plus
   `AgentsToolsClientAccessRoots read`. Symlinks and `..` are refused. Empty
   root lines are skipped, since an empty root matches everything. "outside the
@@ -4129,6 +4166,14 @@ op's own option arm.
   `--update-json` (add/remove/set); `status` is refused locally; `notifyUsers` defaults to false.
   `issue-transition` always looks up transitions and matches `to.name` exactly; zero or several matches
   fail before the POST. `comment-add` has no `visibility`.
+- **Jira labels are set membership.** `project = MAGIC AND labels = "<value>"` matches every issue
+  carrying that value, never one issue alone. Measured 2026-11-21 09:52 to 09:56 +0200: an item-key
+  label matched two issues, and a state label matched 41. A value no issue carries matched none.
+  Every answer reported `isLast=true`, so each set was complete. The match ignores case: the
+  upper-case spelling of the state label returned the identical 41 issues. Two write behaviours,
+  measured by `magic-coordinator` at 2026-11-20 18:36 +0200. A whole-label write through
+  `--fields-json` replaces the list. An add/remove pair through that path answers 204 while
+  writing nothing.
 - **Jira lists**: paging values are whole numbers, refused when wrong. Every list states
   `more: no|yes|unknown`. `sprint-list` checks the board type and the `SPRINTS` feature first: kanban
   and disabled simple boards print an empty list with `more: no`. It never
@@ -4691,6 +4736,11 @@ Each instrument states what it proves and its red recipe in its own header. What
   rule this replaces is `mkdir $MMDAPP/.local/temp/suite-run.lock` around a run, and it is kept on both sides: a lock
   taken by hand shuts every lane, and so does the lock of a runner from before the lanes, which writes no
   `lanes: yes`. `AgentsRunTestsQueueCheck` section 9 and `AgentsRunTestsLeakCheck` section 8 hold all of it.
+- **A lane is given back once its own record names a run folder holding a receipt for every check it took the lane to run**, whatever its holder's process does then. That holds on lane 1 and on every numbered lane alike.
+- **The lane's record carries `checks=` and `rundir=`**, written when the lane is taken and again when the run list settles.
+- **Freeing a lane also takes that run's ticket out of the machine's line**, so no waiter stands behind a turn that never comes.
+- **A lane read stays free of folder walks.** `AgentsRunLaneFree` runs on every wait pass, so the folder and the count come from the lane's own record. Its `tests.list` is read only where the record names a folder and no count.
+- **`sh-test/common/AgentsRunTestsLaneReleaseCheck.test.sh` holds that surface**, over a lane whose holder lives while its work is done, on lane 1 and the numbered lanes, with its kept-lane controls.
 - **Nobody sits on a wait.** A run that must wait for its turn, and was not given `--wait`, starts a run of itself
   detached, which takes its very ticket over, so the line keeps its order. The call then names the ticket and the run
   folder, and returns 75 with no result yet: `progress.txt` there fills as checks end, `summary.txt` comes once the run
@@ -4718,9 +4768,11 @@ Each instrument states what it proves and its red recipe in its own header. What
 - **The runner hands the parallel driver its workers, never the tests** (`AgentsRunWorker`); a worker
   takes the next test by making that test's log file. So a run cannot stand still on the driver's own
   helper, as the old one could.
-- **A run that stands still is ended with status 124.** It counts as standing still when nothing
-  changed in its run folder for longer than the test timeout plus `--stall-margin` (120 seconds by
-  default). `summary.txt` then gets a `STALLED` line, and `stalled.txt` in the run folder names what
+- **A run that stands still is ended with status 124.** The window is the test timeout, plus
+  `--stall-margin` (120 seconds by default), plus the yield's whole budget of three 120-second
+  phases. A run counts as standing still once nothing changes in its run folder for longer than
+  that window. The yield is why: a run that gave its lanes up leaves its run folder unchanged while
+  it waits. `summary.txt` then gets a `STALLED` line, and `stalled.txt` in the run folder names what
   never ran and what never ended. `AgentsRunTestsStallCheck` is the test for both.
 - **`AgentsMcpCallWatchdogCheck`** is the test of the watchdog of a served call
   and of `execute`. It also tests the kill action of a job and the two group
@@ -4743,6 +4795,7 @@ Each instrument states what it proves and its red recipe in its own header. What
   matters, for the time until that tick and for a thread that runs older code.
 - **A stand-in blocks on a pipe, never spins.** A rig process that waits with
   `while : ; do sleep 1 ; done` burns a wake-up a second for as long as it
+
   lives, and it lives past its check whenever the check is killed. It blocks on
   a read of a pipe instead, with the check holding the writing end
   (`sh-test/check-fixtures/rig-blocking-stand-in.include.sh`, `rigBlockingStandIn`): the
@@ -4751,6 +4804,7 @@ Each instrument states what it proves and its red recipe in its own header. What
 - **Four rig traps make a check lie.** A stand-in session needs `--session-id <id>` on its own command
   line, because the registry finds a session by it, and `bash -c 'sleep N'` alone execs the sleep and
   loses the flag: `bash -c 'sleep 600; :' <id> --session-id <id>` keeps bash in place
+
   (`sh-test/check-fixtures/manager-screen.live-rig.include.sh`). A liveness answer is served from
   `.local/agents/liveness/` for `AGENTS_LIVENESS_TTL` seconds, 30 by default, so a check that starts a
   stand-in and reads at once fails by timing: settle first, or read again. A scratch origin holds only the
@@ -5101,6 +5155,7 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - **The controls.** A made-up token reads 0 in both folders, and the walk reads 878 and 975.
 - **What the counts do not answer.** Which of the six code packages a send specifically needs: they count files that name a package, never the send path. Nothing off this host either, so FreeBSD and Linux are unread.
 - **The count moves with the tree, so quote it with its date.** An earlier set read 873 files and agreed on twelve of these fourteen cells; the tree gained five files between the two.
+- **A cache folder of a direct conversation resolves through `AgentsToolsCommsCacheSlackDir`, and `AgentsToolsCommsCacheDir` names another folder there.** The generic call drops the reading account, so a DM resolves to `slack-<dm id>`. The real folder carries that account first: `slack-bot-<dm id>` as the bot, and `slack-<account user id>-<dm id>` as a member account. A rig that seeds the generic path seeds a folder no reader opens, which is why `rigOwnerCommsState` seeds through the slack-aware call. Measured 2026-11-23 01:35 +0200, at `sh-lib/comms/AgentsTools.CommsCache.include:24` and `:35`: a channel agrees under both calls, and both DM forms differ.
 
 ## A retest by name, and the `--project` that widens it
 
@@ -5159,7 +5214,7 @@ Standing decisions of the human-owner. Each holds until he changes it.
 
 ## A tool call's streams are named on the command that runs it
 
-- **A tool call's streams are named on the command that runs it, never set by a subshell around it.** The Bash tool runs `< in > out 2> err bash -c 'cd "$1" && set -e && eval "$2"'` as the harness's own child. An `( exec < in > out ; exec <cmd> )` wrapper costs one process a call for nothing. Measured on one call with `timeout: 0`: 9 harness-argv ancestors before, 8 after.
+- **A tool call's streams are named on the command that runs it, never set by a subshell around it.** The Bash tool runs `< in > out 2> err bash -c 'cd "$1" && set -e && eval "$2"'` as the harness's own child. An `(exec < in > out; exec <cmd>)` wrapper costs one process a call for nothing. Measured on one call with `timeout: 0`: 9 harness-argv ancestors before, 8 after.
 - **The command's `cd` and `set -e` stay inside its own `bash -c`.** Run them in the harness's shell and the change of directory outlives the call.
 - **The output mode is a branch at each site, not a helper that redirects the caller's shell:** `2>&1` for merged, `2> err` for prefixed. `AgentsHarnessToolStreams` is the old form and is now unused. A second call site adds the branch, not the helper.
 
@@ -5188,6 +5243,12 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - **`AgentsToolsScheduleThreadKnowledgeKeep` runs once in each schedule pass.** It rebuilds when `wanted` is newer than `built`, or when `built` is older than `MDAT_SCHEDULE_KNOWLEDGE_INDEX_SECONDS` (900, and 0 turns it off). The 900 s bound catches a hand edit to a project `MAGIC.md`, which no writer marks.
 - **A write and a build inside one second cannot be ordered by mtime, so the pass rebuilds unless `built` is strictly newer than `wanted`.** That costs at most one extra build an hour.
 - **The query names its source on stderr, beside the dropped-sections count:** `answered from the index`, or `answered from the text alone` with the reason. The answer text is unchanged by that line. `AgentsKnowledgeIndexKeepCheck` (`sh-test/team-data`) holds all of it, 13 assertions offline.
+- **`AgentsKnowledgeStore.py query` takes `--sources <file>`, the refs the caller may read, one a line**, and filters rows on them before `--limit`. A row outside them is filtered before the limit rather than dropped after it, so it never spends the answer.
+- **The index groups are coarser than a caller's own files.** The index holds every project's docs and every member's inbox, where a call reads the projects it selected and its own inbox.
+- **A ref is the path below the root it stands under, as `AgentsKnowledgeScan.awk` writes it.** `AgentsTools.Knowledge.include` builds that file from its own list, stripping `MDAT_DATA_ROOT` first and `MMDAPP` second, and passes it for `--add-source-docs` and `--add-inbox-items` only. `AgentsToolsKnowledgeFiles` prints absolute paths, so the strip is what turns them into refs. A source under neither root contributes no ref, and an empty list answers nothing.
+- **The filter makes a query faster, because the index scans fewer rows.** Measured at 2026-11-21 22:04 +0200 over 1210 inbox refs on a store of 101281 rows: 5.19 s, 5.62 s and 5.38 s with the predicate, against 15.40 s without it.
+- **The lancedb stand-in applies the predicate its search is given** (`sh-test/check-fixtures/knowledge-store-lancedb.stub`). Its `_matches` strips the backticks round a column name, because the store writes the group predicate as `` `group` IN (...) ``. A stand-in that ignores `where` answers every group, so an index check that passes no predicate measures nothing.
+- **`AgentsKnowledgeStubMatchCheck` (`sh-test/team-data`) is the check of that surface**, naming every predicate form the engine writes, the one grouped call and the full-text reader. `AgentsKnowledgeLookupAdvertisedCheck` (`sh-test/help`) holds the lookup's presence in the served list and in the help page.
 
 ## The rigs list and the scan's every-rig default
 
@@ -5248,7 +5309,8 @@ Standing decisions of the human-owner. Each holds until he changes it.
 
 ## Stage origins for a check
 
-- A check runs on an origin made of real copies: `myx.distro-agents` plus its six sibling packages, `myx.distro-.local`, `myx.distro-system`, `myx.distro-source`, `myx.distro-deploy`, `myx.distro-remote` and `myx.common`, each by `cp -RL`. That is about 108 MB.
+
+- A check runs on an origin made of real copies: `myx.distro-agents` plus its six sibling packages, `myx.distro-.local`, `myx.distro-system`, `myx.distro-source`, `myx.distro-deploy`, `myx.distro-remote` and `myx.common`, each by `rigCopyTree`. It syncs each into a lane of its own with `rsync -rtLO --delete --exclude=.git`, sending only what changed, and clones the lane into the rig. That is about 108 MB.
 - A package-only origin gives false results: a check that reaches a sibling fails on `No such file`, and with no config there is no remote.
 - A copy of the whole `source/myx` tree is 1.6 GB, and 49 such copies filled scratch to 62.9 GB. Never copy it whole.
 - An origin holds no link into a source tree. Check with `find <origin> -type l` before the run, and remove the origin once its run is read.
@@ -5292,3 +5354,1807 @@ For developers of this package. Every list kept against the spawned/ store keys 
 - **A long-lived parent-1 thread is not a wedge on its own.** The thread ends by itself once no request came for `MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS` (60), so one alive for many minutes is serving requests or is stuck. `ps` alone cannot tell the two apart. Read `store.lock` beside `ps`.
 - **The fault is a `store.lock` whose holder still answers `ps` after minutes and is never seen absent.** A healthy pair leaves the lock absent between passes.
 - **Measured 2026-11-19, 15:42 to 15:53.** Two parent-1 threads were alive, started 15:03 and 15:12. `lsof` showed one serving this workspace's store and the other another workspace's. On this workspace's store, `store.lock` existed at 15:42 with mtime 15:42, and its holder was not read then. It was absent at six samples five seconds apart from 15:43. At 15:46 it held the 95028 thread at three samples four seconds apart. `thread.lock` held 95028 without a break throughout.
+
+# sh-test/AgentsRunTests.sh — the test runner
+
+AgentsRunTests.sh -- runs sh-test/*.test.sh and sh-test/*/*.test.sh in parallel (myx.common lib/parallel) and keeps
+one log and one receipt per test in a run folder, in the folder the run was started from: the
+session's own output folder where a session runs it, the workspace's .local/temp otherwise:
+  <that folder>/mdat-tests/<UTC-stamp>/<test>.log      the test's whole output
+    (<UTC-stamp>-<pid> for a run started in the same second as another)
+  <that folder>/mdat-tests/<UTC-stamp>/<test>.receipt  rc, seconds, last line
+  <that folder>/mdat-tests/<UTC-stamp>/summary.txt     PASS / FAIL per test, each failure with its owner and reason, totals
+and points <that folder>/mdat-tests/latest at it.
+
+Usage: AgentsRunTests.sh [--wait] [-w <workers>] [-t <timeout-seconds>] [--stall-margin <seconds>] [<name-substring>...]
+       AgentsRunTests.sh --passed [<name-substring>...]
+       AgentsRunTests.sh --sweep-rigs-list [<hours>]
+       AgentsRunTests.sh --sweep-rigs [<hours>]
+  --sweep-rigs-list runs nothing: for each rig folder under $MMDAPP/.local/agents/scratch/sh-test older
+  than <hours> (24 unless given) that no process names, it prints one line, `sweep: would remove <rig>`;
+  a rig a process still names, and a rig holding a link that reaches a source tree, are printed as kept
+  with the reason. --sweep-rigs removes those same rigs, immutable flags and read-only modes cleared first,
+  and prints one line each and a summary; the kept ones stay. A check ended by KILL runs no trap, so its
+  rig stays until this sweep (board task 20261107T1905Z).
+  no substrings: every *.test.sh of sh-test and of its subfolders, one level down (a test is
+  known by its name, so no two share one); otherwise the tests whose name contains any of them.
+  --passed runs nothing: for each of those tests it prints one line, `<test> <when>`, the
+  time it passed on the very state it would run on now, or `<test> -` where no such pass
+  is on record (the pass record, below).
+  Workers: one unless -w is given.
+  Each line of the run list is `<test> <timeout-seconds>`; -t sets the timeout written
+  into each line (default 900).
+  Status: 0 every test passed, 1 a test did not or the run was refused, 124 the run stood
+  still and was ended (A RUN THAT STANDS STILL, below), 75 the run was queued and goes on detached, with no result yet.
+  --wait: a run whose turn has not come waits for it in this call. Without it, the run never holds its caller: it
+  goes on detached in its place in the line, and this call names where its result will be (NOBODY SITS ON A WAIT, below).
+  A run left detached waits up to 3600 s for its turn unless the machine sets MDAT_SUITE_QUEUE_LIMIT, since nobody waits on it.
+  Known failures: every failure of the suite has an owner and a reason, kept beside this runner in
+  `known-failures.txt`, one row a test, TAB between its three fields: the test, its owner, and why it is
+  red. A FAIL line carries them, a test of the list that passes is printed FIXED, and the last line counts
+  the failures that have an owner and those that do not. A list that is not three filled fields a row is
+  refused before any test runs (THE FAILURES HAVE OWNERS, below).
+
+Each test gets a test-only session identity, so no test can write into a live session store.
+And nothing of the session its runner was started in. A member's session that a spawn started
+holds more than its id and its member: its coworking session and that session's thread, the
+conversations it continues, its sandbox, its launch marker, whether its caller waits. Every
+MDAT_SPAWN_* and MDAT_SESSION_* variable is taken out, and MDAT_CONVERSATION_THREADS: a rig
+that found them was no session of its own. Its spawn joined that session and took its thread,
+its question to a member went there, its harness kept its scratch in that member's sandbox.
+And each test is handed the member folder of the workspace the run is in, never the one the
+session that started the run serves: a test that read that one would act as a member of another workspace.
+And its waits remind no ask (MDAT_WAIT_REMIND=off, AgentsTools.MemberWait.include): the asks of
+a rig carry the ts its fake Slack gives, years old, so every wait that brings nothing would
+remind them, one more post than a scenario counts. A test of the reminders unsets it.
+And no test starts the communications reader (MDAT_COMMS_READER=off, AgentsTools.SessionComms.include):
+a detached process of the tooling that a rig's spawn would leave running after the rig is gone. The
+check of the reader unsets it, and ends what it starts.
+And none starts the thread that updates the sources a scan reads (MDAT_COLLECT_THREAD=off, AgentsTools.CollectThread.include): the same
+kind of process, left running after its rig is gone. The check of the thread unsets it, and ends what it starts.
+And none starts the thread that commits and pushes the team data (MDAT_TEAM_DATA_COMMIT_THREAD=off, AgentsTools.TeamDataThread.include): with it off
+a writer commits in its own process, as before the thread. The check of the thread unsets it, and ends what it starts.
+And none starts the schedule's service thread (MDAT_SCHEDULE_THREAD=off, AgentsTools.ScheduleThread.include): with it off the main loop runs
+the schedule's steps in its own process, as it always did. The check of the thread unsets it, and ends what it starts.
+And a rig that sets no workspace mode is a team rig (MDAT_WORKSPACE_MODE=team-rig, AgentsTools.TeamDataGate.include): its mode is the
+default the one reader of the mode gives, which a setting of the rig stands ahead of. Unset, a rig is just agents and keeps no team
+data (F13.1). The checks of the gate and of the digest set or unset it themselves.
+
+WAITING IN THE LINE, IN ARRIVAL ORDER, AND MORE THAN ONE LANE. Every run, of every test (no name
+given) or of named tests, waits its turn in arrival order and says in one line that it waits and
+behind whom, across every builder of the machine. The line is one folder on the machine,
+$HOME/.agents/magic-team/suite-queue, never a folder of the package: a runner started from any copy
+of the package (MDLT_ORIGIN) stands in the same line. A ticket is a file named by its arrival time, holding
+the session of its run -- `session=<session-id>` -- and one whose run has ended is taken out by whoever waits
+behind it, so no turn is held by the dead. A ticket that has held the line past MDAT_SUITE_QUEUE_HOLD_SECONDS
+gives it up too, however alive its run looks, and so does one whose waiting holder stopped beating past
+### MDAT_SUITE_QUEUE_STALL_SECONDS.
+
+HOW MANY RUNS STAND BESIDE EACH OTHER, AND WHAT DECIDES IT. The line became the team's throttle, and the pace line
+the schedule keeps is its only measure: the median machinery time of a tool call of the live runs over
+MDAT_TOOL_PACE_WINDOW_SECONDS (300 s), held against MDAT_TOOL_PACE_MS (4000 ms). Neither load average nor a probe of
+this shell's own speed is read. The runner never takes that measure, which walks the whole `spawned/` tree: it reads the
+file each rig keeps it in, `<rig>/.local/agents/schedule/pace.measure`, of the rigs AgentsToolsSuperviseRigs names, and the
+freshest one decides. Lanes are laneMax, the machine's own count (suite-lanes/max, else MDAT_SUITE_LANES, else 3), while
+that measure reads under the gate, rests on fewer than 3 calls, is older than MDAT_TOOL_PACE_CACHE_SECONDS (60 s) or is on
+no rig: a duty start is allowed on the same readings. Over the gate it is one lane. A count set by hand in suite-lanes/count
+wins, up to laneMax. The count is read when a run joins the line and again every 15 passes of its wait.
+
+A LANE IS WHAT A RUN HOLDS, AND THE QUEUE IS STILL IN ARRIVAL ORDER. A run takes one lane at its turn
+and gives it back when it ends, so two runs stand beside each other exactly as many lanes allow. A
+ticket ahead of this run that holds no lane is the head of the queue and is waited for, so a run that
+arrived first starts first. A run with a test that measures its own timing takes EVERY lane and says
+so: a test declares that with `## lane: alone` in its header, and such a test never runs beside
+another test or another run.
+The hand rule this replaces, `mkdir $MMDAPP/.local/temp/suite-run.lock` around a run,
+is kept, so a session on the hand rule and a queued run never run at once: while another session
+holds that lock every lane is shut and each run waits, naming it. A lock taken by hand is no turn:
+one whose note names the folder this run's source root is in, under $MMDAPP/.local/temp, is the
+caller's own, and the run starts under it only when its own turn in the line has come, leaving it for
+the caller to remove; with any run ahead of it in the line the run is refused, saying so. A lock left
+by a runner that no longer exists is removed; one taken by hand never is. A lock a run left behind,
+whose folder holds a receipt for every check it took the lane to run, is past all its checks: lane 1 goes
+back, the place that run still holds in the line goes with it, and the line says which session left it.
+The count is the run's own, written on the lock as `checks=`; a lock naming a folder and no count is judged
+by the checks its `tests.list` names.
+
+A RUN GIVES ITS LANES UP BETWEEN ITS CHECKS WHILE ANOTHER WAITS FOR THEM. At each boundary between two of its checks a
+run that holds lanes reads the line: a check started by hand behind it, or a run behind it with no lane free, waits for
+it. Its workers stop at their boundaries, its lanes go back, and `<ticket>.yield` tells every waiter to pass it by. Once
+each ticket it yielded to holds a lane, has won its turn or is gone, the mark goes and it takes free lanes again; it never
+waits for such a run to end, and waits 120 s at most in all. It runs a check between two yields, so it is
+never starved, and its order, logs, receipts and summary are as they were. At its turn a run writes `rundir=` on its
+ticket, so a waiter says of it how many of its checks are done.
+
+NOTHING RUNS AROUND THE LINE. A run that cannot be given a lane says so and refuses; a test started by
+a run carries that run's ticket (MDAT_SUITE_QUEUE_TURN) and stands in no line of its own, and a ticket
+that is no file of the line buys no run anything.
+
+ONE BUDGET OF TEST WORKERS FOR THE WHOLE MACHINE, shared by every runner, of a full suite
+or of named tests, from any copy of the package: a test takes a worker slot before it
+starts and gives it back when it ends, so the tests running at once on the machine never
+pass the budget, whatever each runner's own number of workers. The budget is half the
+machine's cores unless $HOME/.agents/magic-team/suite-workers/budget holds a number. Slots
+are asked for in arrival order, across runners, so a run of named tests is not starved by
+a full suite; the runner says in one line when a test of its waits, and how many slots
+are in use. A slot is held by the test's own process: one whose process no longer exists
+is given back by whoever asks next. Tests run at a lowered priority (nice 10, or the
+runner's own where that is lower still), so a person's own work on the machine comes first.
+The hand rule the budget replaces, `mkdir $MMDAPP/.local/temp/one-test-run.lock` with a
+file `owner` naming the session's scratch folder around any test run, is honoured for as
+long as any session still holds it: no test takes a slot while another session holds that
+lock, and the runner says whose it is. A run can tell whose it is only by the folder its
+own source root is in, under $MMDAPP/.local/temp: a lock naming that folder is its
+caller's own, and so is any such lock to a run from a tree that is no scratch folder.
+
+THE DRIVER IS HANDED ITS WORKERS, NEVER THE TESTS. lib/parallel starts a job for each line
+it reads and, once as many run as it has workers, waits to be told that one has ended
+before it reads on. It is told through a helper process of its own, and a driver whose
+helper is gone is never told: it waits for ever with no test running, and no job is left
+to wake it (2026-10-13: 192 named tests, 56 run, then more than an hour of standing
+still; the helper of that run was gone, and nothing of the driver looks after it). So the
+driver reads one line for each worker and no more: it starts them all at once and has
+nothing to wait for but their end. Each worker takes the tests of the run list one after
+another, each time the first that no worker has taken, until none is left. A test is
+taken by whoever makes its log, which is made whole or not at all, so no test is run
+twice and none is left out. What runs at once, and the order in which the tests start
+and ask for their slots, are as they were: as many tests as workers, in the order of the
+list.
+
+A RUN THAT STANDS STILL IS ENDED, AND SAYS SO. Every start and every end of a test is
+written in the run folder, and so are each line a test prints and the note, made again
+each minute, that a test waits for a slot. A watch beside the run looks at the folder.
+Once nothing in it has changed for longer than a test may take (-t) and a margin more
+(--stall-margin, default 120 seconds), no test of the run is running and none waits, so
+the run is ended: the driver is stopped with what is left under it, the summary is written
+with what did end, the tests that never ran and those that started and never ended are
+named, in the output and in <run folder>/stalled.txt, and the status is 124. The watch
+counts the time as it goes and never reads it off the clock, so a machine that slept is
+not taken for a run that stood still. A margin under 61 seconds is for a rig alone: a
+test that waits for a slot is seen to wait once a minute. A run whose tests have no time
+limit (-t 0, or no number) has no watch: there is no time by which a test must have ended.
+
+A PASS IS KEPT BY THE CONTENT IT WAS EARNED ON. After a test passes, the pass goes on
+record under a key made from the content of everything the test can read: every file of
+the copy of the package this runner is in (its tests and their fixtures, sh-lib,
+sh-scripts, the skillset, the docs, project.inf, this runner), every file of the tooling's
+other packages under the same source root (myx.distro-*, myx.common), of myx.common as it
+is installed (MYXROOT), and of the member folder of the workspace the run is in, which this
+runner resolves for its tests, with the shell and the system the tests run under. Paths below
+those roots and content only, never where a root lies: a copy that is byte for byte another
+shares its passes. The key is made before the test starts and again once it has passed, and the
+pass is kept only where the two agree, so a pass on a tree that moved under the test is
+kept for no state. Only a pass is kept: a failure is no record, whatever made the test
+fail. Not in the key: the workspace's own data and the machine's state, which the rigs of
+the tests stand in for. The record is one folder on the machine,
+$HOME/.agents/magic-team/suite-results, a folder for each test and in it a file named by
+the key; a pass is believed for seven days, and every run removes the ones older than
+that, of every test. A run reads none of it and runs what it is told: `--passed` is the
+one reader, for whoever decides what is left to run, as the retest queue does
+(sh-lib/member/AgentsTools.MemberRetest.include).
+
+
+
+## sh-lib/team-data/AgentsTools.TeamDataGate.include
+
+
+AgentsTools.TeamDataGate.include -- THE MODE OF THE WORKSPACE (F13.1) and THE GATE it carries: which workspaces keep team data, and the
+writers that refuse where one does not. Sourced, never run. Functions and declarations only, and nothing runs at the sourcing.
+
+THE MODE OF THE WORKSPACE, the owner's: what this workspace is to the team, one of three, set by the installer of the workspace in the
+settings of the team, where the tooling keeps the workspace's own settings (the magic-team scope), and read by AgentsToolsWorkspaceMode
+alone, for the digest of the console and for the gate alike. `just-agents`: not a team with infrastructure here. The team's members and
+their skills are here and nothing else of the team: it works inline and starts sessions with the native consoles of this computer. Slack
+and the other outside systems still work where they are set up. `rig-client`: it will start sessions on a remote rig or dispatch
+documents to it; declared and not built, it acts as `just-agents`. `team-rig`: it is a rig itself, which uses and maintains the team
+data here, with a shared persistence for it or none; no server setup makes one so, its installer does. Where nothing sets one of them
+it is `just-agents`: nothing is inferred. A rig that sets no mode is given the mode MDAT_WORKSPACE_MODE names as its default, which
+only the test runner exports (AgentsRunTests.sh gives `team-rig`), and which a setting of the workspace stands ahead of. A FULL TEAM RIG
+is a `team-rig` whose team data has a shared persistence configured, today a git remote: only a full team rig checks the main loop and
+judges it. Only a team rig has a main loop at all.
+
+WHAT `just-agents` MUST NOT DO. It keeps no local team data, so it never creates or changes:
+  - a board item, in any state: not by a board op, not by a grooming, advance, sweep, daily or retro pass, nor by the
+    review of a run (the primitives are the gate's list, below);
+  - an inbox item: a note, an inquiry, a reflection, a routine's lock note, a reply left for a member;
+  - an audit item: the transcript of a session, the record of a published artifact;
+  - a vault item, a contact or an organisation, a trash entry, or the README of a store;
+  and it never clones, initialises, commits or pushes a team-data store (TEAM_DATA_GIT_REMOTE is not read), and runs no main loop.
+A session it starts keeps no tracking item and no transcript in the team data: the spawn runs as `--dispatch-doc:none`, which the spawn
+proxy already has, and a start that asks to reuse a tracking item is refused, since that item would be of a store that is not here.
+It still keeps what a session needs to run and be found, which is no team data: the session records and stores under .local/agents.
+
+THE GATE. One list, agentsTeamDataGateOps, of the operations that create or change team data, asked in one place, where the tooling
+dispatches an operation (DistroAgentsTools.fn.sh, after the caller checks, and the front door of each tool file, AgentsContext.FrontDoor.include): a workspace that is no team rig refuses them there, before
+the operation makes a folder or says a word. The list holds the primitives every item passes (so an op that reaches an item by way of
+them is refused at the first of them, whatever its name) and the families that are the board's own machinery. Three writers have no
+primitive to pass, and ask the gate where they write: the contacts store (AgentsToolsContactsWriteFile), the clone of a team-data store
+(AgentsToolsTeamDataEnsureClone), and the spawn proxy, which degrades as said above. A reader is never refused: a store that is not
+there reads as empty.
+
+## sh-lib/harness/AgentsContext.FrontTable.include
+
+
+AgentsContext.FrontTable.include -- the tool files and the operations each of them owns (F1.4 of the refactorings epic). Sourced, never run.
+Declarations and functions only.
+
+agentsFrontTable is one line a name: the entry function of the tool file that owns it (the file is sh-scripts/<function>.fn.sh), the name, and who
+may call it, `member` (any member) or `coordinator` (magic-coordinator's only, as the --magic-* operations were). A tool file asks AgentsToolsFrontKnows
+first; DistroAgentsTools.fn.sh has one rule for the names of the table, AgentsToolsFrontRoute, and no arm for any of them.
+The names the operations had, and the refusal of one, are in AgentsContext.FrontTable.Retired.include: only a call of a
+name this table does not hold, under a --member-* or --magic-* prefix, reads it.
+
+# Call paths: what one call parses
+
+Measured 2026-11-22, on this tree, in a rig of its own (`env -i`, a fresh `MMDAPP`, `bash -x`, the `+ .` lines summed by the file's
+bytes). One call each, refusing for its missing arguments, so nothing but the load and the refusal ran. The number is what the call
+sources before it does any work; the entry script's own bytes are read by bash as it goes and are not counted here.
+
+| path | call | live workspace | fresh rig |
+|---|---|---|---|
+| front door, error-only | `DistroAgentsTools.fn.sh --intern-no-such-operation` | 62,817 | 62,817 |
+| permission gate | `--intern-op-permission-grant-consume` | 118,448 | 161,747 |
+| ask | `--intern-op-pending-reply-collect` | 93,474 | 136,773 |
+| start / spawn | `--intern-op-agent-spawn-proxy` | 475,005 | 518,304 |
+| Wait round | `DistroAgentsSession.fn.sh --wait-for-input` | 161,526 | 204,825 |
+| schedule operation | `DistroAgentsDispatcher.fn.sh --spawn-prompt` | 106,459 | 154,064 |
+
+The fresh-rig column is larger because a rig has no store: a call there takes the branch that builds and commits team data, which a working
+workspace takes only when the store is missing. A budget is set on the environment it was measured in, and the rig is the repeatable one.
+
+The largest files on those paths, by bytes: `sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include` 148,016; `sh-lib/grants/AgentsTools.Grants.include`
+77,426; `sh-lib/team-data/AgentsTools.TeamDataCommit.include` 59,764 (on the ask, Wait and schedule paths alike); `sh-lib/session/AgentsTools.SessionStore.include`
+49,873; `sh-lib/member/AgentsTools.MemberWorkspace.include` 26,704; `sh-lib/common/AgentsTools.CommonOptions.include` 23,322;
+`myx.distro-system/sh-lib/SystemContext.include` 14,978; `sh-lib/harness/AgentsContext.FrontTable.include` 11,607.
+
+A call path starts no process of its own either: the check counts every `awk`, `grep`, `sed`, `tr`, `date` and `ps` a call runs, and holds each path
+to the number it measured (front door, permission gate and ask: none; start/spawn: the one `date` it stamps with; Wait and schedule: two, the
+resolve's awk and the name's `tr`). Re-measure: a path's budget is the number above plus a margin, and the check that holds all five paths is `sh-test/harness/AgentsCallPathIsolationCheck.test.sh` (budgets in its own rig: front door 80,000, permission 190,000, ask 150,000, start/spawn 575,000, Wait 285,000).
+A load added at a file's top on one of these paths moves its number, which is the regression this table detects.
+
+## sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include
+
+
+AgentsTools.InternOpAgentSpawnProxy.include -- internal spawn-proxy
+primitive for agent/routine wrappers. No --help entry.
+
+WE RUN FROM HERE: the member's session starts in this workspace, with this workspace's
+settings, skillset and access rules for it, as its records, dispatch items and board
+are this one's. A member set up only in another workspace on this machine is
+invited: it reads its own skillset from there (AgentsToolsMemberSkillsetBring), and
+the spawn stops only when that part cannot be brought, with the message that names
+what is missing and where it was looked for. A client-* member is invited like any other.
+THE THREE WORKSPACES OF THIS RUN, each kept on its records and said in its start post,
+below: which EXECUTES it, where its console starts and its operations run; which PAYS
+for it, whose CLI service and credentials it is started with; and the MEMBER'S, where
+the member is set up and its skillset is read from.
+The tracking name: identified BEFORE any tracking document exists, which is
+why it is a caller-facing value and not derived from one. An existing spawn,
+effort or interview is continued by passing its own name here, and a new one
+is named by leaving this empty -- the session uuid is then the name, because
+the uuid IS the tracking name, the session name and the spawn id.
+The conversation threads this spawn continues, `<channel>:<ts>` space-separated:
+a replacement for a session that was talking with someone keeps listening there.
+Recorded as `conversation-threads:`, passed as MDAT_CONVERSATION_THREADS, and
+their recent history lands in input/conversation.md.
+Whether the session this spawn starts opens its session thread at once. magic-team,
+the default, runs the ordinary session-starting/joining logic below. event-track is
+an explicit override for a session that starts alone -- a non-interactive start of the
+root harness uses it, so a solitary session never opens a coworking thread it has no other
+member to share: it has its tracking thread only, and no session thread until it
+brings a member in, whose spawn opens one in magic-team. A tracking thread is never
+a session thread.
+--calling-member: the member this spawn call is made as, said by a caller that knows
+it where the calling session's own environment names none. The harness Agent tool
+says it: a session never spawned carries no member, and each call it makes is served
+as one.
+--parent-session, --start-context and --reports-to: said only by a restart
+(AgentsReviewRestart), off the record of the run it replaces, which this one continues:
+the session that started that run, how it was started, and where it reports to. Recorded
+as said, in place of what this call's own caller would give.
+--parent-none, the restart's too: the run it replaces had no parent session and named no
+address, and so has this one, whoever restarts it.
+Which routine's own spawn-prepare-brief block is prepended ahead of the
+spawn context, below -- a selector (full routine filename or part of one)
+or the standing default. Never both; neither is the default behaviour of
+every caller before these options existed.
+The parent routine of an ad-hoc child: the child inherits that routine's
+cache-prefix and its name goes on the record as `prefix-routine:`, so the
+child's cacheable prefix matches its parent's (a token-cache hit, F10.7).
+Not a routine the child runs: no requirement, allow or lock of it binds here.
+The spelling this package already uses for the same thing: the
+owner-setup option that writes SPAWN_TIER_NORMAL is spelled
+--spawn-cli-service, so a per-spawn override of that same setting
+is not given a second name.
+PAYS. The CLI this spawn starts on and the credentials it is started with are spawn
+settings, read from the workspace its console runs in unless another workspace known
+on this machine is named to pay (AgentsTools.MemberWorkspace.include, SPAWN SETTINGS):
+for this one spawn by --spawn-settings-workspace, else by the payer the session this
+spawn is made from inherited, else for this member by SPAWN_SETTINGS_WORKSPACE in its
+own scope, else for every spawn by the same key in the magic-team scope, which the
+option reader follows by itself. Settled here, before anything is created, and
+exported for the rest of this spawn, so its brief, its start post, its console and its
+handback retry all read one workspace's.
+THE PRESET CHOSEN FOR THIS SPAWN (F10.2), settled here after the workspace that pays and exported for the rest of
+this spawn as that workspace is: `<preset>[:<effort>]` from the tier settings, the member's ahead of the team's
+(AgentsToolsPresetChosen); nothing where none is set, and `-<service>` where the caller named a CLI service of its own, which
+is not a preset's spawn. Never taken over from the session this spawn is made from. Every read of a spawn setting
+then comes from that preset (AgentsToolsPresetOverlay). The models a leg exports for its own run are not handed on
+to this one: the console gives its leg the model of its tier, and a stub takes an exported one ahead of its own.
+Resolved before anything else runs, so a bad --session-id fails before any
+dispatch item, sandbox or post is created -- never a silent new session.
+Looked up in a command-substitution subshell, the same scoping
+AgentsHarnessToolListAgents already uses for this same registry: the
+functions AgentsTools.Registries.include defines, and the rebuilt
+registry file it writes, stay behind that one fork and never touch a
+caller running this op as a sourced function in its own long-lived shell.
+A WORK-DUTY IS ONE INSTANCE PER MEMBER, IN ONE SESSION (sketch 14.5: "can only start one instance of such session per member"; 7.3). The
+session a member's duty keeps (schedule/duty-session/<member>) is joined by every later start of its duty, from whichever caller
+makes it, the schedule's or a console's; a kept id no record knows is dropped. The first start records its session under a lock,
+below, where its session is settled.
+A row for the session is enough to join it: it hands its thread down where it
+has one, and none where it has not -- the joined-session branch below opens the
+thread then. Only an id that no row carries refuses, never a session started
+without a thread.
+Measured, never refused: a dispatch brief a session cannot start
+from is worse than one the floor would have flagged. A brief is written
+for another agent, so it is reported only and never held back. Only the
+spawner's own words are measured: the block the tooling puts ahead of a
+brief is nobody's to rewrite, and a report naming its lines helps nobody.
+The brief for the resolved routine, built ahead of the spawn context in
+every source mode -- this is what makes the brief automatic rather than a
+caller's own hand-carried text. Refusing here (a bad selector, a routine
+file that fails its own contract) refuses the whole spawn, the same as any
+other malformed input this far in.
+A conversation thread that is a known session's own thread names the session
+being replaced: joined, the same as --session-id, rather than a new one started
+beside it. Only with no explicit --session-id, never for event-track, and only
+when exactly one session matches.
+A console carrying --cli-configured but no --cli) arm would fall out of
+its own option loop on this flag, run its hardcoded default
+interactively and STILL print the success sentinel -- the same failure
+the vintage guard above exists to refuse, reached by a different door.
+So the arm this spawn is about to use is checked, not assumed from the
+other one being present.
+Configured-only: an agent-initiated spawn starts the CLI named by
+the preset's CLI service or it starts none. A console without the --cli-configured
+arm cannot answer that -- it breaks out of its own option loop, runs its
+hardcoded default interactively and still prints the success sentinel -- so
+it is refused here rather than invoked.
+STILL GREPPED FOR, and deliberately, even when this spawn names its own
+service and will pass --cli instead: this string is what establishes the
+console's VINTAGE, not what selects the mode. Dropping it because the
+command line changed would retire the guard silently, which is the shape
+of breakage nothing reports.
+The session this spawn was started from, read before the export below
+replaces it: a spawning session inherited its own id from its console.
+Empty when the caller is no spawned session. Used by the event-track thread, and
+to detach a spawn made from inside a session.
+Falls back to CLAUDE_CODE_SESSION_ID for a caller at the top of its own
+tree -- reached via the Agent tool directly, never itself spawned
+through this proxy, so MDAT_SPAWN_SESSION_ID was never exported into
+it. Same fallback AgentsTools.MemberEscalation.include:226 and
+AgentsUniversalHarness.sh:745 already use.
+The coworking session this spawn joins, read the same way and for the same
+reason as parentSessionId above: captured before this spawn mints its own
+values, so a caller already inside a session hands both down to its child.
+Empty means this spawn starts a session rather than joining one -- spawn-id
+and session-id then end up equal, the same "uuid is the session name" shape
+a lone spawn already had before session-id and spawn-id were split apart.
+The member the calling session acts as, read before the export below names the
+spawned one: who starts a session that is the caller's own. Empty for a caller that
+is no member's session. A root session, never minted through a spawn, names itself
+through its own MDAT_TEAM_MEMBER, the same as every other caller (S21.21): read with
+AgentsToolsTeamMember, never the narrower AgentsToolsActingMember alone, so a handback
+of the child it spawns still finds a parent-member to address (load incident: a root
+console session's spawn carried no parent-member at all, so its handback fell through
+to the human-owner instead of the session's own thread).
+The session the agent will actually run under, minted HERE so the same
+value reaches both the CLI and the dispatch record below -- that shared
+value is the whole join, since a hook reports the agent's own session_id
+and nothing else carries it back. Exported rather than passed at each
+console call, so both the waiting and the background branch inherit it.
+Lowercased: uuidgen yields upper case and the flag wants a valid UUID.
+The receipt, and the dispatch item named after it below: the stamp, this shell's pid,
+and the first part of the spawn's own id. The stamp and the pid alone are one for two
+spawns that one call makes inside one second (--spawn-session spawns its members
+from one shell, one right after the other), and the second then took the first one's
+dispatch item for its own. The id is what tells such spawns apart.
+The coworking session's own id, settled here -- before the dispatch item
+below, which needs it too -- rather than only later beside where its own
+thread gets opened. THE SESSION THAT SPAWNS IS THE COWORKING SESSION, and the
+tooling decides which that is, never the caller's memory of an id:
+- an explicit --session-id joins that session;
+- --session-new starts one of this spawn's own, and so does
+  --session-thread:event-track, the main loop's own solitary pass: its session-id
+  is its own spawn-id, the shape a lone spawn always had;
+- an inherited id means the caller is inside a session, and this spawn joins it;
+- a caller with a session of its own and no coworking session to hand down -- a
+  native client session, never spawned through this proxy -- IS the coworking
+  session: its own session id names it, the first member it brings in opens its
+  thread, and every later one joins that thread (sessionOfCaller);
+- a caller with no session id at all, a bare command line, starts one as before.
+HOW THIS RUN IS STARTED, WHICH SESSION STARTED IT, and WHERE IT REPORTS TO, kept on its
+record from its first write (`start-context:`, `parent-session-id:`, `reports-to:`), read
+off the decision above: `joined` where it joins a session (by id, by a conversation, or
+the one its caller is in), `inline` where it is brought into its caller's own session,
+`spawned` where it starts a session. Its parent session is the session its caller works
+in: the one the caller was handed, else the one the caller's own record names, else a
+caller never spawned, whose own id names its session. It reports to that session, which
+needs no field of its own (AgentsToolsRunRoute); where there is none, to the member that
+made the call, else to the person whose account started it at a console, as
+`user-<account>`. A restart says all three instead, for the run it continues.
+WHAT THE ROUTINE REQUIRES OF THIS START, asked of the one evaluator (AgentsToolsRoutineRequirement) now
+that the start's context is settled and before anything is made: a refusal leaves no record, no item and
+no brief handed to a console, and names the start to use. The tracking item is attached where the
+dispatch is created or reused; `required` with none attached is supplied here, as the dispatch the
+spawn creates, and `forbidden` with one attached is refused.
+ONE SEAT FOR A MEMBER IN A SESSION (F6.9): a member whose seat in this session a live run
+holds (AgentsToolsSessionSeatHolder) is not started there a second time, and is asked
+there instead; nor is the member a native client session runs as, in that session. A
+restart of the run that holds the seat (--restarted-from) takes it over. Asked of every start, whatever its context:
+a new session has no holder, and a start said `spawned` into a session that has one is a second run all the same.
+THE ROUTINE'S LOCK (F6.2): a routine that names a locking document (`routine-lock-document:`, its own or its kind
+routine's) is locked for this session while it starts, or the start fails, before anything below is made. A
+member joining the session that holds it passes. It is given back where the last run of the session closes
+(AgentsToolsRoutineLockRelease, from the record's `routine-lock:`), and here at once if this start fails later.
+A SYNC FOLLOWS A MEMBER'S START (T2): the member's own incoming -- the personal mail of its `start` scope -- is refilled at
+once, into its inbox, so the input scans below read fresh incoming. The sync is the tooling's own and best-effort: a member
+with no mailbox or a failed source is no fault of the start, and nothing it says stops the spawn. It runs only where this
+workspace keeps team data (the inbox it refills), and never for a start with no member. The `start` scope is the personal mail
+alone: the tags and mentions are read by the schedule and the work-duty scan (F4.2: a source is read once for all).
+A sync that cannot run is one warning on stderr, never silence: a missing function or a broken include is what made a
+start with no sync at all, and neither the include's own error nor the sync's is thrown away here.
+The spawn's own output is its session log, one per session and one name whatever
+the dispatch mode: sessions/<spawn-id>/session.log, beside the session's other
+state and never in the team data, where its transcript is the record. No dispatch
+document with --wait: the waiting caller reads the child's streams on its own stderr.
+Every writer opens it to append: the handback retry writes into it while the close
+steps still hold it, and a writer at its own offset would overwrite that retry.
+A session's name carries its short id, so two sessions sharing a name, or two of one member,
+tell apart in a list of them. A name that already carries one keeps it as it is: a child of a
+partitioned spawn carries its parent's, so the parent and its members read as one session.
+A run that gave its session no name of its own keeps none: the suffix belongs to a name, and
+a bare `(<short id>)` is a title nothing asked for (a run that only joins its caller's session).
+The three workspaces of this run as its records keep them: each by its basename, never
+a path, the convention of the record's own `workspace`. ALWAYS written, also where all
+three are one: a record then answers each question by itself, a reader needs no rule
+for what a missing line means, and a record written before they were kept reads as
+not recorded, never as "the same". The start post, read by people at the moment, says
+the member's and the paying one only where they are not the one we run from.
+A REUSED tracking document is marked at the START, not only closed at the
+end. Before this, --dispatch-doc:reuse read the named item as its brief and
+then wrote nothing back to it ever -- no session id, no status, no result --
+so the document named a spawn that was running and carried nothing saying
+so. That is the whole of what made the tracking document a record in name
+and not in fact, and it is why nothing downstream could consult it.
+HEADERS ONLY: the caller's own body is never rewritten here. The state of the item it
+reuses is settled in trackedItemState by the branch below.
+This spawn's own sandbox, named by the tracking name -- which is the session
+uuid unless the caller named an existing spawn, effort or interview to
+continue. One identity under three words, and the primary key everywhere,
+so naming the folder is not a second decision after identifying the spawn.
+A tracking document's name is deliberately NOT consulted: the name is
+identified before any such document exists, and a spawn may have none.
+A member brought into its caller's own session keeps a sandbox of its own, named by
+its spawn id: the session and its thread are shared, a run's input and output are
+not. A spawn that joins a session by its id, or by inheritance, shares that
+session's sandbox, as it always did.
+An existing sandbox is joined, never refused -- continuing an existing
+effort is what a caller-supplied tracking name is for. Said out loud,
+because joining means this spawn shares one `output/` with whatever ran
+under that name before it.
+Created even when nothing fills them: the directory's own presence is this
+spawn's registry entry, so an empty sandbox is a listed session rather than
+a missing one. The run's own input folder stands beside the session's input/,
+which stays as the folder every reader names and this run's is made under.
+workspaceName is a basename, never a path -- the same convention the
+team-members registry's own workspace column already uses. Computed once,
+here, because both the event-track post below and the sandbox tracking
+file further down want it.
+The coworking session this spawn belongs to: session-id and session-thread,
+distinct from this spawn's own spawn-id and agent-log-thread below. Settled
+before the event-track start post, which names it.
+--session-thread:event-track is an explicit, still-supported override (a
+non-interactive start of the root harness uses it): the session starts with its
+tracking thread only, and nothing is opened in magic-team for it here.
+Otherwise: an inherited session-id, or an explicit --session-id, means
+this spawn JOINS that session and opens no thread, only a reply; none means this spawn
+STARTS one, session-id becomes its own spawn-id, and its own opening
+post goes to magic-team, titled by --session-name-or-comment or else
+the session id.
+sessionId itself is already settled, above, before the dispatch item was
+created -- only its thread is decided here.
+A TRACKING THREAD IS NEVER A SESSION THREAD (AgentsToolsEventTrackThreadIs): a session started before
+that rule may still hand its tracking thread down as its session thread, or carry it on its records:
+here that names no session thread, and the session's own is looked for, and opened, as for any
+session joined that has none. A session whose own record names the `track` kind (F3.1) keeps its
+external side on that tooling thread instead of a session thread; the session still has no session
+thread, and the copies of its messages go there.
+THE CHANNEL KIND IN USE (F2.3): a session whose external side is its own root-native printback
+channel opens no thread -- no root post, no joined line, no Slack call -- and its dispatch names
+that channel instead of a thread. The kind is the session's own record's to say
+(AgentsToolsCommsPrintbackSessionInUse), never a caller's opinion of it.
+THE TOOLING-THREAD KIND (F3.1): a session whose external side is the tooling thread -- the `track` kind
+of a root-harness session -- opens no session thread either: no root post, no joined line, no Slack
+call for a session thread. The tooling thread its copies go to is the event-track thread the start
+post below opens, and the dispatch names it. The kind is the session's own record's to say
+(AgentsToolsRootHarnessKindRead), never a caller's opinion of it.
+A session joined that hands no thread down: the caller's own, a native client's; one
+that started alone; one whose opening post failed. Its thread is the one the first
+member brought in opened. Looked for, and opened below where there is none, in one
+step under the session's own lock, so two members brought in at once still share one
+thread. Its record first (sessions/<session-id>/session.thread, written by the opener
+at once), then the spawn records of the members already in the session.
+THE PROXY PROCESS IS ITS OWN SHELL, NOT A RUN OF THIS SESSION (S12.15): every send it makes is a
+session's own tooling post, so the proxy carries the session's id and thread in its environment for
+the sends it makes, and a send into the session's own thread is seen as that session's own, never
+copied back as `delivered`. Nested sends inherit them, so the not-yet-seen ones are covered too.
+A member brought into a session says so in its thread, as a reply, with what it was
+brought in for: every spawn but the one whose own session the thread is. The result
+is never assigned to sessionThread. Its text is the note template's
+(sh-lib/templates/tooling-note.post.format.md, `# Session`, joined). A session whose
+external side is its tooling thread says nothing (F3.1). A session whose external side
+is its printback channel has no thread either, and what it says is RECORDED there as a
+notice, not posted: the next foreground call of that session surfaces the line (F3.3).
+A work-duty's opening start opened its session's thread itself, so it is the opener: it
+posts its root and no joined line, as any session's first run does.
+The CLI this spawn starts, resolved before the start post that names it, by the
+one function the session record and a later resume compare (AgentsReviewCliResolved,
+which the console's own --cli-configured arm calls too): the service the caller
+named, else the CLI service of the preset its tier names (AgentsToolsPresetSpawnCli,
+in the workspace that pays for it). With it,
+whether it runs in this package's harness or natively, and the harness tier that
+workspace asks for (SPAWN_HARNESS_TIER, which the console passes as --tier).
+COWORKING SESSION, which every participant posts into (AgentsTools.EventTrackThread.include).
+This spawn's `start` post (sh-lib/templates/event-track.post.format.md) is its own
+start entry, posted once, here, when everything it names is settled, and never edited:
+the thread's first post where this spawn starts the session, a reply in the session's
+thread where it joins. What is learned later is a reply there too
+(AgentsToolsSpawnProxyEventTrackLaunched, the feed, AgentsToolsSpawnProxyEventTrackClose). Only when SLACK_CHANNEL_EVENT_TRACK
+is set and a bot token resolves -- otherwise skipped silently, and the
+spawn is unaffected either way. Nothing reaches this op's stdout: callers
+parse it. Holds `<channel>:<ts>`, or is empty. Computed before the
+sandbox tracking file below so that file can carry it from the start.
+What is the session's -- its id, who started it, its session thread -- is said by the
+spawn that starts it, and by no other: one that joins says the session it joined.
+A session that is its caller's own has no spawn that starts it: the member whose
+start post opens its tracking-thread says what is the session's, and who started it
+is the calling session's member, else that session by its id.
+ONE THREAD PER COWORKING SESSION, in one record, keyed by the session's id
+(AgentsTools.EventTrackThread.include). Where the session has a thread -- this spawn
+joins it, a refusal opened it before any start post, or it was started before --
+this start post is a reply there. Only where it has none is the thread opened here,
+and recorded at once as the session's, so whatever posts next finds it. Reading,
+posting and recording are one step under the session's lock, so two spawns starting
+in one session at once still share one thread.
+The session tracking file, in the ROOT and never in input/ or output/: the root
+is granted to nothing, so this is the one record of the spawn the spawned
+session cannot reach and therefore cannot forge -- the same reasoning the launch
+marker already follows. Its frontmatter IS the state, which is what lets a
+rescan rebuild the registry by reading headers rather than bodies. Not team
+data: this is the session's own record, so no board rule reaches it and
+team-data retention never sweeps it.
+Named by the session uuid, not by a fixed filename: a joined sandbox holds
+one record per spawn that ran under that tracking name, and a fixed name
+would have the second spawn overwrite the first one's record.
+A spawn with no routine of its own -- an ad-hoc helper the handling decides to prepare, record and spawn (the Agent
+tool's case) -- made from a session whose routine declares `cache-prefix: routine` reuses the parent's routine prefix
+and the routine that prefix mixes, so its first round is a cache hit on the parent's prefix. A spawn that carries a
+routine of its own keeps that routine's own policy, whatever the parent's. A work-duty is `cache-prefix: armed` now,
+so its subtasks start on the bare armed floor.
+`session-id` is the coworking session's own shared identifier now,
+never this spawn's own -- that is `spawn-id`. A lone, session-starting
+spawn has the two equal, the same "uuid is the session name" shape a
+solitary spawn already had before the two were split apart.
+`execution-receipt` already carries its timestamp inside its value
+rather than in a date field of its own. `outcome` is deliberately NOT
+used: its values are defined for what an advance pass did to a running
+board item, so a spawn's exit result would be an undefined value in a
+defined set.
+The machine this spawn ran on, because a sandbox tree is synced between
+machines and a record found here did not necessarily run here. Without
+it, a reader cannot tell a session that ended from one that belongs to
+another host, and those two must never read alike. `hostname -s` is the
+estate's own machine identity -- the same value a team-member declare's
+host glob is matched against.
+A one-line pointer file, plain text, for a reader that wants the session thread
+and nothing else -- no frontmatter to parse. In the sandbox root, same as the
+tracking file above and for the same reason. The event-track thread has no pointer
+here: it is the coworking session's, in its one record
+(AgentsTools.EventTrackThread.include), and a sandbox may be shared.
+The parent session's own list of its children, so the harness a parent runs reads
+one file instead of every spawn record there is. One line per child, this record's
+path under spawned/, written by one append (atomic at this size); a reader
+de-duplicates, and still checks each record, which stays the authority. Kept out
+of .local/agents/sessions/: a file landing there reads as that session's activity.
+THE VARIABLES OF A WORK-DUTY RUN, LAST IN ITS DISPATCH (F10.7): session id, spawn id, started-at and the scan's
+result. Everything above them -- the routine, the member's static guidance and the mechanical brief -- is the same
+bytes on every work-duty run of the member, so it caches after the first; the sandbox block before them is this run's
+own roots and opens the variable tail.
+THE EXECUTOR'S CHECKLIST IS SEEDED HERE, once, before its first turn (S22.4), as pending items of the member this spawn runs, mixed from every source
+the spawn has: the steps of the spawner's text under `## Formal task`, the open work of the epic feature that text names (S24.19), the duties of its
+routine (never a work-duty's, a loop that no list can finish), then the items its arguments gave. The executor never seeds its own list.
+The duties are kept as `step` and everything else as `parent` (S6.27), so a later `replace` knows which items were the replaced routine's.
+THE PRESET'S EXTRA SPAWN LINE (F10.1): the one line the human-owner wrote in the preset the spawner chose for this
+spawn, put into the dispatch here, as it is crafted, after the standing text and under no heading: no member is told
+where it came from. MDAT_SPAWN_PRESET is `<preset>[:<effort>]`, as the spawner set it for this spawn. It is read in
+the workspace that pays (MDAT_SPAWN_SETTINGS_WORKSPACE, settled above), and it is not in the sandbox's input/.
+Handed over in the brief as `<channel>:<ts>`, same field name as before
+the session/agent-log split, so an existing reader of this line keeps
+working unchanged. A failed post is one stderr warning above, the spawn
+goes on, and the brief says no thread was opened. A session that starts
+alone has none by its own rule, and its brief says that instead.
+THE CHANNEL KIND IN USE (F2.3, F3.1): a session on its root-native printback channel, or on its
+tooling thread, has no session thread, and the dispatch states the kind and the channel it is named
+by, so the run knows where its report, its waits and its dismissal travel -- the same section the
+Slack kind states its thread in.
+Detached whatever started it (backlog :229), close steps and all: its own process
+group, HUP ignored, so ending the caller's pass leaves it running, and a hangup sent
+to its caller does not reach it. A caller with no session id, a bare console, starts
+it exactly as a caller inside a session does: dispatch is the same from anywhere.
+The caller's own job control is left as it was found: on only in a shell of its own
+that had it on. A subshell carries that flag from the shell it came from, with job
+control off, and there it is off again after the start.
+Handed off whole: nothing its caller had open stays open here. A caller that runs
+this op as a function under a redirect of its own -- a review return did, and so
+never came back -- has the stream it redirected saved in its shell, in a descriptor
+from 10 up; this subshell stays a shell, so it would keep that open and the
+caller's reader would wait for this child's end. Its own three streams are set on
+the subshell itself, below. No redirect on this loop: one would be saved in the range
+being closed.
+THE CONTROL THREAD OF THE SESSION (--intern-session-control) is started here, with
+the first member of a session and again by any member that joins while none lives,
+by the one function every starter of a thread calls (AgentsToolsSessionControlStart,
+AgentsTools.SessionControlStart.include). Here, in the shell that supervises the
+run, and not in the call that started it: the folder of the session and the record
+of this run exist, so the thread finds something to watch at its first tick, and its
+start can neither hold, fail nor delay the spawn, whose call has printed its lines
+and returned. A lone run gets one too. A thread that lives is left alone: the
+function answers `alive`, which is no error. THIS BRANCH IS NEVER A START ITS CALLER
+WAITS ON, which gets none; and a member that joins a session that such a start
+opened starts none either (AgentsToolsSessionControlWaited), as no other starter
+does. Nor is one started while a start of it is in flight, made a moment ago by the
+member that was started just before this one (AgentsToolsSessionControlStarting):
+the members of one session are started one after the other, and its thread once.
+The thread is the tooling's own process and no run: detached by the function,
+nothing of this member in its environment, and nothing on this run's record names
+it. A start that fails is one warning in this run's log, and the run goes on.
+THE COMMUNICATIONS READER of the workspace (--intern-session-comms, AgentsTools.SessionComms.include) is started beside
+the control thread, for a session that has a thread: one for the workspace on the host, so a start while one lives
+answers `alive` and is no error, and none where MDAT_COMMS_READER is `off`. It is the tooling's own process and no run,
+detached by the function. A start that fails is one warning in this run's log, and the run goes on: a wait reads the
+thread itself where the reader is late or not there.
+A start is an agent CLI launched, so the receipt waits for it, while the run is alive. A run too
+quick for this poll says which in its own exit status, and one that never launches is the error it
+is. Nothing else bounds the wait: a console that hangs before a launch holds the answer, as its run
+holds its own. The launch marker is the fast path; the status is what settles a race with it.
+
+## sh-lib/session/AgentsTools.SessionStore.include
+
+
+AgentsTools.SessionStore.include -- where a workspace keeps its sessions and its spawn records: the one answer, so no other part
+builds the path. Sourced, never run. A session's folder is `<sessions store>/<session id>`, a spawn's `<spawned store>/<spawn id>`.
+The files inside a session's folder are the session subsystem's own; another part asks for what it needs rather than reading them.
+
+Every path here is built by printf -v, never by a command substitution, so a call in a hot path forks no process; each printing
+query has an `...Into <variable>` form for a caller that wants the path without a fork.
+
+AgentsSessionStoreDirInto <variable> <workspace>   the sessions store of that workspace, into the variable
+AgentsSpawnedStoreDirInto <variable> <workspace>   the spawn records of that workspace, into the variable
+AgentsSessionThread <session>       the session's Slack thread `<channel>:<ts>`, as its folder records it, else as its founding
+                                     run's record names it (then kept in the folder); nothing where it has none
+AgentsSessionThreadSet <session> <channel:ts>   records the session's thread in its folder
+AgentsSpawnedThreadOfRecord <spawn record>       the thread the folder of a spawn record keeps; nothing for none
+AgentsSessionHasDeathRecord <session>             rc 0 where the session records a death
+AgentsSessionRunDead <session> <run>              rc 0 where the session's record of deaths names the run
+AgentsSessionDeathSessions                         the sessions with a death recorded, one a line
+AgentsSessionDeathLines <session>                  the lines of the session's record of deaths
+AgentsSessionMarkerFile <id> <marker>             a run's or a session's lifecycle marker: paused, parked, dismissed, stop.left, control/closed,
+                                                   and the root message's marks root.want, root.end, root.pause (...Into)
+AgentsSessionMarked <id> <marker>                  rc 0 where that marker is set
+AgentsSessionsMarked <marker>                      the sessions with that marker set, one a line
+AgentsSessionChangedWithin <minutes> <session>...  rc 0 where a file in one of those sessions' folders changed within that many minutes
+AgentsSessionRunOwnRecordInto <var> <run> [ws]     the record a run keeps in its own folder, rc 1 where it has none there
+AgentsSpawnedFolderRecords <folder>               the records one folder of the spawned store holds, one a line
+AgentsSessionRunClosed <session> <run>             rc 0 where the session's control/closed names the run (`-`: the session itself)
+AgentsSessionCloseRun <session> <run> <who> <when> names the run in the session's control/closed, once
+AgentsSessionPartInto <var> <ws> <session> <part>   one file of a session's folder, by its part name (`chapter`, `session.thread`)
+AgentsSpawnPartInto <var> <ws> <folder> <part>    one file of a spawn's folder, by its part name (`session.thread`)
+AgentsSpawnRecordFindInto <var> <ws> <run>        the record of a run, wherever in the store its folder stands; rc 1 for none
+AgentsSpawnPartitionFileInto <var> <ws> <parent> <part>  one file an agent-less parent keeps for its starts (`args`, `task`, `scopes`)
+AgentsSessionFolderFilesInto <array> <ws> <session> <suffix>   the files of a session's folder whose name ends in that suffix
+AgentsSessionStoreTreeIs <path>                   rc 0 where that path lies in a sessions or spawn store
+AgentsSessionParentLogInto <var> <ws> <parent>        the launcher's log of an agent-less parent, at the store's root
+The session-store values the harness reads and writes, returned as data, so no other part builds
+or reads a path into the store: the session log append, the launch word, the live background jobs,
+the stored wait's sources line, the held dismissal, and whether a session has a spawn record.
+A value that must not fork on a hot path has an `...Into <variable>` form, which the caller reads
+without a subshell.
+The record of a run into the named variable, as the store's walks hand a record (AgentsToolsSpawnedSessionRecords).
+THE RECORD FILE OF A RUN, found the one way: a file named <spawn-id>.spawn.md in whatever folder of spawned/ holds it --
+spawned/<run>/ first, else a session's folder (spawned/<session>/<run>.spawn.md). The folder's own name is NOT the id: a
+relocated or renamed sandbox keeps its record's name. A file whose own `spawn-id:` names another run is not its record.
+Read with the shell's own `read`, so a lookup on a Wait round starts no process. rc 1, the variable empty, where the run
+has no record. The record is a handle for a reader of a record (AgentsToolsRunRoute and its kin), never a path to build
+on. The workspace is this one (MMDAPP) unless one is named.
+Whether a live run sits inside a call waiting on a person, into the named variable: `waiting` when the last line of its milestones is
+`wait going idle`, which a Wait writes as it starts, and its wait/state, which a wait writes as it ends, is older than that line or
+was never written; or when the last line is `ask going idle`, an ask that writes that as it starts and ends the block with a line of its
+own; `working` otherwise, a run with no milestones among them. Working is one thing here: no file of a run's store says a tool call
+from thinking. Asked of a live run only. A run of another workspace is a run here has no store, which reads working.
+THE SESSIONS AND THEIR RUNS, into the named array, one element a row: the registry's measured rows, as the store measured them. A row
+carries its run's id, its session's id, its owner, whether it is live and the state derived for it, and its dates, so a reader joins a
+session to its runs on the session field and asks no file again. The registries are rebuilt for this workspace alone; another workspace
+is read as it lies. rc 1 where they could not be rebuilt, and the array is then empty.
+Writes a spawn record, its whole text on stdin, in one rename, then moves the store's stamp: a reader sees the old record or the new
+one, never a part. The record is named by its run, in the run's own folder or the folder given, or by its path in a spawned/ store.
+With the text the record must still hold, it is written only where it still holds that text. rc 1 where it was not written, the
+record then left as it was. A record named outside a spawned/ store, `<workspace>/.local/agents/spawned/<folder>/<run>.spawn.md`, where
+every reader looks and the stamp is, is refused, and the refusal says so on stderr.
+The store's facts of the ids read on standard input, one id a line, read by one awk that opens each id's files once:
+`<id> TAB <fact> TAB <value>` a row, the rest of the row the value, which may be empty. The facts asked for by name:
+  tokens, usage-limit, chapter, model   the first line of that file
+  milestone                             the last line of `milestones` that is not empty
+  wait                                  what the stored wait's `sources:` line says
+  log, transcript                       the file itself, where it is there; the transcript's pointer read first
+  mark                                  every marker of dismissed, dismissed.handback, ended and review-expired the store
+                                        holds, one row each as `mark:<marker>`, its first line the value
+Nothing is printed for a fact the store keeps none of.
+The headers of the record of each run read on standard input, one run a line, each record found the one way
+(AgentsSessionRunRecordInto) and read once: `<run> TAB <n> TAB <name> TAB <value>` a row, in the record's own order.
+A header is a line of the record's first frontmatter block with a `:` past its first character, its value trimmed.
+Nothing is printed for a run whose record is not there.
+
+## sh-lib/team-data/AgentsTools.TeamDataCommit.include
+
+
+AgentsTools.TeamDataCommit.include -- the commit step of every writer into the team-data
+store, and the push. Sourced, never run. Functions only.
+
+A writer leaves an entry, and the one team-data thread commits it and pushes
+(AgentsToolsTeamDataCommitPaths, AgentsTools.TeamDataThread.include). The gate is a
+git directory under $MDAT_DATA_ROOT, independent of TEAM_DATA_GIT_REMOTE. A failed
+commit warns on stderr and never fails the write that came before it: the write has
+happened, and the dirty-store warning at a spawn close names what is left. The closes,
+the main loop and the set-up push through AgentsToolsTeamDataPushIfAhead as before.
+
+With TEAM_DATA_GIT_REMOTE set, the store's step of the set-up and the close push call
+myx.common's git/cloneSync for a store that has a remote, as the main loop's pass does,
+and a store with no origin, or another one, is given the remote first.
+
+THE STORE'S WRITERS ARE SETTLED BEFORE ANYTHING MOVES ITS TREE (S12.4). The store's checkout is also its writers' working tree, so a
+writer's file that waits for its commit is an uncommitted change to that tree. Git refuses to move a tree whose file origin changed
+holds such a change, which is how a duty start met LOCK_UNCHECKABLE and a retry a minute later passed. So a caller about to move the
+tree settles what waits first. A store with nothing waiting costs one git status and no process.
+rc 0 where nothing waited, or everything did and is committed; rc 1 where a writer was still uncommitted at the bound.
+With the thread off, as the checks have it, the writers are committed here: there is no thread to ask. A thread's own pass
+asks nobody either: it runs the same commit path a request to it would, so every writer keeps the context it left. And a
+caller that HOLDS THE STORE LOCK commits here too: the thread takes that same lock for itself, so asking it from inside a
+hold is a process waiting on a lock its own caller holds (AgentsTools.TeamDataStoreLock.include).
+THE AUDIT LOG FAMILY IS NO TEAM DATA A PULL MAY MOVE (task-20261113T1619Z). A live session appends to audit/<month>/*.log for its whole
+run, so a tracked one is dirty whenever any session runs, the set rotates each pass, and every other member's pull is refused over it.
+The family leaves the store's index and enters the store's own .gitignore: the files stay, and no pull moves them.
+NOTHING IS LOST IN THE CROSSING. A tracked log whose last lines are uncommitted is committed first, so the lines a session appended
+exist in the branch before the index stops carrying the file, and a merge that takes origin's copy of it loses no line that was
+recorded. A store that tracks no log is left untouched: no commit, and no rule written for a file it never carried.
+The store's one lock held for the whole untrack, which writes .gitignore, stages and commits (AgentsTools.TeamDataStoreLock.include).
+A PULL MOVES A TREE, AND NEVER OVER A PATH IT DID NOT WRITE (task-20261113T1619Z). Every caller that pulls the store comes through
+AgentsToolsTeamDataSyncWithRemote below, so one rule holds at all of them: the writers are settled first, so a path any member's run left
+uncommitted is a commit rather than a refusal, and a path origin also moves that is still uncommitted here is carried as this store's own
+commit, untracked ones included. A path this store's own rules will not commit is named in one line a caller can act on, and nothing is
+moved over it.
+The store's one lock held for the whole prepare, which settles the writers, fetches and commits what origin also moved.
+ONE PULL OF THE STORE, AND EVERY CALLER'S. myx.common's git/cloneSync does the pull and the push, as before; this adds the three steps
+the store needs around them, in the only order that loses nothing. The writers are settled first, so no member's uncommitted path refuses
+it. A pull that stopped on a conflict is taken again by the tooling's own merge and settled inside the file (AgentsToolsTeamDataMergeAgain),
+as the close push settles one, and the pull runs once more: a store whose two sides both changed one item still comes level. The audit log
+family leaves the tracked set only after that: a log both sides appended is merged line by line first, so the crossing loses no line.
+Flags go before the three paths, as cloneSync takes them.
+The store's one lock held for the whole sync: the prepare, the pull, the settle of a conflict and the audit untrack are one span.
+A write into the team data that is to be committed and pushed. The writer runs no git: the paths and what to say of them are left as
+one entry file in the thread's folder (AgentsToolsTeamDataThreadDir), and the one thread that commits and pushes (--intern-team-data-commit,
+AgentsTools.InternTeamDataCommit.include) is started where none lives and asked to commit. A lock another writer holds can no longer
+fail the write, and the thread commits one entry after another. Never fails its caller.
+The context is the subject of the commit, `* ` before it unless it starts with `+ `, `- ` or `* `. MDAT_TEAM_DATA_COMMIT_WAIT=yes in front
+of the call keeps it until the thread has committed the entry, for a writer that deletes what it has just written: the history of a
+file is made before the file goes. With MDAT_TEAM_DATA_COMMIT_THREAD=off the commit is made here, in the caller, as the rigs and the
+checks have it.
+A COMMIT THAT COULD NOT BE MADE IS OWED, LIKE A PUSH. This system runs unattended: a lock,
+a full disk or a concurrent writer must not leave a write that "warned" and never landed. The
+paths are recorded here, and the NEXT commit call of any kind picks them up and commits them
+with this one, so the store heals itself on the next run instead of waiting for a person to
+read a warning. A path is dropped from the debt only once a commit has actually carried it.
+A STALE index.lock IS NOT A FAILED WRITE, IT IS A LOCK NOBODY HOLDS. An index upsert that
+was killed leaves one behind, and every commit after it fails "Unable to create .git/index.lock"
+-- the write lands on disk and NEVER reaches the branch, which is how items sat uncommitted
+for days while each tool run reported a warning nobody could act on. So when the add fails
+and the lock is there, ask whether a live git holds it: if none does, the lock is stale, it is
+removed and the add is tried ONCE more. A live holder is never touched.
+A merge the sync left unfinished -- origin and the local commits changed one file -- is settled here, inside the file itself, with no
+person and no extra file: a conflict is never committed, no line of either side is lost, and the local commits can go out.
+The conflicting blocks of a file (git merge-file, the 3-way merge) are resolved by what the block is:
+  - line records, every line of the block starting with a timestamp (logs, registries): the lines of both sides, each once, in time order;
+  - the header of a document: a key both sides changed ends with one line, the value of the side whose own last-change stamp is later
+    (AgentsToolsTeamDataChangeStamp), origin's where neither has one; a key only one side holds stays;
+  - the body of a document: origin's block, then the lines of the local block it does not already hold -- both versions in the one file,
+    with no marker.
+A file that one side deleted and the other changed keeps the changed one. The merge is then committed. rc 0 where no merge was in
+progress or it was settled; rc 1, the merge left as it was and one warning, where it could not be.
+THE MERGE TAKEN AGAIN, where the sync gave up on a conflict: cloneSync aborts a merge it cannot settle and leaves no MERGE_HEAD behind,
+so origin's branch is merged here by the tooling's own merge, which the settling engine (AgentsToolsTeamDataMergeSettle) can work, and a
+merge left with no conflict is committed. One step for every caller that integrates origin: the close push and the checkout repair.
+rc 0 where the merge is committed and nothing is open; rc 1 where a conflict stays, the merge aborted and the checkout as before.
+The store's one lock held for the whole re-taken merge: the fetch, the merge, the settle and its commit.
+Pushes the store's branch when it is ahead of origin, at a close point, never per
+write: one push carries everything committed since. A conflict between origin and the local commits is settled and
+committed first (AgentsToolsTeamDataMergeSettle), so the commits always go out and none is committed with a marker in it. The primitive is item-upsert's:
+push origin HEAD; when the remote moved, integrate with myx.common git/cloneSync
+--no-push and push once more; then read origin back and require it to equal HEAD.
+Never a reset or a force, and local commits are never discarded: a failure is a
+stated warning naming the reason and the ahead count, and the next close retries.
+Pushes only when the store is its repository's own root; an origin that is not
+TEAM_DATA_GIT_REMOTE is set to it first (AgentsToolsTeamDataRemoteAlign), where before
+it returned there and said nothing. Always returns 0.
+One process at a time moves the store's branch: every close can call this, async spawn
+closes concurrently, and item-upsert pushes from its own process, so the body runs under
+the store's one lock (AgentsTools.TeamDataStoreLock.include), keyed to the store's own
+git directory. A BUSY LOCK IS A PUSH OWED, NEVER A SKIP: the holder's `git push origin
+HEAD` may have resolved HEAD before this process committed, so returning quietly leaves
+this process's commits local with nothing recorded to bring them out -- which is how five
+commits sat local and unmerged from August to October. So a call that finds the lock busy
+records the debt and goes; the NEXT push waits the holder out (a push is bounded) and
+carries the debt to the remote, and the debt goes only where the store is verified not
+ahead. A debt left unpaid is therefore re-attempted on every later push.
+cloneSync's pull needs a reconcile mode when the two sides diverged: a merge,
+which keeps both sides' commits and rewrites none. No merge was in progress
+above, so one present after a failure is this call's own, and only that is aborted.
+cloneSync aborts a merge it cannot settle and leaves no MERGE_HEAD behind, so the conflict is taken again
+here, by our own merge of origin's branch, which the settling engine can work. A merge that came in clean is
+committed too, so the push below runs on a store with nothing left open.
+A store that is a repository of its own and has no origin, or another one than
+TEAM_DATA_GIT_REMOTE, is given the remote as its origin, and one line says so. Such a
+store was made before the remote was set: myx.common's git/clonePull and git/cloneSync
+only `remote set-url origin`, which fails where there is none, and the close push skipped
+a store whose origin was another. Its branch, never renamed, is told to follow its
+namesake at the origin, which their `git pull` needs. Never a force; a store inside a
+larger repository is never touched. rc 0 where the origin is the remote, now or already.
+THE STORE'S OWN CONFIG IS THE STORE'S TREE'S: written under the one lock, as every commit and push is, so no process reads a half-written
+remote (AgentsTools.TeamDataStoreLock.include). rc 0 where the origin is the remote, now or already.
+When TEAM_DATA_GIT_REMOTE is set and no local board exists yet -- the store is
+missing or empty -- clones it with myx.common git/clonePull, the main loop's own
+primitive, on TEAM_DATA_BRANCH. A store holding content that is not a clone is left
+alone and said: adopting it is the main loop's decision, never a writer's. Returns 0.
+The store step of --owner-setup-storage --apply. MDAT_DATA_ROOT is an explicit input: the set-up
+front resolves it (AgentsContext.UseAgentsTools.include), which also clones a missing or empty store
+when a remote is set. With no remote the store is initialised. With a remote set, a store holding
+content that is not a clone is handed to myx.common git/cloneSync, as the main loop's pass hands it; a
+store that is a repository is given the remote as its origin where it has none or another
+(AgentsToolsTeamDataRemoteAlign) and pushed (AgentsToolsTeamDataPushIfAhead, which integrates a remote
+that moved with git/cloneSync). The configured author identity is written into the store repository's
+own config. The board is made ready by the set-up front after this returns, never here. Non-zero only
+on a failure.
+
+## sh-lib/member/AgentsTools.MemberWorkspace.include
+
+
+AgentsTools.MemberWorkspace.include -- the workspace a team-member operation runs in.
+Functions only; sourced at the entry of DistroAgentsTools, before its context is resolved.
+
+...and the input tier derived again now, from the new root, the way the front door
+(DistroAgentsTools.fn.sh's tail) derived it for the previous one -- so a reader of
+the distro index finds the same tier selected as a direct run in that workspace.
+Quiet and non-fatal: a root with no detectable input still switches, and a reader
+that needs an index then names the failure itself.
+THE THREE WORKSPACES OF A RUN. EXECUTES: the workspace an operation is run from -- its
+team data and board, its temp, its sessions and sandboxes, its comms settings. PAYS: the
+same one, unless another is named to pay (SPAWN SETTINGS, below) -- the CLI services and
+their credentials a member is spawned with. THE MEMBER'S:
+the workspace the member is set up in, which it brings two things from, its skillset
+folder and its default access, the standing access that is its own there. So no
+operation is carried to another workspace as a whole: a member set up only elsewhere on
+this machine is invited here, and only its skillset source follows it, and those of its
+own settings this workspace holds none of (SETTINGS FALLBACK, below). A client-* member
+is invited like any other: which organisation its operation reaches is said by the
+operation's prefix and its address (AgentsTools.CommsSlack.include), never by a workspace.
+The member's part of one operation: prints `<skillset root><TAB><member's workspace>` for
+a member set up only in another workspace on this machine, and nothing for one set up
+here, or unknown to the machine's members index, whose operation reads this workspace's
+as it always has. rc 1, with one message naming the member, the workspace we run from,
+what is missing and where it was looked for, only when the member's part cannot be
+brought: its workspace is not on this machine, or its skillset cannot be read. The
+invited member works from the member set view of the workspace it is set up in, whole,
+so that view must hold the team's own folder (magic-team) too: checked here, once, so no
+later reader of the team's files meets a half view and goes on with an empty result.
+The view is resolved here, per call, from the member registries' answer for where the
+member is set up: a member set root a caller carries is never read for it, so no caller
+decides which folder an invited member's skillset is read from.
+THE INBOX WRITES READ NO SKILLSET OF THE MEMBER THEY NAME. --upsert-inbox-inquiry names the
+member whose inbox it files INTO, and the note and reflection name the writer: each writes into
+the team data of the workspace the call runs from, and reads not one file of that member. A
+bring here would gate the write on a skillset it never opens, and refuse it for a member set up
+in a workspace the caller's own view does not cover. Nothing is brought, and the call runs on.
+The intern op is named too: it is the operation these three reach the writer under, at both the
+tool file's door and the dispatcher's.
+The workspace an invited member is set up in, as a path, for a reader of that member's
+own facts there: its mark and alias, which are its row of that workspace's names registry
+(AgentsToolsCommsSlackMemberPresentation). Nothing printed, rc 1, for a member that is
+not invited. Silent, as AgentsToolsMemberInvited is.
+The workspace a member is set up in, from the machine-wide member directory, the
+member homes and the workspaces this machine knows, all in $HOME/.agents/magic-team
+(AgentsTools.TeamRegistry.include, AgentsTools.MemberHomes.include, LocalTools.Places.include).
+Order: the current workspace when the member is there, else the member's home, else the
+known workspace where the member is a source link, else the first known workspace that
+has it. A member registered only from a workspace without agents (source-declared) runs
+where it was asked. Prints the path to switch to, and nothing when no switch is needed:
+the member is in the current workspace, is not in the directory (its operation refuses
+as it always has), or the current workspace is not in it. Refuses, naming the cause, when
+the member is in no known workspace or the chosen workspace is not on this machine.
+A workspace known on this machine, by its name: the root, among those this machine knows
+(LocalToolsPlacesWorkspaceRoots, from $HOME/.agents/magic-team), whose last segment is
+that name; the name of the workspace we run from is that workspace. Prints its path.
+rc 1 where the name names none, the reason printed in the path's place: no bare name, no
+known workspace of that name, several of them, or a path not on this machine.
+SPAWN SETTINGS, the workspace that PAYS. The CLI service a member is spawned on, the
+harness tier asked of it and the credentials that CLI is started with are settings of
+the magic-team scope, read from the workspace we run from unless another workspace known
+on this machine is named to pay: for every spawn here, by SPAWN_SETTINGS_WORKSPACE=<name>
+in this workspace's own magic-team scope; for one member, by the same key in that
+member's scope here; for one task, by --spawn-settings-workspace <name> on its spawn,
+which every way of spawning a task carries to it: the Agent tool (settings_workspace),
+--spawn-session, and a review return's restart, which reads it from the record of
+the run it replaces. The spawn operation settles the last two
+(AgentsToolsSpawnSettingsSettle) and exports the path as MDAT_SPAWN_SETTINGS_WORKSPACE
+for that one spawn (AgentsTools.InternOpAgentSpawnProxy.include).
+Only these settings move: the board, the team data, the records and the comms stay those
+of the workspace we run from, and the workspace named is read itself, never the one it
+may name in turn.
+Whether a key of the magic-team scope is a spawn setting: the CLI service, the harness
+tier, the model of the light or main tier (F10.2), the endpoint a preset names for its service
+(HARNESS_ENDPOINT_URL, read of its PRESET_ENDPOINT_URL), the restart threshold a preset names
+(PRESET_CONTEXT_MAX_SIZE), the lifetime of the input cache, or a credential a harness leg declares for itself (HARNESS_CREDENTIAL_NAMES, the
+names the console exports, which are the vendor CLI's own two as well).
+The workspace spawn settings are read from, where it is not the one we run from: the path
+the spawn operation exported for its spawn, else the workspace this one's own magic-team
+scope names for every spawn. Prints its path, and nothing where this workspace pays for
+itself. rc 1, with one message, where the workspace named for every spawn names none.
+SETTINGS FALLBACK. A setting is read from the workspace we run from. One exception: a
+member's OWN settings of a system, where this workspace holds none of that system for
+it, are read from the workspace the member is set up in on this machine. System by
+system, and each whole: one setting of a system held here, and that system is read here
+alone, what it lacks here too, so no credential is ever put together from two
+workspaces. A system is one comms family of the dispatcher (--<system>-*),
+and its settings are the keys that begin with its name. Never borrowed: the team's own
+settings (the magic-team scope), a key that is no system's, and anything of a member
+that is set up here. The tooling says so in one line, where the member is invited
+(AgentsToolsMemberSettingsBorrowedSay).
+For a line that says a member's own settings are read from the workspace it is set up in:
+a client-* member's own settings are the other organisation's, read on the client side
+alone (AgentsTools.CommsSide.include), and such a line is said before the side of the
+operation is known, so for such a member it says which side reads them. Nothing for any
+other member.
+The workspace named to pay for one spawn of a member, as a path: the name given for
+this one spawn, else the payer the calling session inherited, else the member's own
+setting. Nothing printed where none of them names one: the workspace's own naming, if
+it has one, then decides. One function for the spawn and for the brief built ahead of
+it, so both settle the same payer. rc 1, with one message under the caller's label,
+where a name names no workspace this machine knows.
+An inherited payer is a path already, settled by the spawn this one is made from:
+it holds for every spawn below that one until one of them names its own. Checked as
+a name is, because every other rung refuses a payer it cannot resolve: a path that
+is no directory would otherwise pay this spawn from the caller's own default.
+The line of a write that ends a borrowing. A setting of a system written here for an
+invited member, whose settings of that system were read from the workspace it is set up
+in until then, makes the system this workspace's: it is read here alone from then on, and
+what that workspace holds of it is no longer read. Said once the write is made, on
+stderr, by key names only, never a value. Nothing where the write left this workspace
+without the system, or where that workspace holds no other setting of it.
+Its mirror, the line of a delete that begins a borrowing. The last setting of a system
+this workspace held for an invited member is deleted here, and the workspace the member
+is set up in holds settings of that system: they are read from there from then on. Said
+once the delete is made, on stderr, by key names only, never a value. Nothing where this
+workspace still holds a setting of the system, or where that workspace holds none of it.
+Where one option is read from when it is not this workspace's own scope, in
+agentsConfigOptionElsewhere (a path, or empty: the option is this workspace's): a spawn
+setting or a team tier setting, from the workspace that pays; a member's own setting of a
+system this workspace holds none of, from the workspace the member is set up in (both above).
+rc 1 where the workspace that pays names none.
+
+## sh-lib/questions/AgentsTools.PendingReplyCollect.include
+
+
+AgentsTools.PendingReplyCollect.include -- collects the answers to AskQuestion
+questions nobody is waiting on. Definitions only, sourced by the
+--intern-op-pending-reply-collect arm (AgentsTools.InternOpPendingReply.include).
+
+Each open record is read once and never waited on: one --wait-for-input round
+with a zero bound, over the question's own thread, since the question -- the same
+probe and the same answer rules a live wait uses. A plain question its item's Decisions
+already answer is closed from there. A readback, decision or permission is read only by
+the main loop's pass over ended and stale records, through the escalation op that reads
+and applies every verdict; a session's own collect never reads, closes or grants one.
+
+Pure tooling, run by the tooling itself: no model is called anywhere here.
+
+One line per record examined, first word the outcome:
+  ANSWERED <id> <tag> | <question first line> | <answer>   -- closed as received
+  UNMATCHED <id> <tag> | <question first line>              -- a reply seen and not taken
+  OPEN <id> <tag> | <question first line>                   -- nothing yet
+  UNREADABLE <id> <tag> | <why>                             -- nothing is known; stays open
+  ALREADY-CLOSED <id> <status>                              -- closed by another closer first
+  DROPPED <id> <tag> | <question first line>                -- a held change, at its session's end
+then `COLLECT: answered=<n> unmatched=<n> open=<n> unreadable=<n>`.
+
+The sessions not known to have ended, as ` <id> <id> ... `: every session-id with a
+spawned-sessions row whose process is running (alive on this host) or remote with an open
+record (another host's, not closed, unmeasurable from here) -- the same render
+and states the review hand-over reads. And every asker that is itself alive, said by the
+one function that says it of an asker (AgentsToolsRegistryAskersLive, by the one rule a
+run is recognised by): an ask carries the id of the run that asked, which is a session's
+id only for a lone spawn and the founder of a coworking session, so a member that joined
+a session and lives is listed by its own id, and one whose run has ended is not, whoever
+else of its session lives. A session with no spawn record and a store of its own (a root
+session) that asked is listed until that store says it ended (the marker its SessionEnd
+hook writes, which that function reads), never by the age of its ask; one with neither
+record nor store is listed only while a process runs as it.
+A readback, decision or permission is read only for a session that is gone (collectTyped,
+set by the main loop's pass): its verdict is read and applied by the escalation op, the one
+place that does it, exactly as the asking session's own wait would have.
+A plain question with an answer form (select) takes its verdict by the same op, in any
+collect: it is a question, read whenever one is.
+
+## sh-lib/grants/AgentsTools.Grants.include
+
+AgentsTools.Grants.include -- the grants: declared, unrolled, and per session.
+
+Three files, each built from the one before, never edited at runtime:
+  $MMDAPP/.local/agents/permissions.registry   this workspace's declared grants, one row
+      `member:workspace:kind:grant` each, written by --make-agents-indices from project.inf
+      (AgentsToolsGrantsRegistryWrite). The rows of the registered workspaces without agents
+      are written here too, `.` unrolled to their own root. The machine-wide set is every
+      workspace's own file, through the pointers in $HOME/.agents/magic-team.
+  $MMDAPP/.local/agents/grants.index   every member's rows, fully unrolled: `*` one row per
+      member, the floor, ceilings, unresolved names kept as rows that admit nothing
+      (AgentsGrantsIndexBuild.awk). A grant written `approve:Edit(/glob)` is a write BY
+      APPROVAL, a read row and an `approve` row: the member reads those files, and its Edit
+      or Write of one is neither refused nor applied but HELD, shown to the human-owner and
+      applied when he approves (AgentsTools.InternOpChange.include) -- unless a grant given
+      for its task, its session or the one call allows it. What the member holds standing,
+      or by the floor, never comes ahead of the approval.
+      Built by --make-agents-indices; a reader finding it stale or missing rebuilds it
+      (AgentsToolsGrantsIndexEnsure).
+  $MMDAPP/.local/agents/sessions/<id>/permissions.<member>.index   one session's own:
+      the member's rows joined with the session's grants (AgentsGrantsSessionIndex.awk),
+      what the harness decides a file tool by, with builtins only: admitted, refused, or
+      held for approval. A revoked grant (a
+      marker in its store's revoked/) and a session grant whose session has ended are out.
+      A session grant given to the member's run on a board item holds for its other runs on
+      that item in the same coworking session too, the runs a review return or a resume
+      starts under a new id, until the item is closed or that session ends
+      (AgentsToolsGrantsItemRuns): a `runs` row of the index, the item and that session
+      checked at the call. A task grant given to that run holds for those runs too, while
+      the item it names is open: a `task` row like any other. A run started since the index
+      was built is found on the way to a refusal (--intern-op-permission-grant-read).
+
+The workspace floor, every member's (section 3 of the plan), in two questions:
+  the workspace built for       write .local/temp/**   its own, wherever that folder sits
+  a workspace of the machine    write .local/temp/**   from the machine's list alone
+    where agents are installed  read source/**/MAGIC.md, source/**/README.md, source/**/docs/**.md
+                                read source/**/*.epic.md (S6.41: every member reads an epic)
+                                write source/**/MAGIC.md
+  the session's own sandbox     read input/, write output/ (per session)
+  the run's own review          read the session record of a run it reviews (AgentsToolsGrantsRunSeats)
+The temp floor is a property of any workspace an index is built for, so a rig or a run
+sandbox carries it too. The source rows are a property of a workspace of the machine, and
+the list drops every root holding /.local/agents/spawned/ or /.local/agents/scratch/
+(LocalToolsPlacesWorkspaceRoots): neither reaches a source of its own.
+and, as before, the readable member directories and the reference read roots. All of
+source/** is no floor's: magic-librarian holds a standing read of it, every other member
+the namespace grants declared for it. The members this package carries hold their standing
+grants as `magic-team:` directives of its project.inf (AgentsToolsGrantsDeclaredText).
+magic-librarian's other one is a standing write by approval of the .md files of the team
+members' skills this machine holds, where they are its to change
+(AgentsToolsGrantsMemberSkills): it is never asked for the access, and each change of one
+waits for the human-owner's approval.
+
+Dot-sourced; functions only.
+
+Whether the index is current, by builtins only: its header is this run's, and it is newer
+than everything it is made from -- every workspace's grants and places this machine
+points at, the member registries and index, the member set root, the machine's skills
+folder in HOME, and this code.
+The team members' skills that are the machine's own and this workspace's to change, one
+resolved folder per line, each once: the entries of the machine's skillset in HOME, a
+built-in place (LocalToolsPlacesHomeSkills), that hold a member's own <name>.basic.md and
+are no reference-only identity record, which is nobody's to write. A real folder there is
+a skill that lives on this machine only. A link there counts where its target really lies
+under this workspace's source/; one to anywhere else, another workspace's source tree or a
+folder here that is itself a link out, never does. Resolved here, by the index builder,
+once: a call is checked against the rows this gives, on its real file, whatever link it
+came by.
+The standing write of magic-librarian on the team members' skills this machine holds
+(AgentsToolsGrantsMemberSkills): their .md files, and nothing else in them, BY APPROVAL
+(`approve:`): each change is held for the human-owner and applied when he approves. Rows
+of this workspace's own index only, never of a registry, which every workspace reads.
+Their kind is `skillset`, and they come before every other grant: a call on such a file
+is decided by its row here, whatever else would admit it too (AgentsToolsGrantsCheckSkillset).
+Rebuilds the index the way the sibling myx.distro-* indices are rebuilt
+(IndexCacheMissDistro.include): the generator in a tested subshell into a temp file
+beside it, then mv -f. The temp is this write's own, by mktemp and never by $$, with
+its mode set on it (AgentsToolsRegistryWrite, AgentsTools.Registries.include). On a
+failure the old index stays, rc 1.
+One slice per member, the `*` rows then that member's own, in the index's own row order:
+the rows AgentsToolsGrantsCommonCheckRows keeps. Two awk passes over the index -- the
+first collects the member names, the second writes the rows -- never a bash loop. The
+new folder is swapped into place before the index is renamed, so a slice is never newer
+than its index.
+Whether a grant of one tool speaks for a call of another: the same tool, or a grant to Edit
+or Write a path, which reads what it may change -- Read, Grep and Glob, in the same scope and
+for as long as that grant holds. Never the other way: a grant to read changes nothing. THE
+ONE PLACE this is decided, for every session, task, planned and routine grant a call is
+checked against. An Allow once is one call of its own tool, and a standing write row is
+every file tool already.
+THE TESTING DIRECTIVE, `magic-team:testing:<project-glob>:<sh-test-path>:<host-glob>` in the Declares of a
+project, and its one reader. It names the sh-test folders of the projects of the declaring workspace whose
+name (the last segment of the id) the glob matches, and it is read for two ends alike: magic-tester's write over
+them (AgentsToolsGrantsDeclaredText) and the folders eligible for the testing system (AgentsToolsTestingFolders).
+The host glob is the last field and works as a place directive's does, so a path keeps its own colons. A line for
+another host gives nothing; a malformed line, and a path that leaves its project, are skipped with a warning; a
+glob no project matches gives no row.
+The rows of the projects selected (their ids, one a line): `<project id><TAB><sh-test-path>`. rc of the declares
+read where it failed.
+One declaring workspace's grants, read off its project.inf as it stands, and the floor
+directives of the packages installed under its .local/myx, on stdout:
+  row <TAB> member:workspace:kind:grant      for the permissions registry
+  tag <TAB> member:workspace:tag:root        for the provenance tags
+The selectors, `<scope>:<selector>:<verb>:<member>[:<glob>]`:
+  namespace:<ns|.|*>     that namespace's source in every tooling workspace, `.` the
+                         declaring project's, `*` every namespace the declaring one selects
+  workspace:<name|.|*>   a workspace place, `.` the declaring workspace, `*` every one;
+                         a pattern (`*-testbed`) every workspace place whose name matches
+  directory:<name>       a registered place of any kind, capped at its ceiling
+  project:<selector>     the estate's project resolver, in the declaring workspace
+The testing directive (AgentsToolsTestingDirectiveRows) is the permissions one for
+magic-tester alone: its write over the sh-test path it names, a `project` row.
+A name no place carries becomes an `unresolved` row, with a warning; a pattern no place
+matches gives no row and no warning. Reads the places from
+agentsGrantsPlaces and the tooling workspaces from agentsGrantsRoots.
+rc 0 trusted; 2 not trusted, said on stderr, and no row may be dropped on its strength;
+3 no project selected there, said as a note, the same.
+`<verb>:<member>[:<glob>]`, cut on the first colon each time so a glob keeps its own.
+allow-write and allow-read are one path grant, Edit(...) or Read(...); allow-tool a
+member's standing tool permission, its glob being <tool>[:<target>]. Any other verb is
+refused, never read as an allow.
+`.` the declaring workspace, `*` every tooling workspace, a name a
+workspace place, a pattern every workspace place whose name matches.
+Tagged for the copilot access fragment: own (the declaring workspace),
+explicit (named), wildcard (only swept by `*` or a pattern).
+--make-agents-indices's grants step: this workspace's permissions registry and its tags,
+rewritten whole, from what this workspace declares and what every registered tooling
+workspace without agents declares (`.` there is that workspace). Plus the member rows --
+each acting member of this workspace writes its own directory -- magic-librarian's standing
+read of this workspace's source. A scan that is not trusted keeps the registry as
+it stood (rc 0, said); another workspace's that is not keeps that workspace's rows.
+Then the pointer in $HOME/.agents/magic-team. rc 1 on a failure to write.
+The run seats of one run (S6.41): the session store of every run it reviews, one absolute
+path a line. A run reviews the runs it spawned, and the runs of the peers its own dispatch
+item cites in `references:` -- a dispatch names the peer it sends its run to review. Each
+seat is that run's whole session record: its session chat, its log and its results, and the
+output/ folder its sandbox kept. So a reviewer reads what it was sent to review with no ask.
+rc 1, nothing printed, when the session has no record of its own or works no dispatch item.
+Whether a session has ended, by builtins only: its spawn record
+(spawned/*/<id>.spawn.md) closed with a spawn-* status other than spawn-started. A session with
+no spawn record (a root session: the human-owner's own, an interactive native console) ends
+by its client's SessionEnd hook instead (client-hooks/root-session-end.sh): an `ended`
+marker in its own store, which a resume removes. rc 0 ended, 1 not.
+It takes the session id and builds the store's folder itself: no caller builds a path into the session store.
+A session grant is given to one run, and a review return or a resume starts that run again
+under a new id. So it holds for every run of the same member on the same board item in the
+same coworking session, until the item is closed or that session ends, and never for another
+member, another item or another session. What one run shares that way, read off the spawn
+records with one awk (AgentsGrantsItemRuns.awk): agentsGrantsItemRunsItem, the item it works;
+agentsGrantsItemRunsSession, the store of the coworking session whose end ends it, empty
+where one of these runs started that session, which then lasts while the item is open; and
+agentsGrantsItemRunsStores, the stores of the member's other runs there, one directory per
+line. rc 1, with all three empty, when the run has no record, is another member's, works no
+item, or is the only one.
+A task grant given to one run is read from those same stores, and lives as ever while the
+item it names is open, whatever became of that session.
+The lines AgentsGrantsSessionIndex.awk reads those stores by (ENVIRON
+agentsGrantsItemRuns), from what AgentsToolsGrantsItemRuns set: one `<store><TAB><item><TAB>
+<coworking session store, or -><TAB><only, task, or empty>` line each, `only` for a store that
+is none of the session's own, listed one per line in the first argument. With `task` as the
+second, what those runs share for the session has ended: such a store is marked `task`, to be
+read for its task grants alone, and a store of the session's own gets no line.
+The session index on stdout, with one awk, from the current grants index, and for a session
+with a spawn record one more over the spawn records first: the stores of the member's other
+runs on the same board item are joined too, for the session and task grants those runs share
+(AgentsToolsGrantsItemRuns). The header, the sandbox folders, the origin and the stores go
+to the awk in the environment: they are text, and -v decodes a backslash in a value and
+takes no newline in every awk. The sandbox folders come resolved; this origin's skillset is
+resolved here, at the rebuild only.
+The two files of a check, by name. A file that exists is used as it is: its writers keep it
+current, so nothing here tests whether it is. A missing one is written once: the grants
+index by its builder, the session file by AgentsToolsGrantsSessionWrite. Where that cannot
+be written, or there is no session, the session rows are held in agentsGrantsSessionText.
+rc 1 where there is no grants index to read.
+One file-tool call decided by the session index rows on stdin, by builtins only. The
+ceiling first: a write tool in a read-only place is refused, rc 3, agentsGrantsCheckPlace
+its name. Then the rows in order: rc 0 admitted, agentsGrantsCheckLayer saying by what; for
+a floor or standing row agentsGrantsCheckFrom its origin in the grants index, `floor` or
+<workspace>:<kind>; for an Allow once agentsGrantsCheckOnce its refusal id, for its caller
+to use up. A once row's expiry, its use, a task row's open item, a session row's end, and a
+runs row's open item and coworking session are checked only on the row that matches; the
+expiry with one `date`. A session, runs or task row of Edit or Write admits a read of its
+path too (AgentsToolsGrantsToolCovers). rc 1 when no row admits the call.
+An approve row stands ahead of the allow rows. A call one covers is admitted by no floor or
+standing row after it: only by a session, runs, task or once row, a grant given for that
+work. With none, rc 4: held for approval, agentsGrantsCheckLayer `approve <standing>` and
+agentsGrantsCheckFrom the origin of that row, for its caller to keep the change and show
+it, never to apply it (AgentsHarnessFileGate, AgentsUniversalHarness.sh).
+One file-tool call decided by the grants index on stdin, by builtins only: the ceiling, then
+the member's standing rows. rc 3 refused by a read-only ceiling, rc 0 admitted, rc 1 not
+admitted here. An approve row covering the call stands over every allow, and is left in
+agentsGrantsCommonApprove for the session rows, which alone may admit such a call.
+--intern-op-permission-list's rows (AgentsGrantsSessionIndex.awk, mode list): the member's
+floor and standing rows of the grants index, then its live grants in every session store,
+or in one session's own, coworking and parent stores. Each store's end and used-up once
+grants are read here, for the awk. So are the session grants that hold for the member's
+other runs on the same board item, while they are live (AgentsToolsGrantsItemRuns): with a
+session, those of its other runs, and those runs' task grants, live or not; with none, those
+of every ended run of the member.
+
+## sh-lib/member/AgentsTools.MemberWorkspace.Settings.include
+
+
+AgentsTools.MemberWorkspace.Settings.include -- the settings a spawn reads from the workspace a member is set up in, and the record of
+what was read: split from AgentsTools.MemberWorkspace.include, because the member-first paths bring a member and never settle a spawn's
+settings, and this half is parsed only by the spawns that do.
+
+Whether a key of the magic-team scope is a spawn setting: the CLI service, the harness
+tier, the model of the light or main tier (F10.2), the endpoint a preset names for its service
+(HARNESS_ENDPOINT_URL, read of its PRESET_ENDPOINT_URL), the restart threshold a preset names
+(PRESET_CONTEXT_MAX_SIZE), the lifetime of the input cache, or a credential a harness leg declares for itself (HARNESS_CREDENTIAL_NAMES, the
+names the console exports, which are the vendor CLI's own two as well).
+The workspace spawn settings are read from, where it is not the one we run from: the path
+the spawn operation exported for its spawn, else the workspace this one's own magic-team
+scope names for every spawn. Prints its path, and nothing where this workspace pays for
+itself. rc 1, with one message, where the workspace named for every spawn names none.
+The workspace spawn settings are read from, where it is not the one we run from: the path
+the spawn operation exported for its spawn, else the workspace this one's own magic-team
+scope names for every spawn. Prints its path, and nothing where this workspace pays for
+itself. rc 1, with one message, where the workspace named for every spawn names none.
+SETTINGS FALLBACK. A setting is read from the workspace we run from. One exception: a
+member's OWN settings of a system, where this workspace holds none of that system for
+it, are read from the workspace the member is set up in on this machine. System by
+system, and each whole: one setting of a system held here, and that system is read here
+alone, what it lacks here too, so no credential is ever put together from two
+workspaces. A system is one comms family of the dispatcher (--<system>-*),
+and its settings are the keys that begin with its name. Never borrowed: the team's own
+settings (the magic-team scope), a key that is no system's, and anything of a member
+that is set up here. The tooling says so in one line, where the member is invited
+(AgentsToolsMemberSettingsBorrowedSay).
+For a line that says a member's own settings are read from the workspace it is set up in:
+a client-* member's own settings are the other organisation's, read on the client side
+alone (AgentsTools.CommsSide.include), and such a line is said before the side of the
+operation is known, so for such a member it says which side reads them. Nothing for any
+other member.
+For a line that says a member's own settings are read from the workspace it is set up in:
+a client-* member's own settings are the other organisation's, read on the client side
+alone (AgentsTools.CommsSide.include), and such a line is said before the side of the
+operation is known, so for such a member it says which side reads them. Nothing for any
+other member.
+The workspace named to pay for one spawn of a member, as a path: the name given for
+this one spawn, else the payer the calling session inherited, else the member's own
+setting. Nothing printed where none of them names one: the workspace's own naming, if
+it has one, then decides. One function for the spawn and for the brief built ahead of
+it, so both settle the same payer. rc 1, with one message under the caller's label,
+where a name names no workspace this machine knows.
+The workspace named to pay for one spawn of a member, as a path: the name given for
+this one spawn, else the payer the calling session inherited, else the member's own
+setting. Nothing printed where none of them names one: the workspace's own naming, if
+it has one, then decides. One function for the spawn and for the brief built ahead of
+it, so both settle the same payer. rc 1, with one message under the caller's label,
+where a name names no workspace this machine knows.
+An inherited payer is a path already, settled by the spawn this one is made from:
+it holds for every spawn below that one until one of them names its own. Checked as
+a name is, because every other rung refuses a payer it cannot resolve: a path that
+is no directory would otherwise pay this spawn from the caller's own default.
+The line of a write that ends a borrowing. A setting of a system written here for an
+invited member, whose settings of that system were read from the workspace it is set up
+in until then, makes the system this workspace's: it is read here alone from then on, and
+what that workspace holds of it is no longer read. Said once the write is made, on
+stderr, by key names only, never a value. Nothing where the write left this workspace
+without the system, or where that workspace holds no other setting of it.
+The line of a write that ends a borrowing. A setting of a system written here for an
+invited member, whose settings of that system were read from the workspace it is set up
+in until then, makes the system this workspace's: it is read here alone from then on, and
+what that workspace holds of it is no longer read. Said once the write is made, on
+stderr, by key names only, never a value. Nothing where the write left this workspace
+without the system, or where that workspace holds no other setting of it.
+Its mirror, the line of a delete that begins a borrowing. The last setting of a system
+this workspace held for an invited member is deleted here, and the workspace the member
+is set up in holds settings of that system: they are read from there from then on. Said
+once the delete is made, on stderr, by key names only, never a value. Nothing where this
+workspace still holds a setting of the system, or where that workspace holds none of it.
+Its mirror, the line of a delete that begins a borrowing. The last setting of a system
+this workspace held for an invited member is deleted here, and the workspace the member
+is set up in holds settings of that system: they are read from there from then on. Said
+once the delete is made, on stderr, by key names only, never a value. Nothing where this
+workspace still holds a setting of the system, or where that workspace holds none of it.
+Where one option is read from when it is not this workspace's own scope, in
+agentsConfigOptionElsewhere (a path, or empty: the option is this workspace's): a spawn
+setting or a team tier setting, from the workspace that pays; a member's own setting of a
+system this workspace holds none of, from the workspace the member is set up in (both above).
+rc 1 where the workspace that pays names none.
+
+## sh-lib/slack/AgentsTools.InternOpCommsSlackSend.include
+
+
+AgentsTools.InternOpCommsSlackSend.include -- --slack-send-message, with the mention and presentation helpers only it uses.
+Sourced lazily from AgentsTools.MemberCommsSlack.include by its own arm, and only by it; relies on being
+dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism: myx.distro-agents/MAGIC.md.
+
+No target named: the session's own channel, by the kind it recorded (F3.2). One rule for every
+entry point that reaches this operation, harness and MCP twin alike: `full` the session thread,
+`track` the tooling thread, `none` the root-native printback channel -- and, for a session with
+no kind recorded, the session thread where one is on record, else F2.3's printback mark
+(AgentsToolsCommsPrintbackSessionOwnTarget). An ad-hoc/solo spawn holding no channel of its own
+keeps today's explicit-target requirement exactly -- the error just below fires as it always has.
+The session's own channel is our own organisation's, so it is no default on the client side.
+THE ROOT-NATIVE PRINTBACK KIND (F2.2): `printback:<session>` is a channel-id of the printback
+service (AgentsTools.CommsPrintback.include), never a Slack address. Its message is printed to
+this operation's output -- that output is its external copy -- and recorded in that session's
+one chat file; no Slack setting or identity is read, no Slack call is made and no thread is
+opened. Taken here, ahead of every Slack grammar, so nothing of Slack stands behind it.
+EVERY MEMBER POSTS IN ITS SESSION'S THREAD, NEVER AT THE ROOT OF THE TEAM CHANNEL (his design: the team channel is open, and a
+report, findings or handback is internal): a magic-team target from any member, in any session, is delivered to its own session thread, else its
+parent session's thread, else the coordinator's duty-session thread, else the human-owner's conversation with the bot, addressed to magic-coordinator unless it names someone.
+Only a step told to post in the channel passes: --told in argv, or a work-duty's day-first greeting (its record carries
+`day-first: yes`, and its first post to magic-team this month is that greeting).
+THE ROOT-NATIVE PRINTBACK KIND THROUGH A SESSION ADDRESS (F2.3): where a session's
+external side is its printback channel, session-current and session-parent resolve to
+`printback:<session>` and the message goes by that driver, exactly as one naming the
+channel-id itself does (above): no Slack grammar, setting, identity or call stands
+behind it. The send's own arguments are the driver's to read.
+A PERSON OUTSIDE THE TEAM IS ANSWERED IN THEIR OWN THREAD (the contact rule; 2026-11-10 09:31, three replies to two people went to the wrong
+person, under a name read nowhere, with an internal cause and promises): a direct conversation that is not the human-owner's takes a message
+only as the answer to one of that person's messages, the thread named and its author no account of ours. A post at the top of their
+conversation, or under our own post, is refused: it is how one person's note was answered to another. client-* members, whose role
+is that conversation, are exempt. Checked here, before any body, token or identity work: a refused send reads nothing else.
+The other party is read from the conversation itself (conversations.info, the one counterparty reader), never from the
+addressee the caller names. The human-owner's own conversation and a team account's pass; a person is also a known contact,
+asked of the contact store with no team filter, since the store keys a Slack id by its workspace and the acting member is none.
+A PERSON OUTSIDE THE TEAM IS ANSWERED IN THE THREAD OF THEIR OWN MESSAGE, AND ONLY A KNOWN PERSON IS WRITTEN TO (the team
+rules, Channels and threads): a top-level send into their conversation goes into the thread of the newest message they
+asked this member in, the one the Wait handed it (schedule/owed/<member>); with nothing asked, it opens a new subject as
+named. The contact store must know the person, else the send is refused (AgentsToolsContactAssertKnown, the one gate).
+The human-owner's conversation and a team account's are not this case.
+Slack's own chat.postMessage `metadata` object. Every send carries
+one identifying its own acting member, read back by
+AgentsSlackMessagesFormat.awk's `[sender: X]` annotation -- this is
+what tells one member's post from another's under the one shared
+bot account. An explicit --metadata below replaces it outright;
+bareness of $memberName is already asserted above, so it never
+needs JSON-escaping here.
+What the tooling sends itself is marked `tracking: tooling` (a member's own send, MDAT_SEND_FLOOR=hold, set by its stub, is not): the readers that
+decide whether something is input leave a tooling post that is not addressed to the reader out (AgentsTools.TrackingDrop.include).
+THE ORIGIN OF THE POST (epic S6, "a post outside its own session thread states its origin routine and its real sender
+member"): the routine of the run that sends, read once from its own spawn record, short (`work-duty`,
+`supervision-session`); `console` for a send from no run. Three coordinator runs, a duty, a supervision and a console,
+post under one name and one alias, and the owner could not tell which spoke. The origin travels in the metadata here
+and in the author line below, as `@alias/origin`, a form `memberSendHeaderLength` accepts (`@[^ ]+`) and the mention
+converter skips (a slash is outside a member name).
+The sender a message carries is its acting member, whatever metadata the send is
+given: a reader tells whose answer a post is by it (AgentsSlackThreadAnswers.awk).
+No backslash escape is taken, so a key cannot be written another way, and every
+`sender` in it names the acting member.
+HIS CONVERSATION IS THE BOT'S, NEVER A PERSONA'S: a post under a member's user identity to his account, or into a direct
+conversation whose other party is he, is refused; the same message under --identity-bot reaches his conversation with the team bot.
+The send takes the bot itself, so no caller has to know: the line below says what was done. A REPLY IS NOT THIS CASE: a reply goes
+into the thread of the message it answers (the team rule), under the identity that is in that conversation, so a send naming a
+thread keeps its identity; switching it would leave the thread unreachable and the answer at the top of another conversation.
+TO THE HUMAN-OWNER the rule is the same as to anyone: a member with a Slack account of its
+own posts under it, and a member with none posts as the team bot, in the bot's own
+conversation with the owner, as its question to the owner does (AgentsHarnessAsk).
+Nothing is relayed under another member's account.
+A client presents under the names of its own team-members-names row in a workspace that is not ours:
+its own user token posts there, and so does its own bot token, and both are
+read on the client side only. The shared bot token is our workspace, which
+keeps the internal identifier.
+Decided here, before the header is built; the bot token is resolved once
+and carried to the send below.
+The member's own row, and nothing else: the build gives every client the persona's values.
+An invited client, set up only in another workspace, has its row in that workspace's
+registry, since this one holds this workspace's own members; where it has none there
+either, its row is the persona member's own, which is what the build would have given
+it (AgentsTools.Registries.include).
+In-body "@name" mentions, through the same resolver and the same
+per-lock-cycle cache the header's addressee field uses. Only names
+this body carries are resolved; one absent from the map stays
+literal text, and never fails the send.
+The same "@"-to-next-space run the converter itself
+takes: a shorter one keys the map on a name it never
+looks up. Code spans and fences are excluded by the
+converter itself, so an over-wide scan converts nothing.
+The one-line header: [<from> ]→ <to>. <body>. Slack collapses a
+caller's text to one line whenever blocks travel with it, so a
+header that is already one line reads the same in both versions.
+Both its markers are ASCII and store literally, so a reader parses
+the header out of the flattened text without matching a shortcode.
+Nothing named, and the conversation is a DM or a group DM: its own
+participants are the addressees, minus the sender. Keyed on the
+conversation's type, never on who the counterpart is.
+
+THE TYPE COMES FROM SLACK, NOT FROM THE ID. Only the `U…` shortcut
+below is sound -- that target IS the party, so it can never be
+anything else. Every other prefix is an assumption Slack does not
+honour: a modern mpim is issued a `C…` id, so the arm that used to
+read `C…` as "a channel, never a DM" and skip the lookup made the
+mpim branch UNREACHABLE -- measured live on two real mpims, both
+`C…`, both rendering "@here". `conversations.info` is asked instead
+and its own `is_im`/`is_mpim` answer routes the rest.
+
+The cost is one `conversations.info` per send that names no
+addressee, a real channel included -- there is no cheaper test that
+is also correct, because the id prefix is precisely the thing that
+turned out not to carry the type. Worth paying: the fallback it
+replaces is "@here", which in an mpim pings every participant in a
+live client conversation on behalf of a message addressed to nobody.
+That is the harm this lookup buys off, not merely a vaguer header.
+A lookup that answers nothing still leaves "@here" rather than
+failing a send over a header field.
+Whether the addressees are ids the send read itself, below, and not words of its caller.
+The reply goes to its author, set here from what it answers: the caller's addressees do not replace it. A person who is not the
+human-owner is written to only as a known contact (AgentsToolsContactAssertKnown, the one gate), in a channel as in a direct
+conversation; an unknown author is refused with the escalation the gate writes.
+A post whose caller names someone is never re-addressed to the human-owner: he is tagged only by a message for him.
+The sender is not addressed to itself, in ANY conversation type.
+Compared against the account this send actually posts under --
+auth.test on the identity the send itself uses, the same identity
+selection the two calls above make -- never the member's roster
+id, which is a different account whenever the posting one is not
+the member's own: under --identity bot, and for a member holding
+no user token at all, which falls back to the bot with no flag
+involved and whose roster id reads back empty, so the old test
+matched nobody and the sender addressed itself. In a one-to-one
+DM the counterpart is the other party by construction and this is
+a no-op, which is why it is written once for every shape rather
+than once per shape.
+A DIRECT MESSAGE HAS ONE OTHER PARTY (a reply to one person went out headed for another): in a
+one-to-one conversation an account the caller names as the addressee is re-addressed to that other party, and the send says whose
+conversation it is. A word that is no account (a team member's name) is not judged here. In the human-owner's conversation nobody is
+re-addressed to him: he is tagged only by a message for him.
+Every addressee that resolved to a real Slack account, which is the value a
+wait qualifies an answer against. A roster alias with no account of its own
+adds nothing here: it can be addressed, and it cannot be recognised as an
+author, so a caller is told the list is empty rather than given a name that
+would never match.
+What the word is. An account or a conversation only by the whole shape of a Slack
+id: upper-case letters and digits and nothing else, nine characters or more, as
+the one address resolver holds a bare id (DistroAgentsToolsResolveTarget), a U
+first for an account and a C, D or G for a conversation. Never by its first letters
+alone: a word that only began like an id reached the header and the blocks as it
+was given. An id the send read itself, the other party of a direct message, keeps
+the length it came with, and is held to the letters and digits all the same.
+AN ID A CALLER NAMES IS ONE THE TOOLING HOLDS: a run tags a person only where it read that
+account, so the same gate a reply's author and a member's name pass is asked of it here. The
+conversation this send resolved to, and an id it inferred, are its own reads and are not
+asked. An `<@U...>` the caller only quotes, in the body, is never looked up at all.
+The handle half of the field, in the two forms the same
+field takes. Where the member has a Slack account, both
+are that account and Slack renders its real handle; where
+it has none, both stay the roster alias as plain text.
+A client is the exception: its only Slack account is in
+another workspace, where a foreign id renders wrongly, so
+it keeps the plain alias; the one id used is the sender's
+own in an external send, the account it posts as. In an
+external send a client addressee reads under the names of
+its own row, or of the sender's external presentation when
+its row lacks one, and never under its identifier.
+No named addressee: the message is for whoever the conversation holds -- EXCEPT IN A
+THREAD. A thread reply already reaches the people in that thread and nobody else, so an
+"@here" there is at best noise and at worst a channel-wide ping from a message that was
+only ever meant for a handful: on 2026-10-27 ninety-seven thread replies carried
+"→ @here" into a client's channel because this default applied to them. A reply says who
+it is for in its own words, or names them, and gets no default addressee.
+@HERE ONLY WHERE THE CALLER MEANT IT (--address-to @here). A reply is addressed to the author of the message it answers (above).
+A bare message naming nobody heads itself to "this conversation" in plain text, which pings nobody.
+The newline is deliberate: Slack flattens it to one space, which is
+exactly the ". " seam, and where no blocks travel and nothing
+flattens, the body still starts on its own line.
+A BARE ACCOUNT ID IN A BODY IS SAID AS A PERSON (his complaint, 2026-11-10 11:45: "from U04RSR5LKPV", whom nobody could place):
+an account id written plain, not inside a mention, becomes what the contact store says of it, "<name>, <organisation>", or
+"an account with no record"; never a mention, which would ping an outside person, and never the bare id. A default, not a refusal.
+The sender goes INTO the header just built, never above it as a
+second line -- blocksJson starts with headerOpen by construction,
+so stripping that prefix is what opens the slot. Always shown, no
+exception for a member's own "user" identity: a coworking-session
+reviewer must not have to know which member happens to hold a
+real Slack account. The identity swap below changes the token
+alone and sends this same payload again.
+Outbound-to-unlisted-people gate: scoped to a send actually
+presenting into an external/client workspace ($presentExternal,
+set above) -- every internal team conversation (magic-team,
+event-track, a member's own DM, the human-owner's own channel)
+never sets it, so this never touches the team's own traffic.
+The team's plain-language floor, on the body exactly as the caller gave
+it -- nothing has altered sourceText since it was read. It sits after
+the token because the shared-identity rule needs the account this posts
+under, which nothing earlier knows. A blocks payload is JSON, not prose.
+A member's own message (MDAT_SEND_FLOOR=hold, set by the member stub) is held back
+when it is over a limit: not sent, and returned as a CORRECTION for its sender to
+make and send again, rc 6, with no limit on attempts and no way through on a later
+one. The limits it is held on are those of the edit and the email; sentence-cap
+stays an instrument everywhere -- see MAGIC.md. A send of the tooling's own is
+measured and reported only, as the spawn brief is: nobody can rewrite it.
+Only the sender's own words are measured. A tool that builds the message around
+them names them in MDAT_SEND_PROSE_FILE, and they are measured in place of the
+whole body, whose other lines are the tool's.
+Held back the same way, and first: a member's own message that carries the retired
+marker of a question, `NEEDS REPLY`. A question is asked with a tool that asks,
+alone in its own message (AgentsToolsOutputStyleRetiredMarker). Only the marker is
+looked for, and a send of the tooling's own is not looked at.
+A RELAY THAT SAYS A FILE WAS APPLIED NAMES ITS TREE AND READS IT BACK (task-20261117T2241Z): a send declaring the
+relay group that says applied, landed or fixed carries the file's absolute path and its read-back, else it is refused
+here. A declared relay is the only carrier looked at, so ordinary status talk is untouched. It stands outside the
+prose-only block above, because a blocks payload carries the same claim.
+A REPEATED MESSAGE IS A LOOP, NOT A CORRECTION (his ruling): the same body to the same place within the half hour is refused unless
+--again says the repeat is meant. It is judged after the floor, so a body the floor holds back comes back as its CORRECTION, never as
+a repeat; and on the whole body, not its first line, so two asks under one caption are two messages. The last fifty sends of the
+run are kept by the session store (AgentsSessionSentRecentAdd) as `<epoch>\t<place>\t<cksum of the body>`.
+One line per send outcome in a durable local log, as console.log is for a
+console: a session that did not send can still read what happened. Outside
+the team-data store, so a send adds no commit. Target, identity and outcome
+only -- never the body, never a token, never Slack's raw response.
+Rolled over monthly, like audit/: comms-slack-send.YYYY-MM.log, the UTC
+month of the line's own time. Columns: time, member, target, channel,
+identity, ok|failed, reason, session id (last, so positional readers of
+the first seven keep working; '-' when no session is known). The session
+is resolved by the same rule as AgentsHarnessSessionKey.
+A message recorded before its post (F9.1) whose post failed stays in the chat file. A `retry` goes into
+the cache outbox of its channel (S21.13, AgentsTools.CommsCache.include): one queue per channel, pushed
+by the communications reader, posting the very payload that failed. `unknown` where it may have been
+reached (never posted again), `refused` where Slack answered and said no (never posted again), stay
+verdict records of the session. Quiet, and the send fails as it did.
+THE BLOCK IS THE SESSION'S FROM NOW, WHETHER SLACK ANSWERS OR NOT: its conversation is the thread already, its ts is set by the
+writer when it has posted. A reader's floor passes a block with a conversation, so a slow or failing Slack holds nothing back and
+the order of the file is the order everyone reads (AgentsSessionChatRead.awk). The copies of it in another session's file keep
+their rows for the writer, which sets the same ts on them.
+WHAT WAS POSTED, AND TO WHOM, as named fields a caller reads rather than a
+response body it has to parse. The pair this feeds is a question and its
+answer: the answer arrives in the thread of THIS message, after THIS ts,
+from the party named here -- so all three are reported by the side that
+already resolved them, and the wait reads the same values instead of
+resolving them a second time and possibly differently.
+
+On stderr, beside the other diagnostic fields this operation family emits:
+stdout stays the response body byte for byte, which is what every existing
+caller already reads.
+THE ARRIVAL IS WRITTEN WHERE THE WAIT WATCHES IT (AgentsTools.WakeMarker.include): a message to a member
+wakes that member's waiting session in about a second, on a source it reads out of a file, instead of it
+waiting for the wait's next look at the costly Slack source. A post into a thread, addressed to a member
+there, wakes it the same way: `address_to` names who it is for, exactly as a DM does. An edit is no
+arrival, and a post naming no member at all has none to wake. Quiet and best effort: the message is
+posted, and the marker only shortens the wait for it.
+
+## sh-lib/wait/AgentsTools.MemberWait.include
+
+a process or an ask, which no writer pokes. The chat file and the wake marker end the nap at once, so only a writer that does not poke waits this long.
+The inbox is among them: an item standing in incoming/ when a wait begins is input not yet handled, so it arrives at once rather
+than being taken as the baseline of a fresh wait (a member busy while four items came found nothing on its idle wait).
+participants' reports waits on the floor too. The list is found as --idle-wait finds it, and its recurring
+wait-for-more item is no open work, by the same words.
+
+## sh-lib/wait/AgentsTools.MemberWaitRun.include
+
+the floors, the baselines and the probe functions below, which are kept by position: sorted after them, a source read the floor
+and the baseline of the one that had stood at its new index, and the session thread's new message was dropped as older than a
+floor that was never its own.
+The order is made by the shell (call-path audit row 58): each source is put after the last one whose interval is not longer,
+and two of one interval stand in the byte order of their names, as `sort -n` over `<interval> <source>` lines placed them.
+post's copies, its newest, its stamps) are numbered by its place in the list, so a source held from the stored wait at another
+place takes them along. In two steps through a staging folder, so two sources that trade places never write over each other;
+the place a moved source lands on drops what another source left there. Dropping them all instead made every moved source
+read all of it again live (a 10 s Wait ran 978 s).
+that was not stored at this index is read first-probe, and is never compared to another source's old rendering,
+which read as an arrival with an empty block. A held source takes its stored baseline back below.
+another source would be compared as this one's and returned as its arrival, a line of another source with no header.
+It starts empty; a held source takes its stored baseline back as its rendering below, so an unread probe is no change.
+another source left at this index made it skip its first read. It stays only where the same source held this same index.
+The other side files (a DM's or a post's copies) are kept: dropping them made every moved source read all of it again live.
+hours, so that fork rather than any probe is what an idle estate cost the machine. A fifo this wait holds both
+ends of, waited on by the shell's own `read -t`, blocks for the nap and starts nothing. Measured on bash 3.2.57:
+a read of 300 seconds is woken by TERM as promptly as a sleep is, so a wait is still ended the way it was.
+life of this shell: on the exec itself, `2> /dev/null` would silence every line the wait still owes.
+marker written for that wait woke nothing. Each waiting run names its nap fifo in one small file beside its member's waits.
+read, bounded by MDAT_SLACK_READ_BOUND_SECONDS, 120 s where the caller set none, held here once. A source not yet read in this call
+gets that whole bound, so the bound decides when the wait returns, never which sources it reads: the
+deadline is overrun by at most one read bound per source, and only while that source is unread. A source read once gets what is
+left of the deadline, or that bound where it is shorter.
+Wait pick their own out of it, the last line of a source winning as the awk before took it. No process per source.
+of their own only when called outside a round.
+messages of the other sources together. A scan alone stays unbegun once something has arrived (below).
+The bound is looked at before each source: one slow source read past it held the whole call past it.
+A timeout of 0 reads every source once and returns after the round (below): its bound is spent at the start, and a check here would read none.
+The first round reads every source whatever the bound says: a wait whose start-up spent its bound would otherwise end having read nothing, and say WAIT-NEVER-READ of every source.
+after the first round: the first round reads every source whatever the bound says (above), so a start-up that spent the bound
+never leaves the scan unread and named in WAIT-NEVER-READ.
+left of the Wait's deadline, or that bound where shorter. A source that overruns it is named never read in this round,
+WAIT-NEVER-READ: a full read's time did not complete. The round goes on to its other sources.
+nobody fills and every source stands never-read (AgentsWaitOwnPostRepliesCheck, 24 of 24). MDAT_WAIT_CACHE_ONLY given wins; else the
+lock of the comms thread decides, once a call.
+a probe read in line is cheap and a round never pays a Retry-After. A costly probe past the bound is handed to the task wrapper.
+A CACHE-ONLY PROBE IS READ IN LINE: its only wait is the folder's fifo, bounded below to end inside the round's own bound. Under the
+wrapper, a probe that waited its fifo budget crossed the wrapper's window, was detached, and the source stood never-read with the
+cache already served beside it (AgentsWaitRepliesFirstLookCheck, 11 of 19).
+A probe is a read of what reaches the member, so a chat message does not detach it (MDAT_TOOL_TASK_NO_MESSAGE): it is what the probe reads.
+outlives the Wait's bound by the seconds times the folders (the ask probe over three asks held a 300 s Wait for 500).
+as the design says. It is no failure and no read: the source stands in WAIT-NEVER-READ until a round finds it served.
+An unserved probe was no probe: its TTL clock is not started, so the next round asks the cache again instead of reading nothing
+inside the TTL and counting the source as read.
+takes ONE more read, the arrival it announces, and no more: a member whose marker every post addressed to it touches would
+otherwise never reach its deadline, and a wake that ended the wait unread would lose the very arrival it woke for.
+wait sleeps up to the first source that comes due, so a costly source is not re-read on every tick.
+A read that waited out its whole time reports 1, as `sleep` reports 0: the guard carries that, or `set -e` ends the wait.
+
+## sh-lib/wait/AgentsTools.MemberWaitSources.include
+
+directories below are: a walk over every session's folder on every Wait call is a hot-path fault (call-path audit row 59).
+the run named, so an item left there for the duty is never left unread by a Wait that named others.
+
+# sh-lib's folder list, and the check that names it
+
+`sh-test/common/AgentsShLibFoldersCheck.test.sh` names fifteen folders plus `templates/`, `help/`, `client-hooks/` and
+`vscode-fragments/`. The tree holds these, outside that list, each with real content:
+
+- `atlassian/`
+- `chat/`
+- `contacts/`
+- `core/`
+- `distro/`
+- `email/`
+- `event-track/`
+- `google/`
+- `items/`
+- `knowledge/`
+- `monitoring/`
+- `routine/`
+- `run/`
+- `schedule/`
+- `settings/`
+- `slack/`
+- `spawn/`
+- `supervise/`
+- `transcript/`
+- `trello/`
+
+Its `common/` rule is a default list too, and these files stand outside it: `AgentsCommonSyntax.include` and
+`AgentsCommonSyntaxIndex.awk` (the common option set's own syntax reader and index builder, added with the call-path work),
+`AgentsTools.Emergency.include`, `AgentsTools.LocalLock.include`, `AgentsTools.CommandsList.include`, `AgentsTools.Hook.include`.
+
+Both lists are the check's own stated defaults for the maintainers to review; widening either is a ruling, not an agent's edit.
+The check stands at 2 of 7 (the root of `sh-lib` holds folders only, which it did not before).
+
+## sh-lib/common/AgentsTools.CommonOptions.include
+
+
+AgentsTools.CommonOptions.include -- the common option set of the commands of myx.distro-agents (F2.2 of the refactorings epic), and the operation that
+shows the context they resolve (--intern-context-show). Sourced for its functions only.
+
+THE FIVE OPTIONS, given as a run directly after the operation word, never later (the value of another option can be spelled the same):
+  --team-member <team-member>                      implied from MDAT_SPAWN_AGENT; at the console user-<account> (USER); with no account, nothing, and the call is refused
+  --session-id <session-id>                        implied from MDAT_SESSION_ID
+  --spawn-id <spawn-id>                            implied from MDAT_SPAWN_SESSION_ID, or `shell-console` for the shell CLI (the record's `spawn-id`; not the session id)
+  --select-workspace <place-name|absolute-path>    implied by MMDAPP, resolved to an absolute path on input
+  --tooling-origin <spec|absolute-path>            implied by MDLT_ORIGIN, resolved to an absolute path on input; the spec is `source` or `.local` of the workspace
+Each entry point of the tooling takes them at the head of its main function (AgentsToolsCommonRun); the operation never sees them.
+
+THE MEMBER POSITIONAL IS RETIRED, FOR GOOD (S21.3, the owner's ruling). An operation whose help syntax says `<team-member>`
+(or `<member>`) first (the one list, the 📘 syntax index of Help.DistroAgentsTools.help.md) gets the resolved team member
+placed in that place always, from --team-member or the environment, so no operation body changes and its own checks
+(AgentsToolsActingMemberCheck, AgentsToolsClientCallerCheck, the caller-check layer) see the very value they saw. A caller
+still naming the member positionally gives the operation one argument too many, which that operation's own check refuses.
+
+WHAT A MEMBER SESSION MAY NOT DO. A spawned session acts as one member (AgentsToolsActingMember): for an operation that takes no member positional, a
+--team-member naming another is refused as AgentsToolsActingMemberCheck refuses it, and the console may name only its own default, user-<account>, never
+another member (F6.10: a console answers as user-<account>); --session-id and --spawn-id may only restate its own; --tooling-origin may
+name only the origin (`source` or `.local`) of a workspace this machine knows, as a gate run from a tree the member controls would bypass every gate; and
+--select-workspace may name only the workspace it is in or the one the member-workspace resolution (AgentsTools.MemberWorkspace.include) gives the member.
+The console, a call from no member's session, is unrestricted in these; for the member it answers as user-<account>.
+
+Whether an operation REQUIRES a common option where the context does not hold it: its help syntax writes the option unbracketed with its common placeholder
+(`--session-id <session-id>`), where the bracketed `[--session-id <session-id>]` is implied from its variable and may be left out.
+ONE pass answers all three, into agentsCommonNeeds: the caller asks once for each option, and a pass each read the 487 KB help file three times
+on every tool call. agentsCommonNeeds is space-padded, so a membership test is `case " $agentsCommonNeeds " in *" $opt "*)`.
+THE OLD POSITIONAL IS RETIRED, FOR EVERY SERVED FRONT TOOL (S21.3, the owner's ruling): the member is always
+resolved here, from --team-member or the environment, and placed ahead of whatever real arguments remain.
+A caller still naming it positionally now gives the operation one argument too many, which that operation's
+own check refuses. `--print-required-scopes` is the operation's own declaration of the Slack scopes it
+needs, which no member is the subject of: no member is placed before it.
+THE INVITED MEMBER, WHEREVER THE NAME CAME FROM (S21.3): a member set up only in another workspace on this machine is
+invited here, as it was for a name given first -- its skillset is read from there, and the settings this workspace
+holds none of. Resolved here because this is where every member-first call takes its member, --team-member and the
+implied one alike; the front door's own block only ever saw a name standing first.
+
+# The ladder, and what a call path may read
+
+A call path takes a kept measure or an index, never a walk of a store. The ladder, from the cheapest rung:
+
+1. **The live list**, `.local/agents/live-sessions`: one line per session whose control thread holds it, written where the thread takes
+   the session and removed where it leaves. Eleven lines on a store that has held thousands.
+2. **The session's own prepared files**, `.local/agents/sessions/<id>/control/`: `state`, `pid`, `lock`, and `live.rows` -- the session's
+   rows as the registry renders them, written where its state is written.
+3. **The registry**, `.local/agents/spawned-sessions.registry`: the stable, conservative rows -- tracking name, session, parent, host,
+   owner, status, exit, spawn, agent-log, session-thread, workspace. Built by a walk once, then kept current by its writers: a record
+   written puts that run's rows in by a read and a rename (`AgentsTools.RegistrySpawnedSessions.Refresh.include`, called from
+   `AgentsSpawnRecordWrite`). No reader walks for what a file already says.
+4. **Unprepared session data**, read only where the rungs above do not answer.
+
+Presentation data -- a title, a chapter, a comment, a tally -- is not a registry column: a tool call never reads it, and the readers that
+show it take it from rung 2.
+
+## What the pass reads, and what it cost
+
+The advance pass asks the registry render for `live` and gets the live list's rows from their prepared files: no registry read, no
+rebuild, no measure. Measured on this workspace's store (187 sandboxes, 326 records): the registry render's cold reading was 24,830 ms
+and its kept copy is 19 ms; the pass's `live` reading touches neither. A control thread's start costs 318,124 bytes of source and 24 ms,
+down from 577,680 and 69 ms. `--current-flags` reads another workspace's pace from its kept measure: 30,470 ms to 665 ms. The all-records
+array builds from the registry: 14,343 ms to 4,130 ms on a rig of 1,857 records.
+
+## States a session shows
+
+`running`, `busy`, `starting`, `waiting`, `paused`, `awaiting-review` are active; a session that ended within **ten minutes** stays in
+the active list with its own `finished` or `failed` state, read from the minute its last run closed, and leaves after that. Dead history
+is asked for by name (`--all-sessions`), and `AgentsSpawnedRetentionPrune` removes a dead run's folder once nothing has written it for **14 days**, twenty a pass.
+
+## The console app's own screens, and what their checks stand at
+
+The screen's checks drive the real plugin offline (`sh-test/manager/AgentsManagerScreen*Check`), a stand-in terminal and a stand-in
+dispatcher, so they measure the page and not the store. On 2026-11-22, **64 of 78 pass**. The ones this round brought to green, with
+their sizes: `Activity` 53, `Pane` 63, `List` 63, `Table` 62, `Members` 50, `Control` 47, `TeamData` 40, `RowCursor` 13, `States` 8,
+`TeamDataStart` 7, `Linger` 5.
+
+Two causes were found under that family, and both were in the page rather than in the checks:
+
+- **a session row printed before the phase column existed was taken as closed.** `parseSessionRows` now reads the phase from the
+  row's own state when the row carries none (`running`, `busy`, `starting`, `waiting`, `paused`, `awaiting-review`, and
+  `unknown-foreign`, which is another host's and not this console's to close). That one change took `Control` from 35 of 47 red to
+  green and `Pane` from 21 of 63 red to green.
+- **another host's session is active, and closed excludes it**: `Active Sessions` keeps `unknown-foreign` although its own row says
+  closed, because nothing on this host can have seen it end; `Closed Sessions` never holds it, and its tail keeps its own state
+  rather than a false "ended just now". `ActivityCheck` holds this at 53 of 53.
+
+The red ones split in two, and the split is a fact about the machine this was measured on, not a licence for the code. **A screen whose
+case starts a stand-in live session or drives a real terminal cannot run in this sandbox**: `/bin/sh: /bin/ps: Operation not permitted`,
+and `pty.openpty` raising `OSError: out of pty devices`. That covers `Configuration`, `Leftovers`, `Frame`, `Mouse`, `Chrome`,
+`TerminalLoss`, `KillLive`, `Dialog`, `Redraw` and `EmojiWidth`. `Sessions` (52) and `Linger` (5) used to fail on drawings written before the session rows gained their control-thread, token and
+phase columns, and both are fixed: their fixtures now build the sixteen fields the operation prints, rather than appending fields to a
+row the parser reads by position. `ListCost`'s two-screens case asserts a read scheduling that lives in the screen of
+`myx.distro-.local`, so it is a defect of the screen, not of this package.
+
+## Open: the Activity root still reads the session list
+
+The shape that removes that read is built and measured: the root reads one prepared line (`--manager-session-summary`, a file, no store walk) and the six
+sections stand on one list read of their own. With it the root makes **0** list calls and `Activity` passes 53/53, twice measured. What blocks it is the
+count the other checks make: the shared list is started **once per level** that shows it, so a case visiting two lists counts two calls, and the list is
+re-read where the tree has one read for all. A shared cache key -- one key several levels stand on, read once and held by its `period` -- is what settles it.
+
+## What one look of the screen costs, measured
+
+The list the screen reads, `--manager-session-list`, is prepared once and kept five minutes beside its target, per question: the build is
+**39-50 ms** with the copy standing, against about **600 ms** without it, and `AgentsManagerListKeptCheck` holds that (a first look writes the
+copy, a second inside the five minutes neither rewrites it nor answers anything else). The schedule ask that runs beside the list was
+throttled by a counter in its own process, so every look — each a process of its own — paid the whole **2.4 s** walk; the minute it last ran
+is kept in `schedule-thread/ask-due.stamp` now, and the three looks measured end to end were **2,789 ms**, then **90 ms**, then **101 ms**.
+`AgentsManagerListKeptCheck` holds both halves: a look inside the thirty seconds neither rebuilds the copy nor answers anything else, and the ask
+keeps its minute in the store, with no per-process counter deciding it.
+
+## The screen's reads, and what a look costs
+
+The manager rows are built once and kept thirty seconds, written aside and put in place by one rename: `--all-sessions` on this
+store is **632 ms** cold and **39 ms** from the kept copy, so the first page a person opens is no longer the page that collects the
+store. The selection rest before the left pane reads an item is **250 ms** (`REST_SECONDS = 0.25`), so a selection running down the
+menu reads nothing for the rows it passes and only the item it stops on. An operation the screen asks for at its root is replaced
+with what the screen already holds where one exists; `list:activity` stays the session list, and the six sections of `Activity` are
+its rows.
