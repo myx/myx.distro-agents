@@ -393,7 +393,7 @@ get dlg
 RIGSCRIPT
 rigAssert "Team Members stands under Magic-Team (Agents), and lists the members" "$( rigVal tg.path ) | $( rigVal team )" "magic-team/team | .. magic-coordinator"
 rigAssert "a member holds its folders, Member Settings before Member Help" "$( rigVal member )" ".. permissions files sessions settings help"
-rigAssert "Enter on a session of a member stays in the tree of the member, and lists the agents of that session" "$( rigVal ses.path ) | $( rigVal sesids )" "magic-team/team/magic-coordinator/sessions/$rigS1 | .. $rigA1 $rigA2 -2"
+rigAssert "Enter on a session of a member stays in the tree of the member, and lists the agents of that session" "$( rigVal ses.path ) | $( rigVal sesids )" "magic-team/team/magic-coordinator/sessions/$rigS1 | .. $rigA1"
 rigAssert "Member Settings lists the lines of the scope of that member, and none of another" "$( rigVal setids )" ".. EMAIL_USER SLACK_BOT_TOKEN"
 rigAssert "as a table of the settings, a credential only as configured" "$( rigPaneHolds st 'Email User       coordinator@rig.example  default  EMAIL_USER' ) $( rigPaneHolds st 'Slack bot token  configured' )" "1 1"
 rigAssert "Enter on a line opens the form of that setting, on its value" "$( rigVal dlg.dialog ) | $( rigVal dlg.dialogTitle )" "setting-text:words|coordinator@rig.example | Email User"

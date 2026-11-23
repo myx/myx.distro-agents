@@ -157,6 +157,12 @@ def applyCall(state, result):
     state.noticeOf = None
     state.answer = {"key": about["viewKey"], "lines": [title] + lines} if about["viewKey"] == viewKeyOf(state) else None
     readNow(state, standToo=True)
+    ## A SESSION THE ACTION CHANGED IS SHOWN FROM A LIST THAT WAS READ BEFORE IT: the section stands on the one list read, so that read is asked again
+    ## for the change to be visible - the action's own read is the item's, not the list's.
+    if "sessions" in (state.rows or {}) or any(key.startswith("list:") and "activity" in key for key in state.rows):
+        for key in ("list:activity",):
+            if key in state.levelsOf or any(other.startswith(key) for other in state.levelsOf):
+                state.forced.add(key)
 
 
 ## An answer, reject, dismissal or kill refused for the authority it needs (F6.10, the status
