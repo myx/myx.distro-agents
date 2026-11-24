@@ -96,6 +96,11 @@ case "$1" in
 		if AgentsToolsSessionPauseHeld "$workSession" ; then
 			printf '**PAUSED:** session %s is paused, so its runs hold at their pause points and none is stuck, dead or idle.\n\n' "$workSession"
 		fi
+		## A HOLD IS SAID IN THE SCAN: while the schedule holds new work, the duty works its board group alone and starts nothing (its routine's hold-floor rule).
+		type AgentsToolsScheduleOverrideLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" || { rm -rf "$workWork" ; set +e ; return 1 ; }
+		if [ -n "$( AgentsToolsScheduleOverrideLeft MDAT_SCHEDULE_HOLDING "$( date +%s )" )" ] ; then
+			printf '**HOLDING:** the schedule holds new work. Work the board group alone, start nothing, and take no other input.\n\n'
+		fi
 
 		## The inbox: the items not yet processed, which is what the member's incoming/ holds. A MEMBER GETS ITS OWN BOARD TASKS here, the items of
 		## the pending and running states it owns (`--do-board-related-startable`); the coordinator's own tasks are in its board digest, below, and never twice.

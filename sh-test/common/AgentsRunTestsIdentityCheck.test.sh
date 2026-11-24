@@ -23,6 +23,7 @@ rigRefuse(){
 [ -f "$rigRunner" ] || rigRefuse "the runner is not at the origin this workspace resolves: $rigRunner"
 [ -f "${MYXROOT:-/usr/local/share/myx.common}/bin/lib/parallel.Common" ] || rigRefuse "myx.common lib/parallel, which the runner runs its tests with, is not at ${MYXROOT:-/usr/local/share/myx.common}"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsRunTestsIdentityCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -92,11 +93,14 @@ rigAssert "control: started with no runner between, the same test is handed the 
 echo "-- 3. nothing a test starts outlives it: what it leaves running ends with it, and the test fails for it --"
 ## A tiny test that starts a process beside itself, named by a mark, and ends without ending it; held, it waits past
 ## its time limit instead. The stand-in blocks on a pipe of its own that nobody writes, so it costs no wake-up a
-## second: a rig makes no load, and this one is waiting to be caught, not busy.
+## second: a rig makes no load, and this one is waiting to be caught, not busy. The fifo is held open for writing by
+## the test itself on descriptor 9, closed in the reader: a reader that blocks in open() is ended by nothing, and
+## one blocked in read() sees end of file when the last writing end goes, however the test ends.
 cat > "$rigTests/RigLeak.test.sh" <<'RIGLEAK'
 #!/usr/bin/env bash
 mkfifo "$RIG_SHARED/leak.$RIG_LEAK.fifo" 2> /dev/null
-bash -c 'exec 0<"$1" ; IFS= read -r rigLeakLine' "rig-leak-$RIG_LEAK" "$RIG_SHARED/leak.$RIG_LEAK.fifo" > /dev/null 2>&1 < /dev/null &
+exec 9<> "$RIG_SHARED/leak.$RIG_LEAK.fifo" 2> /dev/null
+bash -c 'exec 0<"$1" ; IFS= read -r rigLeakLine' "rig-leak-$RIG_LEAK" "$RIG_SHARED/leak.$RIG_LEAK.fifo" 9>&- > /dev/null 2>&1 < /dev/null &
 [ -z "${RIG_LEAK_HOLD:-}" ] || sleep 30
 echo "RIG_LEAK: OK"
 RIGLEAK
@@ -121,8 +125,8 @@ rigAssert "a test that leaves a process running and ends: the process ends with 
 rigAssert "and the run names it, the process's own command line with its mark" "$( rigLeakLog ended | LC_ALL=C grep -c -E '^leak-pid: [0-9]+ .*rig-leak-ended' )" 1
 rigLeakRun timed 1 -w 1 -t 3
 rigAssert "a test ended at its time limit: the process it started ends with it" "$( LC_ALL=C grep -c '^FAIL  RigLeak ' "$rigTmp/leak.timed.out" ):$( rigLeft "timed-$$" )" "1:"
-## What a red run of this section left is ended here, the pids read at this very moment.
-for rigMark in ended timed ; do rigStray="$( rigLeft "$rigMark-$$" )" ; [ -z "$rigStray" ] || kill -KILL $rigStray 2> /dev/null ; done
+## What a red run of this section left is ended here, on the helper's note of it, the pids read at this very moment.
+for rigMark in ended timed ; do rigProcSignalWithChildren KILL $( rigLeft "$rigMark-$$" ) 2> /dev/null ; done
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ RUN TESTS IDENTITY CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

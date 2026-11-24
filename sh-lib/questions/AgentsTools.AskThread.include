@@ -140,15 +140,15 @@ AgentsToolsAskThreadNextTag(){ ## addressee
 ## back only for a <to> that would otherwise open a new top-level message, and only for a
 ## thread the asker can post in again: one asked as the team bot, or by this same member.
 ## The newest such record wins.
-AgentsToolsAskThreadFind(){ ## to, address_to, question key, asking member
-	local findTo="$1" findAddress="$2" findKey="$3" findAsker="${4:-}" findFile findLine
+AgentsToolsAskThreadFind(){ ## to, address_to, question key, asking member, item (optional), kind (optional)
+	local findTo="$1" findAddress="$2" findKey="$3" findAsker="${4:-}" findItem="${5:-}" findKind="${6:-}" findFile findLine fileItem fileKind
 	local dupId="" dupOwner="" dupSession=""
 	local sameId="" sameChannel="" sameThread="" sameTag="" sameTs="" sameIdentity="" sameStatus=""
 	local fileStatus fileAddress fileKey fileOwner fileSession fileChannel fileThread fileTag fileTs fileIdentity
 	## A closed record lives in pending/closed/ (retention, T9): SAME finds one there to ask it again.
 	for findFile in "$MMDAPP/.local/agents/pending"/*.md "$MMDAPP/.local/agents/pending/closed"/*.md ; do
 		[ -f "$findFile" ] || continue
-		fileStatus="" fileAddress="" fileKey="" fileOwner="" fileSession="" fileChannel="" fileThread="" fileTag="" fileTs="" fileIdentity=""
+		fileStatus="" fileAddress="" fileKey="" fileOwner="" fileSession="" fileChannel="" fileThread="" fileTag="" fileTs="" fileIdentity="" fileItem="" fileKind=""
 		while IFS= read -r findLine ; do
 			case "$findLine" in
 				'status: '*) fileStatus="${findLine#status: }" ;;
@@ -161,10 +161,19 @@ AgentsToolsAskThreadFind(){ ## to, address_to, question key, asking member
 				'question-tag: '*) fileTag="${findLine#question-tag: }" ;;
 				'question-ts: '*) fileTs="${findLine#question-ts: }" ;;
 				'ask-identity: '*) fileIdentity="${findLine#ask-identity: }" ;;
+				'item: '*) fileItem="${findLine#item: }" ;;
+				'kind: '*) fileKind="${findLine#kind: }" ;;
 				'# '*) break ;;
 			esac
 		done < "$findFile"
-		[ "$fileAddress" = "$findAddress" ] && [ -n "$findKey" ] && [ "$fileKey" = "$findKey" ] || continue
+		## THE SAME ASK IS THE SAME KEY, OR AN OPEN ASK ABOUT THE SAME ITEM: the key is the hash of the question's words, so the one matter asked again
+		## in other words, or as a readback after a question, was a second ask to the same person with the first still open. A permission ask has
+		## its own join and its own limit, and an ask about no item has no subject to match.
+		[ "$fileAddress" = "$findAddress" ] || continue
+		if [ -n "$findKey" ] && [ "$fileKey" = "$findKey" ] ; then :
+		elif [ "$fileStatus" = "reply-pending" ] && [ -n "$findItem" ] && [ "$fileItem" = "$findItem" ] ; then
+			case "$findKind:$fileKind" in permission*|*:permission*) continue ;; esac
+		else continue ; fi
 		if [ "$fileStatus" = "reply-pending" ] ; then
 			dupId="${findFile##*/}" ; dupId="${dupId%.md}" ; dupOwner="$fileOwner" ; dupSession="$fileSession"
 			break

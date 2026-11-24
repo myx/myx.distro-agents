@@ -17,7 +17,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 ## `supervised` is a flag of the run rather than of the hours: while it holds, the loop keeps one supervision run of this rig alive
 ## (AgentsToolsScheduleSupervision), and the flag going off is what ends it. `holidays` is an override set by hand, as emergency
 ## and overtime are (`--override-flag holidays [<ttl>]`): while it holds, worktime reads `no (holiday)` whatever the hours say; it overrides
-## worktime and nothing else -- emergency and overtime stand. `holding` (MDAT_SCHEDULE_HOLDING), set the same way, makes the loop start nothing. The days are F5.4's: workdays,
+## worktime and nothing else -- emergency and overtime stand. `holding` (MDAT_SCHEDULE_HOLDING), set the same way, makes the loop start no new work (the dead are closed, the finished released, the coordinator's duty kept for the board's review). The days are F5.4's: workdays,
 ## weekend, daily or a list such as mon,thu; workdays and weekend are read against the weekend setting, which is itself a list.
 ## The zone's offset is that of now, used for the days around now. Every instant here is an epoch (date +%s) and the arithmetic is
 ## integer arithmetic, never date(1) arithmetic (MAGIC.md).
@@ -676,6 +676,13 @@ AgentsToolsScheduleDutyRoutine(){ ## member, its skill folder, [a work-duty is a
 	fi
 }
 
+## The session the schedule keeps for a member's duty, into the named variable; rc 1, and empty, where it keeps none.
+AgentsToolsScheduleKeptDutySessionInto(){ ## variable, member, workspace
+	printf -v "$1" '%s' ""
+	[ -s "$3/.local/agents/schedule/duty-session/$2" ] || return 1
+	IFS= read -r "$1" < "$3/.local/agents/schedule/duty-session/$2" || :
+}
+
 ## --- the starts ---
 
 ## A start through the spawner, in the background. The spawner runs the input scans of the routine before its member begins, and the work-duty
@@ -698,7 +705,16 @@ AgentsToolsScheduleDutyRoutine(){ ## member, its skill folder, [a work-duty is a
 AgentsToolsScheduleStartFailed(){ ## key, the start's output
 	local failStore="$MMDAPP/.local/agents/schedule/starting" failCount=0 failLimit="${MDAT_SCHEDULE_START_FAILS_ESCALATE:-3}" failWhy
 	case "$failLimit" in ''|*[!0123456789]*|0) failLimit=3 ;; esac
-	! printf '%s\n' "$2" | LC_ALL=C grep -q -F 'the routine is already running: its locking document' || return 0
+	## A START THE ROUTINE'S LOCK REFUSED IS NO FAILURE, BUT A LOCK NO RUN HOLDS IS GIVEN BACK HERE: the console's release frees a lock whose holder has no open record and refuses one whose holder has, so a live duty is never touched.
+	if printf '%s\n' "$2" | LC_ALL=C grep -q -F 'the routine is already running: its locking document' ; then
+		local lockedNote="${2#*its locking document }" lockedMember
+		lockedMember="${lockedNote#*\(}" ; lockedMember="${lockedMember%%\)*}" ; lockedNote="${lockedNote%% *}"
+		type AgentsToolsRoutineLockReleaseConsole > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineLock.include"
+		if AgentsToolsRoutineLockReleaseConsole "inbox:$lockedMember:$lockedNote" "the schedule's start of $1 was refused by it" > /dev/null 2>&1 ; then
+			rm -f "$failStore/$1.hold" 2> /dev/null
+		fi
+		return 0
+	fi
 	[ ! -s "$failStore/$1.fails" ] || IFS= read -r failCount < "$failStore/$1.fails" || failCount=0
 	case "$failCount" in ''|*[!0123456789]*) failCount=0 ;; esac
 	failCount=$(( failCount + 1 ))
@@ -751,8 +767,26 @@ AgentsToolsScheduleStartingAllowed(){
 	! AgentsToolsOnDemandThreadEnding
 }
 
+## rc 0 while a start of the key is blocked: held after repeated failures (S12.12, the inquiry on it is in the coordinator's inbox), or its in-flight mark
+## or its hold is younger than ten minutes. THE TWO KEY FILES ARE READ BY THEIR PATHS (call-path audit row 10), so no find walks the store: one stat
+## per file that is there, against the pass clock. A mark or hold past its ten minutes is removed here, since the mark is created under noclobber and
+## one left by a start that died would block its key for ever.
+AgentsToolsScheduleStartBlocked(){ ## key
+	local blockedStore="$MMDAPP/.local/agents/schedule/starting" blockedFile blockedAt blockedNow="${agentsSchedulePassNow:-}"
+	AgentsToolsScheduleStartHeld "$1" && return 0
+	for blockedFile in "$blockedStore/$1" "$blockedStore/$1.hold" ; do
+		[ -e "$blockedFile" ] || continue
+		[ -n "$blockedNow" ] || blockedNow="$( date +%s )"
+		blockedAt="$( stat -f %m "$blockedFile" 2> /dev/null || stat -c %Y "$blockedFile" 2> /dev/null )" || blockedAt=0
+		case "$blockedAt" in ''|*[!0-9]*) blockedAt=0 ;; esac
+		[ $(( blockedNow - blockedAt )) -ge 600 ] || return 0
+		rm -f "$blockedFile" 2> /dev/null
+	done
+	return 1
+}
+
 AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
-	local spawnKey="$1" spawnStore="$MMDAPP/.local/agents/schedule/starting" spawnDutySession="" spawnDutyFile="" spawnDayFirst="" spawnKeptRoot="" spawnDutyHeld=no spawnDutyRecord spawnDutyGiven
+	local spawnKey="$1" spawnStore="$MMDAPP/.local/agents/schedule/starting" spawnDutySession="" spawnDutyFile="" spawnDayFirst="" spawnKeptRoot="" spawnKeptStore="" spawnDutyHeld=no spawnDutyRecord spawnDutyGiven
 	shift
 	## A THREAD TOLD TO END STARTS NOTHING MORE (S12.15), and that test precedes every read of the key's state: a start that is not made leaves
 	## the kept duty session, the day marker and the tags it would have moved exactly as the next thread finds them.
@@ -787,6 +821,14 @@ AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 					done <<< "$( AgentsToolsSpawnedSessionRecords "$spawnDutySession" own )"
 				fi
 			fi
+			## A KEPT SESSION WHOSE CONTEXT DOES NOT LOAD IS NO SESSION TO JOIN: every start that joins it resumes that file and dies at the harness,
+			## so it is dropped here, with the harness's own test of the file, and the start opens a session of its own.
+			if [ -n "$spawnDutySession" ] && [ "$spawnDutyHeld" = no ] ; then
+				type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+				type AgentsHarnessContextCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.HarnessResume.include"
+				AgentsSpawnedStoreDirInto spawnKeptStore "$MMDAPP"
+				[ ! -s "$spawnKeptStore/$spawnDutySession/context.jsonl" ] || AgentsHarnessContextCheck "$spawnKeptStore/$spawnDutySession/context.jsonl" > /dev/null 2>&1 || spawnDutyHeld=yes
+			fi
 			if [ -n "$spawnDutySession" ] && { AgentsToolsDutyKeptStale "$spawnDutySession" || [ "$spawnDutyHeld" = yes ] ; } ; then
 				AgentsToolsDutyKeptTagFold "${spawnKey#work-duty.}" "$spawnDutySession"
 				rm -f "$spawnDutyFile" ; spawnDutySession=""
@@ -800,18 +842,7 @@ AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 		;;
 	esac
 	mkdir -p "$spawnStore" 2> /dev/null || return 1
-	## A KEY HELD AFTER REPEATED FAILURES IS NOT STARTED (S12.12): the inquiry on it is in the coordinator's inbox, and the report names it.
-	! AgentsToolsScheduleStartHeld "$spawnKey" || return 1
-	## THE TWO KEY FILES ARE READ BY THEIR PATHS (call-path audit row 10): the start mark and the hold both lie directly in the store, so no
-	## find walks it; a file younger than ten minutes holds the key. One stat per file that is there, against the pass clock.
-	local spawnHeldFile spawnHeldAt spawnHeldNow="${agentsSchedulePassNow:-}"
-	for spawnHeldFile in "$spawnStore/$spawnKey" "$spawnStore/$spawnKey.hold" ; do
-		[ -e "$spawnHeldFile" ] || continue
-		[ -n "$spawnHeldNow" ] || spawnHeldNow="$( date +%s )"
-		spawnHeldAt="$( stat -f %m "$spawnHeldFile" 2> /dev/null || stat -c %Y "$spawnHeldFile" 2> /dev/null )" || spawnHeldAt=0
-		case "$spawnHeldAt" in ''|*[!0-9]*) spawnHeldAt=0 ;; esac
-		[ $(( spawnHeldNow - spawnHeldAt )) -ge 600 ] || return 1
-	done
+	! AgentsToolsScheduleStartBlocked "$spawnKey" || return 1
 	( set -C ; : > "$spawnStore/$spawnKey" ) 2> /dev/null || return 1
 	(
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -840,8 +871,13 @@ AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 		if [ "$spawnRc" != 0 ] ; then
 			{ mkdir -p "$spawnStore" && : > "$spawnStore/$spawnKey.hold" ; } 2> /dev/null || :
 			AgentsToolsScheduleStartFailed "$spawnKey" "$spawnOut" || :
+			## A PENDING ITEM WHOSE START FAILED GOES BACK TO PENDING, the queue: it is tried again past the hold, and its third failure files the inquiry.
+			case "$spawnKey" in pending.?*) "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" --move-to-pending --team-member magic-coordinator "${spawnKey#pending.}.md" --from-state:running > /dev/null 2>&1 < /dev/null || : ;; esac
 		else
 			rm -f "$spawnStore/$spawnKey.hold" "$spawnStore/$spawnKey.fails" "$spawnStore/$spawnKey.escalated" 2> /dev/null || :
+			## THE RECEIPT IS THE TOOLING'S: the member the start goes to cannot write it (the advance operations are the coordinator's), so the schedule
+			## records the start it made on the item it moved to running, as `execution-receipt: spawn:<session>:<utc>`, once the spawner has said the session.
+			case "$spawnKey" in pending.?*) "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" --advance-to-running --team-member magic-coordinator "${spawnKey#pending.}.md" --from-state:running --header:upsert:execution-receipt:"spawn:${agentsScheduleSpawnSession:-unknown}:$( date -u +%Y-%m-%dT%H:%M:%SZ )" > /dev/null 2>&1 < /dev/null || : ;; esac
 		fi
 		printf '%s\n' "$spawnOut" > "$spawnStore/$spawnKey.out"
 		printf '%s\n' "$spawnRc" > "$spawnStore/$spawnKey.rc"
@@ -1861,7 +1897,7 @@ AgentsToolsScheduleDutyOrder(){
 }
 
 AgentsToolsScheduleWorkDuty(){
-	local dutyFlags dutyWork=no dutyCoordinator=no dutyMember dutyDir dutyAllowed dutyRecord dutyLook="" dutyLookOut="" dutyWhy="" dutyWarmAt="" dutyStale dutyPace="" dutyOwners dutyUrgent="" dutyMagic="" dutyNow dutyVacation dutyInbox="" dutyRoutine dutyKeptRoutine dutyKeptSession
+	local dutyFlags dutyWork=no dutyCoordinator=no dutyMember dutyDir dutyAllowed dutyRecord dutyLook="" dutyLookOut="" dutyWhy="" dutyWarmAt="" dutyStale dutyPace="" dutyOwners dutyUrgent="" dutyMagic="" dutyNow dutyVacation dutyInbox="" dutyRoutine dutyKeptRoutine dutyKeptSession dutyHold=""
 	## A step called alone is a pass of its own, so its one refusal line is its own too (AgentsToolsScheduleStartsAllowed).
 	[ -n "${agentsSchedulePassNow:-}" ] || agentsScheduleStartsRefused=""
 	AgentsToolsScheduleStartsAllowed || return 0
@@ -1895,6 +1931,9 @@ AgentsToolsScheduleWorkDuty(){
 	done <<< "$( AgentsToolsScheduleStartedDutyRecords )"
 	dutyTimes="$dutyTimes, stale $(( SECONDS - dutyAt ))s" ; dutyAt="$SECONDS"
 	AgentsToolsSchedulePassFlagsInto dutyFlags
+	## A HOLD STOPS THE START OF NEW WORK AND NOTHING ELSE: a dead duty is still closed and a live one still has its lifetime. Only the coordinator's duty
+	## starts, on the board's news, so a handback is reviewed under a hold. No other member's duty starts and no tag is read for one.
+	case "$dutyFlags" in *"holding: yes"*) dutyHold=yes ;; esac
 	## Team overtime is a duty out of hours for the magic members alone; emergency is the coordinator, and a member only for its own urgent-tier pending task.
 	case "$dutyFlags" in *"worktime: yes"*) dutyWork=yes ; dutyCoordinator=yes ;; esac
 	case "$dutyFlags" in *"overtime: yes"*) dutyMagic=yes ; dutyCoordinator=yes ;; esac
@@ -1923,6 +1962,7 @@ AgentsToolsScheduleWorkDuty(){
 		[ "$dutyAllowed" = yes ] || [ -z "$( AgentsToolsScheduleMemberFlag overtime "$dutyMember" "$dutyNow" )" ] || dutyAllowed=yes
 		## A member on vacation is looked at for nothing: no tag, no mention, no duty.
 		[ -z "$( AgentsToolsScheduleMemberFlag vacation "$dutyMember" "$dutyNow" )" ] || continue
+		[ -z "$dutyHold" ] || continue
 		if [ "$dutyAllowed" = yes ] ; then
 			! AgentsToolsScheduleWorkDutyRecord "$dutyMember" > /dev/null || continue
 			dutyLook="$dutyLook $dutyMember"
@@ -1955,6 +1995,7 @@ AgentsToolsScheduleWorkDuty(){
 		fi
 		## A member on vacation is started by nothing the schedule holds, a mention in the team channel included: it is invited or tasked by hand.
 		[ -z "$dutyVacation" ] || continue
+		[ -z "$dutyHold" ] || [ "$dutyMember" = magic-coordinator ] || continue
 		dutyWhy=""
 		## A WORK-DUTY STARTS ON FIRST DEMAND AND IS NEVER STARTED TO KEEP A CACHE WARM (sketch 10.4, 7.3): it is a loop in one session, and
 		## its cache is kept inside that session by the keepalive round of its --idle-wait, never by ending the run and starting another.
@@ -1970,7 +2011,10 @@ AgentsToolsScheduleWorkDuty(){
 		if [ "$dutyAllowed" = yes ] || [ "$dutyMember" = magic-coordinator ] ; then
 			## A DUTY THAT ENDED IS STARTED AGAIN, on the one rule AgentsToolsScheduleDutyRestartDue states, and
 			## the dismissal marker is what keeps it down. Demand is still the ordinary start.
-			if AgentsToolsScheduleDutyRestartDue "$dutyMember" > /dev/null ; then
+			if [ -n "$dutyHold" ] ; then
+				AgentsToolsScheduleBoardDemand || continue
+				dutyWhy=" (held: the board has news to review)"
+			elif AgentsToolsScheduleDutyRestartDue "$dutyMember" > /dev/null ; then
 				dutyWhy=" (restarted after its last run ended)"
 			else
 				case "$dutyOwners" in
@@ -2291,12 +2335,12 @@ AgentsToolsScheduleVerifyStale(){ ## item file name, the item's file (may be emp
 	[ "$staleWord" = stale ]
 }
 
-## THE START OF APPROVED PENDING WORK, with no agent: at most one item a pass, the oldest by file name. A candidate is a `board-pending` item that
+## THE START OF APPROVED PENDING WORK, with no agent: at most one item a pass, the first of the queue's order (its tier, then its age). A candidate is a `board-pending` item that
 ## carries `approved-by:`, whose `recheck-date:` is absent, due, unreadable or set beside no unmet `condition:`, and whose next-iteration routine resolves (AgentsToolsBoardItemHandler rc 0,
 ## naming a routine). The start is `magic-coordinator.work-duty.routine`'s **start-pending** done by the thread: the item moves to `board-running`
 ## first, then its `restart-session` group, else its `owner`, is spawned on that routine. A move refused starts nothing, and says why.
 AgentsToolsScheduleStartPending(){
-	local pendFile pendName pendNow pendRecheck pendEpoch pendRoutine pendRc pendMembers pendOut pendMark pendOne pendFast="" pendFlags pendOpen=no pendHeld="" pendGo=""
+	local pendFile pendName pendNow pendRecheck pendEpoch pendRoutine pendRc pendMembers pendOut pendMark pendOne pendFast="" pendFlags pendOpen=no pendHeld="" pendGo="" pendLimit
 	local pendLine pendFence pendSeen pendRestart pendOwner pendCondition
 	AgentsToolsScheduleStartsAllowed || return 0
 	type AgentsToolsRecheckConditionUnmet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
@@ -2314,17 +2358,13 @@ AgentsToolsScheduleStartPending(){
 	AgentsToolsSchedulePassFlagsInto pendFlags
 	case "$pendFlags" in *"worktime: yes"*|*"overtime: yes"*|*"emergency: yes"*) pendOpen=yes ;; esac
 	type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" ; local pendFileItems ; AgentsToolsBoardItemsInto pendFileItems "" "pending"
-	## THE QUEUE'S ORDER: emergency items first, then urgent ones, then the rest, each group in the board's own order ().
-
+	## THE QUEUE'S ORDER: emergency items first, then urgent ones, then the rest, each tier oldest first by the stamp in the item's name (AgentsSchedulePendingOrder.awk).
 	if [ ${#pendFileItems[@]} -gt 1 ] ; then
-		local pendOrdered=() pendTier pendItem pendItemMark
-		for pendTier in emergency urgent other ; do
-			for pendItem in "${pendFileItems[@]}" ; do
-				pendItemMark="$( LC_ALL=C awk 'NR == 1 && $0 == "---" { inside = 1 ; next ; } inside && $0 == "---" { exit ; } inside && /^mark:/ { sub( /^mark: */, "" ) ; print ; exit ; }' "$pendItem" 2> /dev/null )"
-				case "$pendTier:$pendItemMark" in emergency:emergency|urgent:urgent) pendOrdered+=( "$pendItem" ) ;; other:emergency|other:urgent) ;; other:*) pendOrdered+=( "$pendItem" ) ;; esac
-			done
-		done
-		pendFileItems=( "${pendOrdered[@]}" )
+		local pendOrdered=() pendRow
+		while IFS= read -r pendRow ; do
+			[ -z "$pendRow" ] || pendOrdered+=( "${pendRow##*$'\t'}" )
+		done <<< "$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsSchedulePendingOrder.awk" "${pendFileItems[@]}" 2> /dev/null | LC_ALL=C sort )"
+		[ ${#pendOrdered[@]} -ne ${#pendFileItems[@]} ] || pendFileItems=( "${pendOrdered[@]}" )
 	fi
 	## A KEPT VERDICT GOES WITH ITS ITEM: one whose item is no pending item any more, moved on or gone, is removed, so the kept verdicts
 	## are one file a pending item at most, and the store never only grows.
@@ -2418,25 +2458,33 @@ AgentsToolsScheduleStartPending(){
 				done
 			;;
 		esac
+		## THE SPAWN LIMIT HOLDS THE START, as it holds a dispatch of the coordinator: the item stays in pending, which is the queue, and no inquiry is filed for it.
+		type AgentsToolsSpawnLimitReached > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSessionParent.include" || return 1
+		if pendLimit="$( AgentsToolsSpawnLimitReached )" ; then
+			printf 'start-pending: held by the spawn limit, %s runs of %s allowed, nothing started\n' "${pendLimit%% *}" "${pendLimit#* }"
+			return 0
+		fi
+		## A KEY WHOSE START IS HELD OR STILL IN FLIGHT IS NOT MOVED: the item stays pending and the next one is tried.
+		if AgentsToolsScheduleStartBlocked "pending.${pendName%.md}" ; then
+			printf 'start-pending: %s waits: its start is held or still in flight\n' "$pendName"
+			continue
+		fi
+		## A MOVE THE BOARD REFUSES STARTS THAT ITEM'S SESSION ALONE: the queue goes on with the next item.
 		pendOut="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" --advance-to-running --team-member magic-coordinator "$pendName" --from-state:pending 2>&1 < /dev/null )" || {
 			printf 'start-pending: %s not moved to running, nothing started: %s\n' "$pendName" "$( printf '%s\n' "$pendOut" | LC_ALL=C grep -m 1 -E 'ERROR|REFUS' | LC_ALL=C cut -c1-300 )"
-			return 0
+			continue
 		}
 		## The members are split on purpose: each is one argument of the spawner.
 		# shellcheck disable=SC2086
 		if AgentsToolsScheduleSpawn "pending.${pendName%.md}" --routine "$pendRoutine" \
 			--description "Board item $pendName, approved, started from board-pending by the schedule: run its next iteration by $pendRoutine. The item is in board-running, its start recorded by the schedule." \
 			$pendMembers ; then
-			printf 'start-pending: started %s by %s for %s\n' "$pendName" "$pendRoutine" "$pendMembers"
-			## THE RECEIPT IS THE TOOLING'S: the member the start goes to cannot write it (the advance operations are the coordinator's), so the
-			## schedule records the start it made on the item it moved to running, as `execution-receipt: spawn:<session>:<utc>`.
-			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" --advance-to-running --team-member magic-coordinator "$pendName" --from-state:running \
-				--header:upsert:execution-receipt:"spawn:${agentsScheduleSpawnSession:-unknown}:$( date -u +%Y-%m-%dT%H:%M:%SZ )" > /dev/null 2>&1 < /dev/null \
-				|| printf 'start-pending: the receipt of %s could not be written on the running item\n' "$pendName"
-		else
-			printf 'start-pending: %s moved to running, its start is held: the spawner will retry it from running\n' "$pendName"
+			printf 'start-pending: starting %s by %s for %s, its receipt is written once the session is known\n' "$pendName" "$pendRoutine" "$pendMembers"
+			return 0
 		fi
-		return 0
+		printf 'start-pending: %s not started, the spawner refused it, so it goes back to pending\n' "$pendName"
+		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" --move-to-pending --team-member magic-coordinator "$pendName" --from-state:running > /dev/null 2>&1 < /dev/null \
+			|| printf 'start-pending: %s could not be moved back to pending\n' "$pendName"
 	done
 	[ "$pendHeld" != said ] || printf 'start-pending: held by the pace gate, nothing started\n'
 	return 0
@@ -2490,18 +2538,20 @@ AgentsToolsScheduleLoop(){
 	## ONE START PER PASS, across the duties and the pending items: set by the start that happens, read by the starts after it in this pass.
 	agentsSchedulePassStarted=""
 	## Each step's seconds in agentsSchedulePassTimes, `<step> <n>s` comma-separated, for the thread's line of a pass over its gap.
-	local loopAt
+	local loopAt loopHold=""
 	agentsSchedulePassTimes=""
 	loopAt="$SECONDS" ; AgentsToolsScheduleSpawnReport ; agentsSchedulePassTimes="spawn-report $(( SECONDS - loopAt ))s"
-	## HOLDING STARTS NOTHING: no routine, no duty, no supervision; what ended is still reported and learned from.
-	if [ -n "$( AgentsToolsScheduleOverrideLeft MDAT_SCHEDULE_HOLDING "$agentsSchedulePassNow" )" ] ; then
-		printf 'holding: the schedule starts nothing while holding is set\n'
-		AgentsToolsScheduleLearningStep
-		return 0
-	fi
+	## A HOLD STARTS NO NEW WORK: no routine, supervision, pending item or other member's duty. The dead are still closed, the finished released and the coordinator's duty kept for the board's review.
+	[ -z "$( AgentsToolsScheduleOverrideLeft MDAT_SCHEDULE_HOLDING "$agentsSchedulePassNow" )" ] || { loopHold=yes ; printf 'holding: no new work is started while holding is set, and the dead and finished runs are still ended and the coordinator duty kept\n' ; }
 	## A THREAD TOLD TO END RUNS NO STEP THAT PREPARES A START (S12.15): the steps below drop a member's kept duty session, close a stale duty,
 	## carry its tags and move a pending item to running before they reach a start, and that is work the next thread has to undo.
 	AgentsToolsScheduleStartingAllowed || { printf 'schedule: the pass starts nothing: the thread was told to end, or its end could not be read\n' ; AgentsToolsScheduleLearningStep ; return 0 ; }
+	if [ -n "$loopHold" ] ; then
+		loopAt="$SECONDS" ; AgentsToolsScheduleWorkDuty ; agentsSchedulePassTimes="$agentsSchedulePassTimes, work-duty $(( SECONDS - loopAt ))s${agentsScheduleDutyTimes:+ [$agentsScheduleDutyTimes]}"
+		loopAt="$SECONDS" ; AgentsToolsScheduleIdleRunsEnd ; agentsSchedulePassTimes="$agentsSchedulePassTimes, idle-runs $(( SECONDS - loopAt ))s"
+		AgentsToolsScheduleLearningStep
+		return 0
+	fi
 	loopAt="$SECONDS" ; AgentsToolsScheduleAutorun ; agentsSchedulePassTimes="$agentsSchedulePassTimes, autorun $(( SECONDS - loopAt ))s"
 	loopAt="$SECONDS" ; AgentsToolsScheduleWorkDuty ; agentsSchedulePassTimes="$agentsSchedulePassTimes, work-duty $(( SECONDS - loopAt ))s${agentsScheduleDutyTimes:+ [$agentsScheduleDutyTimes]}"
 	loopAt="$SECONDS" ; AgentsToolsScheduleStartPending ; agentsSchedulePassTimes="$agentsSchedulePassTimes, start-pending $(( SECONDS - loopAt ))s"

@@ -20,6 +20,9 @@
 ##   `running-idle` a task in board-running that no live run names and whose owner holds no live duty run (`<ws> <item>`): the
 ##          start pass reads board-pending alone, so
 ##          nothing starts it again. Moved back to pending, it starts by its handler.
+##   `blocked-owner-idle` an urgent or important task in board-blocked whose owner holds no live run on this rig, the human-owner aside:
+##          `<ws> <item> owner=<member> mark=<mark>`. Its condition is a decision or an answer only that owner gives, and a partner or a keeper
+##          with no duty gets a session from nothing but a dispatch, so the task never moves by itself.
 ##   `leftover` a run whose record is still open a day after it started: `<ws> <spawn-id> <member> started=<date>`.
 ## Every board item is read through the board's own walk (AgentsToolsBoardItemsInto), every run record through the session store's
 ## record rows (AgentsToolsSpawnedRecordRows); nothing here builds a path into either store.
@@ -147,6 +150,20 @@ AgentsToolsSuperviseBoard(){ ## workspace path, now (epoch)
 			printf '%s\n' "$boardRecords" | LC_ALL=C awk -F'\t' -v k="Board item $boardKey" '$5 == "spawn-started" && index( $8, k ) { found = 1 ; exit ; } END { exit ! found ; }' \
 				|| printf 'running-idle %s %s\n' "$boardWsName" "$boardKey"
 		done
+		## BLOCKED ON AN OWNER THAT RUNS NOTHING: the live owners are read from the records once, the blocked tasks' owner and mark in one awk.
+		local boardLiveOwners boardMark
+		boardLiveOwners=$'\n'"$( printf '%s\n' "$boardRecords" | LC_ALL=C awk -F'\t' '$5 == "spawn-started" { print $6 ; }' )"$'\n'
+		AgentsToolsBoardItemsInto boardItems "task-" blocked
+		[ ${#boardItems[@]} -eq 0 ] || while IFS=' ' read -r boardKey boardOwner boardMark ; do
+			[ -n "$boardKey" ] || continue
+			case "$boardLiveOwners" in *$'\n'"$boardOwner"$'\n'*) continue ;; esac
+			printf 'blocked-owner-idle %s %s owner=%s mark=%s\n' "$boardWsName" "$boardKey" "$boardOwner" "$boardMark"
+		done <<< "$( LC_ALL=C awk '
+			FNR == 1 { fence = 0 ; id = FILENAME ; sub( /.*\//, "", id ) ; sub( /\.md$/, "", id ) ; owner = "" ; mark = "" ; }
+			$0 == "---" { if ( ++fence > 1 ) { if ( owner != "" && owner != "human-owner" && ( mark == "urgent" || mark == "important" ) ) print id, owner, mark ; nextfile ; } ; next ; }
+			fence == 1 && index( $0, "owner: " ) == 1 { owner = substr( $0, 8 ) ; }
+			fence == 1 && index( $0, "mark: " ) == 1 { mark = substr( $0, 7 ) ; }
+		' "${boardItems[@]}" 2> /dev/null )"
 		## ACCEPTED, NOT LANDED.
 		## THE DAY IS THE DISPATCH'S OWN: its name carries the moment it was made (dispatch-<YYYYMMDDTHHMM...>). A store sync or a git
 		## fetch rewrites old files and moves their mtime, so the find's -mmin only narrows, and the name decides, against the pass clock.

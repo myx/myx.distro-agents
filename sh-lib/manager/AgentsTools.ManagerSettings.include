@@ -127,7 +127,8 @@ control|kill||Control Kill||
 control|channel||Root Harness Channel||
 control|request|SESSION_CONTROL_REQUEST_SECONDS|Control Request Seconds|settings|How many seconds a console waits for the control thread of a session to take a request. After that the console takes the request back and carries it out itself, and a change is read at the next request.
 control|kill|SESSION_CONTROL_KILL_SECONDS|Control Kill Seconds|settings|How many seconds the carrying out of a kill request may take before it ends its own work. A change is read at the next request, by the console and by the control thread.
-control|channel|ROOT_HARNESS_VERBOSITY|Root Harness Verbosity|settings|Which external channel the copy of a root-harness session lives on: nothing beyond its own printback output, the tooling's own event-track thread, or a session thread in the team channel. It is read when a session is minted, so a change is the next session's, and it never changes where a message that names an address goes."
+control|channel|ROOT_HARNESS_VERBOSITY|Root Harness Verbosity|settings|Which external channel the copy of a root-harness session lives on: nothing beyond its own printback output, the tooling's own event-track thread, or a session thread in the team channel. It is read when a session is minted, so a change is the next session's, and it never changes where a message that names an address goes.
+control|channel|SECURITY_TIER_DEFAULT|Security Tier Default|settings|The tier a session records where neither its spawn nor its routine names one: the four are private, system, shared and public. It is read when a session is minted, so a change is the next session's, and a running session keeps the tier it recorded."
 
 ## THE MODE OF THE WORKSPACE, the owner's, its three values, its key, what `just-agents` must not do and the gate that holds it: all in
 ## AgentsTools.TeamDataGate.include, which the digest reads the mode by (AgentsToolsWorkspaceMode) as the gate does. The settings
@@ -549,6 +550,10 @@ AgentsToolsManagerConfigScopes(){
 ##       thread, `full` a session thread in the team channel (F3.1 of the root-harness epic). Read only
 ##       when a session is minted and recorded in that session's folder, so a change is the next
 ##       session's and no running session is broken by it; a value that names no kind reads as `none`.
+##   SECURITY_TIER_DEFAULT   the workspace's own, in the settings of the team: the tier a session records where neither
+##       its spawn's `--security-tier` nor its routine's `security-tier:` names one -- `private`, `system`,
+##       `shared` or `public`, `system` where nothing sets it. Read when a session is minted and recorded in that
+##       session's folder, so a change is the next session's; a session keeps the tier it recorded.
 ## AN EMPTY VALUE IS NO VALUE: the writer never saves one. Given an empty value it takes the
 ## key out of the file, by the reader's own operation that removes one, and the setting is
 ## its default again. A setting whose default is that nothing is set has an empty default
@@ -564,7 +569,8 @@ console|origin|MDLT_CONSOLE_ORIGIN|choice|user system||@origins|system
 console|detail|MDLT_CONSOLE_DETAIL|choice|user||=<default> (none),true=true (track),full=full (debug)
 control|request|SESSION_CONTROL_REQUEST_SECONDS|number|team|5|1..60
 control|kill|SESSION_CONTROL_KILL_SECONDS|number|team|30|5..600
-control|channel|ROOT_HARNESS_VERBOSITY|choice|team|none|none=Printback,track=Tooling Thread,full=Team Thread"
+control|channel|ROOT_HARNESS_VERBOSITY|choice|team|none|none=Printback,track=Tooling Thread,full=Team Thread
+control|channel|SECURITY_TIER_DEFAULT|choice|team|system|private=Private,system=System,shared=Shared,public=Public"
 
 ## THE OTHER NAMES of a value of a changeable setting: a name it had before, or a second name
 ## of it, each with the value it means, which it is read as and saved as. One row a setting,

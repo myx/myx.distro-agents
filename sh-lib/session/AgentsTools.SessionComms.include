@@ -66,6 +66,12 @@ agentsSessionCommsPassSeconds=5
 ## The channels a pass may pull: the rig's cache serves the members' reads, and a workspace of hundreds of marks would otherwise spend its
 ## every pass on them, holding the console's messages behind that work.
 agentsSessionCommsPullsPerPass=2
+## The seconds between two starts of the reader: a caller inside it starts nothing, and is told the start that stands. A reader that
+## died left its lock behind, and every caller after it would otherwise start another process.
+agentsSessionCommsStartGap=60
+## What a running reader does when its lock is gone or names another process: it takes it again this many times, a second apart,
+## before it ends. A lost lock is a fault to survive, never a reason for the next caller to start a process.
+agentsSessionCommsLockRetries=5
 
 ## The folder of the reader's files. rc 1 for no workspace.
 ## Printed for a one-off reader. A caller on a tick or a served call writes the path itself, $MMDAPP/.local/agents/comms, after its own
@@ -322,16 +328,16 @@ AgentsToolsSessionCommsStart(){
 	fi
 	[ -n "${MMDAPP:-}" ] || { printf 'failed - %s\n' "no workspace is selected" ; return 1 ; }
 	startDir="$MMDAPP/.local/agents/comms"
-	startLive="$( AgentsToolsSessionCommsLive )" && { rmdir "$startDir/.starting" 2> /dev/null ; printf 'alive %s\n' "$startLive" ; return 0 ; }
-	## ONE START AT A TIME: a start under way is marked (`.starting`, made by mkdir so only one can) until the reader holds its lock or
-	## five seconds pass. A second caller in that window, two probes of one Wait wanting in the same second, is told `starting` and
-	## starts nothing: the one reader pulls both wants first on its first loop.
+	startLive="$( AgentsToolsSessionCommsLive )" && { printf 'alive %s\n' "$startLive" ; return 0 ; }
+	## ONE START A GAP, NOT ONE AT A TIME: `.starting` records the moment of the last start, and is left in place. A caller within
+	## `agentsSessionCommsStartGap` of it is told `recent`, and starts nothing: a reader that died on its first pass is otherwise
+	## replaced by a new process on every call after it, and a hundred callers make a hundred readers. A live lock still answers first.
 	if ! mkdir "$startDir/.starting" 2> /dev/null ; then
 		local startMarkAt startMarkNow
 		startMarkAt="$( stat -f '%m' "$startDir/.starting" 2> /dev/null || stat -c '%Y' "$startDir/.starting" 2> /dev/null )" || startMarkAt=""
 		startMarkNow="$( date +%s )"
 		case "$startMarkAt" in ''|*[!0-9]*) startMarkAt=0 ;; esac
-		if [ $(( startMarkNow - startMarkAt )) -lt 5 ] ; then printf 'starting\n' ; return 0 ; fi
+		if [ $(( startMarkNow - startMarkAt )) -lt "$agentsSessionCommsStartGap" ] ; then printf 'recent %s\n' "$startMarkAt" ; return 0 ; fi
 		rmdir "$startDir/.starting" 2> /dev/null ; mkdir "$startDir/.starting" 2> /dev/null || :
 	fi
 	if ! mkdir -p "$startDir" 2> /dev/null || ! { printf '' >> "$startDir/log" ; } 2> /dev/null ; then
@@ -769,13 +775,21 @@ AgentsToolsSessionCommsOutboxKeep(){ ## session, block number, state (retry|unkn
 }
 
 ## A post of the outbox the writer gives up: `unknown` or `refused`, with the reason on the second line of its file.
+## IT IS SAID TO ITS SENDER: one line goes into the session's chat file, addressed to the member the block was sent as, so the
+## run that sent it reads it in its own Wait. A block left at `-` in the index with nobody told is the fault this serves.
 AgentsToolsSessionCommsOutboxMark(){ ## session, outbox file `<n>.retry`, state (unknown|refused), reason
-	local markDir="${2%/*}" markNo="${2##*/}" markWhy
+	local markDir="${2%/*}" markNo="${2##*/}" markWhy markLine=""
 	markNo="${markNo%%.*}"
 	markWhy="$( printf '%s' "$4" | LC_ALL=C tr '\r\n\t' '   ' | LC_ALL=C cut -c1-300 )"
+	{ IFS= read -r markLine < "$2" ; } 2> /dev/null || :
+	markLine="${markLine%%$'\t'*}"
 	{ MARK_WHY="$markWhy" LC_ALL=C awk 'NR == 2 { print ENVIRON["MARK_WHY"] ; next ; } { print ; }' "$2" > "$markDir/$markNo.$3.aside" && mv -f "$markDir/$markNo.$3.aside" "$markDir/$markNo.$3" && rm -f "$2" ; } 2> /dev/null \
 		|| { rm -f "$markDir/$markNo.$3.aside" 2> /dev/null ; return 1 ; }
 	AgentsToolsSessionChatStamp "$1" "$markNo" - "$3"
+	case "$markLine" in ''|*[!A-Za-z0-9_-]*) return 0 ;; esac
+	type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 0
+	printf '%s\n' "your post of block $markNo was not posted, $3: ${markWhy:-no reason was given}" \
+		| AgentsToolsSessionChatAppend "$1" tooling "$markLine" - "printback:$1" own > /dev/null 2>&1 || :
 	return 0
 }
 

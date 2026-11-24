@@ -99,6 +99,48 @@ AgentsToolsThisSessionPost(){ ## the send's arguments after its target
 	DistroAgentsTools --slack-send-message --team-member "$thisSessionMember" session-current "$@"
 }
 
+## --post-tier-message: one message to the channel the session's security tier names, with a pointer left on the thread
+## the message came from. The tier is the one the session recorded; the open thread is the session's own. The body comes
+## on stdin, for the send path's own reason, and the detour itself is AgentsToolsCommsTierPublish's.
+AgentsToolsThisSessionTierPost(){ ## the operation's arguments: addressees and the body's own switches
+	AgentsToolsThisSessionNeedMember --post-tier-message || return 1
+	AgentsToolsThisSessionNeedSession --post-tier-message || return 1
+	AgentsToolsThisSessionNeedThread --post-tier-message || return 1
+	type AgentsToolsSessionTierRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTier.include"
+	local tierPostTier=""
+	tierPostTier="$( AgentsToolsSessionTierRead "$thisSessionKey" 2> /dev/null )" || tierPostTier=""
+	if [ -z "$tierPostTier" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --post-tier-message: session $thisSessionKey records no security tier, so nothing names a channel for this message. Nothing was sent." >&2
+		return 1
+	fi
+	## `public` is no channel and the detour has no private conversation to move a part to, so it refuses, naming the contacts route.
+	if [ "$tierPostTier" = public ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --post-tier-message: session $thisSessionKey is on the public tier, which names no channel the tooling posts to -- a public reply leaves through the contacts route. Nothing was sent." >&2
+		return 1
+	fi
+	## The body comes on stdin, as the send path takes its own, so a word of argv that is not one of the two options is refused rather
+	## than posted as text or dropped: a body in argv is the one shape the team's send path does not take.
+	local tierPostTo=()
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--address-to)
+				[ $# -ge 2 ] || {
+					echo "$MDSC_CMD: ⛔ ERROR: --post-tier-message: --address-to takes a team member. Nothing was sent." >&2
+					return 1
+				}
+				tierPostTo+=( "$2" ) ; shift 2
+			;;
+			--from-stdin) shift ;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: --post-tier-message: the body comes on stdin (--from-stdin), and '$1' is neither that nor --address-to. Nothing was sent." >&2
+				return 1
+			;;
+		esac
+	done
+	type AgentsToolsCommsTierPublish > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsTier.include"
+	AgentsToolsCommsTierPublish "$thisSessionMember" "$tierPostTier" "$thisSessionThread" ${tierPostTo[@]+"${tierPostTo[@]}"}
+}
+
 ## --get-session-thread [--own]: the messages of the session thread, read from the session chat file, in the order of the file. --own: the
 ## ones sent by the caller, addressed to it, or mentioning it (@member, or its Slack account). No network call, and nothing is changed.
 AgentsToolsThisSessionThread(){ ## the operation's arguments

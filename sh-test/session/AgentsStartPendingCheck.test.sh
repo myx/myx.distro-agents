@@ -134,6 +134,23 @@ RIG_ITEMS_FAIL=1 ; export RIG_ITEMS_FAIL ; rigRunPass
 rigAssert "an item the board refuses to move is not started, and the refusal is said" "$( rigSpawned ):$( printf '%s\n' "$rigOut" | grep -c 'not moved to running, nothing started' )" "0:1"
 unset RIG_ITEMS_FAIL
 
+## A MOVE THE BOARD REFUSES STARTS THAT ITEM'S SESSION ALONE: the queue behind it goes on.
+rigReset
+rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer'
+rigItem task-b.md 'approved-by: human-owner' 'owner: magic-tester'
+RIG_ITEMS_FAIL=1 ; export RIG_ITEMS_FAIL ; rigRunPass
+rigAssert "a move the board refuses does not stop the queue: the second item is tried as well" "$( printf '%s\n' "$rigOut" | grep -c 'not moved to running, nothing started' )" "2"
+unset RIG_ITEMS_FAIL
+
+## A KEY WHOSE START IS HELD IS NOT MOVED: the item stays pending, and the next item is started.
+rigReset
+mkdir -p "$rigWs/.local/agents/schedule/starting" && : > "$rigWs/.local/agents/schedule/starting/pending.task-a.hold"
+rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer'
+rigItem task-b.md 'approved-by: human-owner' 'owner: magic-tester'
+rigRunPass
+rigAssert "an item whose start is held is not moved and says so, and the item behind it is started" "$( rigSpawned ):$( awk '{ print $NF ; }' "$rigSpawnLog" ):$( printf '%s\n' "$rigOut" | grep -c 'task-a.md waits' ):$( grep -c 'task-a.md' "$rigItemsLog" )" "1:magic-tester:1:0"
+rm -f "$rigWs/.local/agents/schedule/starting/pending.task-a.hold"
+
 rigReset
 rigDutyMembers="magic-developer"
 rigItem task-a.md 'approved-by: human-owner' 'owner: magic-developer'

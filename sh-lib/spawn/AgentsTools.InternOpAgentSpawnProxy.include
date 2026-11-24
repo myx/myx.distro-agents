@@ -109,6 +109,10 @@ case "$1" in
 		## --description: the spawner's own words for what this spawn is for. Kept on the records
 		## of the spawn it came from, and shown on the first line of its start post.
 		local spawnDescription=""
+		## --security-tier: the tier this spawn's session records -- `private`, `system`, `shared` or
+		## `public`. Said, it stands ahead of the routine's `security-tier:` and the workspace's
+		## `SECURITY_TIER_DEFAULT`; unsaid, the two decide, and `system` decides last.
+		local securityTierSaid=""
 		local routineSelector="" routineDefault="false" prefixRoutineSelector="" routineChainSaid=""
 		## --checklist-item: one pending item for the executor's CheckList, said by the spawner, repeatable (S22.4).
 		local checklistItemsSaid=""
@@ -389,6 +393,16 @@ case "$1" in
 					esac
 					shift 2
 				;;
+				--security-tier)
+					case "${2:-}" in
+						private|system|shared|public) securityTierSaid="$2" ;;
+						*)
+							echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --security-tier requires private, system, shared or public, got: ${2:-}" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+				;;
 				--wait)
 					waitMode="true"
 					shift
@@ -407,7 +421,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$callerName" ] ; then
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracked-item <board-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--session-id <session-id>|--session-new] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--calling-member <team-member>] [--parent-session <session-id>|--parent-none] [--parent-member <team-member>] [--restarted-from <spawn-id>] [--start-context spawned|inline|joined] [--reports-to <address>] [--review-by <reviewer>] [--checklist-item <text>]... [--wait]" >&2
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracked-item <board-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--session-id <session-id>|--session-new] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--calling-member <team-member>] [--parent-session <session-id>|--parent-none] [--parent-member <team-member>] [--restarted-from <spawn-id>] [--start-context spawned|inline|joined] [--security-tier private|system|shared|public] [--reports-to <address>] [--review-by <reviewer>] [--checklist-item <text>]... [--wait]" >&2
 			set +e ; return 1
 		fi
 		if [ -n "$routineSelector" ] && [ "$routineDefault" = "true" ] ; then
@@ -660,6 +674,24 @@ case "$1" in
 			local spawnProxyRoutineBriefEnded=""
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyRoutineBrief.include"
 			[ -z "$spawnProxyRoutineBriefEnded" ] || { set +e ; return 1 ; }
+		fi
+		## THE TIER THIS SESSION CARRIES, resolved here once, first answer wins: the flag, the routine's own
+		## `security-tier:` and its kind routine's, the workspace's `SECURITY_TIER_DEFAULT`, then `system`.
+		## The record states what was chosen, never that something was chosen.
+		local securityTier=""
+		if [ -n "$securityTierSaid" ] ; then
+			securityTier="$securityTierSaid"
+		elif [ -n "$routineFilePath" ] && [ -f "$routineFilePath" ] ; then
+			type AgentsToolsRoutineSecurityTier > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
+			securityTier="$( AgentsToolsRoutineSecurityTier "$routineFilePath" 2> /dev/null )" || securityTier=""
+		fi
+		if [ -z "$securityTier" ] ; then
+			type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+			securityTier="$( AgentsToolsConfigOption magic-team --select-default SECURITY_TIER_DEFAULT system 2> /dev/null )" || securityTier=""
+			case "$securityTier" in
+				private|system|shared|public) ;;
+				*) securityTier="system" ;;
+			esac
 		fi
 		## The inherited prefix of an ad-hoc child (F10.7): the parent routine's own name and
 		## cache-prefix, resolved the same way a routine is, but held apart from `routine` so
@@ -960,10 +992,6 @@ case "$1" in
 		fi
 
 		AgentsToolsStartStepMark scan-wait
-		## THE STAMPED CLEANUP PASS: a start only starts it, detached, once an hour at most.
-		type AgentsToolsCleanupSweepDetached > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.CleanupSweep.include"
-		AgentsToolsCleanupSweepDetached
-
 		## THE FREE-SPACE FLOOR, before a dispatch document or a routine lock is written: a read under the floor sweeps once, with apply, and the
 		## second read decides. Only a workspace still under the floor after the sweep refuses the start, with the refusal's own line.
 		type AgentsToolsSpawnDiskFreeRefused > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSessionParent.include"
@@ -1039,6 +1067,14 @@ case "$1" in
 		}
 		## Its own channel: only the launcher writes it, so no agent output can reach it.
 		export MDAT_SPAWN_LAUNCH_MARKER="$sessionStateDir/launch"
+		## THE TIER IS RECORDED BY THE SESSION STORE'S OWN WRITER, once: a later run of the session keeps the tier it
+		## already holds, so a restart never moves the channel its messages go to.
+		type AgentsToolsSessionTierWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTier.include"
+		AgentsToolsSessionTierWrite "$sessionId" "$securityTier" || {
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: the security tier $securityTier could not be recorded for session $sessionId -- nothing was started" >&2
+			[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
+			set +e ; return 1
+		}
 		## The session's folder, handed to the client hooks: a hook joins its part name onto this value and never
 		## spells a store of its own. Set only where the owner gave one, so a hook reads its own fallback when absent.
 		[ -z "$sessionStateDir" ] || export MDAT_SESSION_FOLDER="$sessionStateDir"
@@ -1369,6 +1405,7 @@ case "$1" in
 			[ -z "$restartedFromSaid" ] || printf 'restarted-from: %s\n' "$restartedFromSaid"
 			[ -z "$parentThread" ] || printf 'parent-thread: %s\n' "$parentThread"
 			printf 'tracking-name: %s\n' "$sandboxName"
+			printf 'security-tier: %s\n' "$securityTier"
 			printf 'host: %s\n' "$( hostname -s 2>/dev/null || echo unknown )"
 			printf 'workspace: %s\n' "$workspaceName"
 			## The three workspaces of this run, always: which executes it, which pays for it,
@@ -1654,7 +1691,7 @@ case "$1" in
 				type AgentsToolsSessionCommsStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
 				commsSaid="$( AgentsToolsSessionCommsStart 2> /dev/null )" || :
 				case "$commsSaid" in
-					"started "*|"alive "*|off) ;;
+					"started "*|"alive "*|"recent "*|off) ;;
 					*) echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the communications reader could not be started: ${commsSaid#failed - } -- the run goes on, and its waits read the thread themselves" >&2 ;;
 				esac
 			fi

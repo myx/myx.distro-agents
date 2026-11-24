@@ -6,6 +6,8 @@
 ## AgentsToolsTempClaim, AgentsToolsTempRelease and AgentsToolsTempArm.
 ## Red before the build: no claim exists, so the two files made between the mktemp and the rm survive both
 ## ends, and the assertion reads 2:2 where it wants 0:0.
+## A process that declares its signals owned (a daemon thread ignores some and ends on TERM by its own flag) keeps them across a claim, with the undeclared case as the control.
+## A claim made in a command substitution of such a process leaves the process's EXIT trap to its own end, with the process's own claim and a substitution's own trap as the controls.
 ## Offline: a stub shell of this check's own, and a rig workspace of this check's own.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -92,6 +94,22 @@ bash "$rigTmp/claim-stub.sh" "$rigTemp" "$rigInclude" return "$rigHoldDir" > "$r
 rigAfterReturn="$( rigLeft )"
 rigAssert "the rig's .local/temp is empty after SIGTERM and after a return" "$rigAfterTerm:$rigAfterReturn" "0:0"
 [ ! -s "$rigTmp/term.err" ] || printf '  # the claim is not there yet, as the stub found it: %s\n' "$( LC_ALL=C sed -n 1p "$rigTmp/term.err" )"
+
+echo "-- 3. a process that owns its signals keeps them across a claim --"
+rigFresh
+rigOwned="$( bash -c '. "$1" ; trap "echo handled" TERM ; agentsTempSignalsOwned=yes ; AgentsToolsTempClaim "$2" ; kill -s TERM $$ ; echo survived' rig "$rigInclude" "$rigTemp/mdat-rig-own.tmp" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+rigControl="$( bash -c '. "$1" ; trap "echo handled" TERM ; AgentsToolsTempClaim "$2" ; kill -s TERM $$ ; echo survived' rig "$rigInclude" "$rigTemp/mdat-rig-ctl.tmp" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+rigAssert "a daemon that declares its signals keeps its own TERM handler across a claim, and its control, which declares nothing, loses it and is ended" "$rigOwned:$rigControl" "handled survived :"
+
+echo "-- 4. a command substitution of a process that owns its EXIT trap never runs it --"
+## The owner's trap says OWNER-EXIT on standard error. A line before AFTER is the trap run by the substitution, one after it is the owner's own end.
+rigFresh
+rigSubst="$( bash -c '. "$1" ; agentsTempSignalsOwned=yes ; trap "echo OWNER-EXIT >&2" EXIT ; v="$( : > "$2" ; AgentsToolsTempClaim "$2" ; echo val )" ; echo "AFTER $v $( [ -e "$2" ] && echo kept || echo gone )"' rig "$rigInclude" "$rigTemp/mdat-rig-sub.tmp" 2>&1 | LC_ALL=C tr '\n' ' ' )"
+rigAssert "a claim made in a substitution of a daemon frees its file and leaves the daemon's EXIT trap for the daemon's own end" "$rigSubst" "AFTER val gone OWNER-EXIT "
+rigOwnEnd="$( bash -c '. "$1" ; agentsTempSignalsOwned=yes ; trap "echo OWNER-EXIT >&2" EXIT ; AgentsToolsTempClaim "$2" ; echo AFTER' rig "$rigInclude" "$rigTemp/mdat-rig-own-end.tmp" 2>&1 | LC_ALL=C tr '\n' ' ' )"
+rigAssert "the control, a claim in the daemon's own process: its EXIT trap is chained and runs once, at its own end" "$rigOwnEnd" "AFTER OWNER-EXIT "
+rigOwnSub="$( bash -c '. "$1" ; v="$( trap "echo SUB-OWN >&2" EXIT ; AgentsToolsTempClaim "$2" ; echo val )" ; echo "AFTER $v"' rig "$rigInclude" "$rigTemp/mdat-rig-own-sub.tmp" 2>&1 | LC_ALL=C tr '\n' ' ' )"
+rigAssert "the control, a substitution that sets its own EXIT trap and then claims: its own trap is still chained and runs in it" "$rigOwnSub" "SUB-OWN AFTER val "
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ TEMP EXIT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

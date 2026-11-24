@@ -5,6 +5,7 @@
 📘 syntax: DistroAgentsSession.fn.sh --routine-run-inline [--team-member <team-member>] <routine-selector>
 📘 syntax: DistroAgentsSession.fn.sh --get-session-channel-id [--team-member <team-member>]
 📘 syntax: DistroAgentsSession.fn.sh --post-session-channel [--team-member <team-member>] [--address-to <team-member>]... [--identity-bot] (<text...>|--from-stdin)
+📘 syntax: DistroAgentsSession.fn.sh --post-tier-message [--team-member <team-member>] [--address-to <team-member>]... --from-stdin
 📘 syntax: DistroAgentsSession.fn.sh --get-session-thread [--team-member <team-member>] [--own]
 📘 syntax: DistroAgentsSession.fn.sh --settle-pending-reply [--team-member <team-member>] <pending-id> --reason <text> [--withdraw]
 📘 syntax: DistroAgentsSession.fn.sh --wait-session-channel [--team-member <team-member>] [--to-@me] [--to-@here] [--to-@any] [--wait-timeout <seconds>]
@@ -65,6 +66,13 @@
 		--post-session-channel [--address-to <team-member>]... [--identity-bot] (<text...>|--from-stdin)
 			A post to the session's thread and to nowhere else: the team's Slack
 			send as the calling member, with no target, so the first word is text.
+
+		--post-tier-message [--address-to <team-member>]... --from-stdin
+			The detour of one private part: the body on stdin goes to the bot's direct
+			conversation with the owner first, and the session thread it came from
+			then gets a one-line pointer, never the body. The body is kept out of the
+			session chat file. A session on the `public` tier refuses, naming the
+			contacts route, and a session that records no tier refuses.
 
 		--get-session-thread [--own]
 			The session thread read from the session chat file, all of it, or with

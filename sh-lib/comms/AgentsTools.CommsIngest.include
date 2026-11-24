@@ -120,12 +120,13 @@ AgentsCommsEventIdStamp(){ ## milliseconds since the epoch
 ## each thread its history names with something newer than that floor, the events those reads hold that the store does
 ## not, and the pointer moved to the last id written. rc 0 the pass ran, whether or not it found anything. rc 1 the source
 ## could not be read, and then the pointer is where it was.
-AgentsCommsIngestSlack(){ ## member, the channel id, [--as-bot] [--floor <slack ts>]
-	local ingestMember="$1" ingestChannel="$2" ingestAsBot="false" ingestFloor=""
+AgentsCommsIngestSlack(){ ## member, the channel id, [--as-bot] [--folder <path>] [--floor <slack ts>]
+	local ingestMember="$1" ingestChannel="$2" ingestAsBot="false" ingestFolder="" ingestFloor=""
 	shift 2
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--as-bot) ingestAsBot="true" ; shift ;;
+			--folder) ingestFolder="${2:-}" ; shift 2 ;;
 			--floor) ingestFloor="${2:-}" ; shift 2 ;;
 			*) shift ;;
 		esac
@@ -134,6 +135,9 @@ AgentsCommsIngestSlack(){ ## member, the channel id, [--as-bot] [--floor <slack 
 	[ -n "${MMDAPP:-}" ] || { echo "⛔ ERROR: the ingest needs a workspace" >&2 ; return 1 ; }
 	type AgentsToolsCommsCacheSlackDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
 	AgentsToolsCommsCacheSlackDir "$ingestMember" "$ingestAsBot" "$ingestChannel" || { echo "⛔ ERROR: the ingest could not resolve the cache folder of $ingestChannel" >&2 ; return 1 ; }
+	## A CALLER THAT KNOWS THE FOLDER HANDS IT: a bot read resolves a folder of its own, and a source listed from one folder must write back
+	## to that folder, or its events, its pointer and its pass's due test sit in two places.
+	[ -z "$ingestFolder" ] || agentsCommsCacheDir="$ingestFolder"
 	local ingestDir="$agentsCommsCacheDir" ingestRows ingestHistory=() ingestBody ingestTarget ingestTargets=""
 	local pagedPages=()
 	if [ -z "$ingestFloor" ] && [ -f "$ingestDir/.ingest.txt" ] ; then
@@ -144,7 +148,15 @@ AgentsCommsIngestSlack(){ ## member, the channel id, [--as-bot] [--floor <slack 
 	ingestRows="$( mktemp "$ingestDir/rows.XXXXXX" 2> /dev/null )" || { echo "⛔ ERROR: the ingest could not make a working file in $ingestDir" >&2 ; return 1 ; }
 	type AgentsToolsSlackReadPagedConversation > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
 	AgentsToolsSlackReadPagedConversation "$ingestMember" conversations.history "$ingestChannel" \
-		"$( [ "$ingestAsBot" = "false" ] && printf user || printf bot )" "" "$ingestFloor" "comms-ingest" "" "" || { rm -f "$ingestRows" ; return 1 ; }
+		"$( [ "$ingestAsBot" = "false" ] && printf user || printf bot )" "" "$ingestFloor" "comms-ingest" "" "" || {
+		## A USER IDENTITY THAT CANNOT REACH THE CONVERSATION NEVER CAN, and a `D` target is a direct conversation: read once as the
+		## bot. The recipe keeps its `false`, so this folder stays the one folder the pass already lists and the transfer reads: a recipe
+		## turned `true` resolves the ingest to another folder, and the events, the pointer and the pass's due test split in two.
+		case "$ingestChannel" in D*) ;; *) rm -f "$ingestRows" ; return 1 ;; esac
+		case "$ingestAsBot" in false) ;; *) rm -f "$ingestRows" ; return 1 ;; esac
+		AgentsToolsSlackReadPagedConversation "$ingestMember" conversations.history "$ingestChannel" bot "" "$ingestFloor" "comms-ingest" "" "" \
+			|| { rm -f "$ingestRows" ; return 1 ; }
+	}
 	ingestHistory=( ${pagedPages[@]+"${pagedPages[@]}"} )
 	for ingestBody in ${ingestHistory[@]+"${ingestHistory[@]}"} ; do
 		printf '%s\n' "$ingestBody" | AgentsCommsIngestRows "$ingestDir" >> "$ingestRows" || { rm -f "$ingestRows" ; return 1 ; }

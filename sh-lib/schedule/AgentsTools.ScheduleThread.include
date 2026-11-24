@@ -84,7 +84,8 @@ AgentsToolsScheduleThreadAskDue(){
 	printf '%s\n' "$dueNow" > "$dueStamp" 2> /dev/null || :
 	## A LIVE THREAD NEEDS NO ASK: its pass keeps it on the same test. Only a dead one is looked into, by the shell's own read of its lock.
 	local dueLock="" dueDir="$MMDAPP/.local/agents/schedule-thread"
-	{ IFS= read -r dueLock < "$dueDir/thread.lock" ; } 2> /dev/null || dueLock=""
+	## The lock is written with no newline, so read answers 1 with the holder in the variable: a holder read is a non-empty variable, whatever read answered.
+	{ IFS= read -r dueLock < "$dueDir/thread.lock" || [ -n "$dueLock" ] ; } 2> /dev/null || dueLock=""
 	[ -z "$dueLock" ] || ! AgentsToolsThreadLockHolderLives "$dueLock" 2> /dev/null || return 0
 	if [ "${1:-}" != view ] ; then
 		AgentsToolsScheduleThreadWantedInto
@@ -120,6 +121,9 @@ AgentsToolsScheduleThreadPass(){
 		passAt="$SECONDS" ; AgentsToolsScheduleThreadChildrenKeep ; passTimes="$passTimes, children $(( SECONDS - passAt ))s"
 		passAt="$SECONDS" ; AgentsToolsScheduleThreadKnowledgeKeep ; passTimes="$passTimes, knowledge $(( SECONDS - passAt ))s"
 		passAt="$SECONDS" ; AgentsToolsScheduleThreadControlKeep ; passTimes="$passTimes, controls $(( SECONDS - passAt ))s"
+		## THE CLEANUP SWEEP is started from here, once an hour by its own stamp and detached, so no call path of a member pays for it.
+		type AgentsToolsCleanupSweepDetached > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.CleanupSweep.include"
+		AgentsToolsCleanupSweepDetached
 		passAt="$SECONDS" ; AgentsToolsScheduleThreadWantedInto ; passTimes="$passTimes, wanted $(( SECONDS - passAt ))s"
 		## A PASS LONGER THAN ITS GAP IS SAID: a pass is seconds, and one that ran into minutes (35 on MEL, in the DM look) left a log that read as a stopped
 		## schedule. The line names the pass's own length, so a reader tells a slow pass from a dead thread, and each step's, so the cost is found where it is.

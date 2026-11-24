@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CommsTier.include -- the one channel a session's security tier names, and the one place that
+## answers it. Sourced by the send path's own target rule (AgentsTools.CommsPrintback.include) and by the
+## detour, never run. Functions only.
+##
+## THE FOUR TIERS AND THE ONE CHANNEL EACH NAMES:
+##   private  the bot's direct conversation with the owner, the `human-owner` target;
+##   system   the session's own tooling thread, `<channel>:<ts>`;
+##   shared   the session thread where one is on record, else the team channel `magic-team`;
+##   public   no channel at all: rc 2, and nothing printed, because public is what leaves the team and the
+##            contacts ladder owns that route.
+## A channel the tier names and the session does not have is a refusal at rc 1, never a fall through to a
+## wider channel: a boundary that reads an absent answer as consent is default-open.
+##
+
+## The target a message of one session goes to, under one tier. Prints the target a send takes, rc 1 where
+## the session has no such channel, rc 2 for `public` which names none.
+AgentsToolsCommsTierTarget(){ ## tier, session, member
+	local tierName="${1:-}" tierSession="${2:-}" tierMember="${3:-}" tierThread=""
+	case "$tierName" in
+		private)
+			printf '%s\n' "human-owner"
+			return 0
+		;;
+		system)
+			type AgentsToolsEventTrackThreadOfInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include" || return 1
+			AgentsToolsEventTrackThreadOfInto tierThread "$tierSession" 2> /dev/null || tierThread=""
+			[ -n "$tierThread" ] || {
+				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: session $tierSession is on the system tier and has no tooling thread on record, so the message of ${tierMember:-its member} has nowhere to go -- nothing was sent, and it falls through to no wider channel" >&2
+				return 1
+			}
+			printf '%s\n' "$tierThread"
+			return 0
+		;;
+		shared)
+			type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || return 1
+			tierThread="$( AgentsSessionThread "$tierSession" 2> /dev/null )" || tierThread=""
+			printf '%s\n' "${tierThread:-magic-team}"
+			return 0
+		;;
+		public)
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the message of ${tierMember:-this session} is on the public tier, and public is no channel the tooling posts to -- a public reply goes through the contacts route, and nothing was sent here" >&2
+			return 2
+		;;
+	esac
+	return 1
+}
+
+## THE DETOUR, AS ONE OPERATION: the private part goes to the private conversation first, and the open thread it
+## was moved out of gets a pointer after that post returned success. A pointer written first would be a false
+## record. The pointer names the party and the conversation, never the subject, so it defeats nothing. A private
+## part that did not land, and a pointer that did not, are both reported as `POINTER-FAILED=` with the
+## conversation the pointer was for, and the private part is never reposted and never unpublished.
+## The body comes on stdin, for the reason the send path takes its body there.
+AgentsToolsCommsTierPublish(){ ## member, tier, open target, addressees...
+	local pubMember="${1:-}" pubTier="${2:-}" pubOpen="${3:-}" pubBody="" pubRc=0 pubOne=0 pubTo=()
+	## `public` names no channel, so there is no private conversation for it to move a part to: the contacts route owns what a public session says.
+	if [ "$pubTier" = public ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the detour of ${pubMember:-this member} is on the public tier, which names no channel the tooling posts to -- a public reply goes through the contacts route, and nothing was sent" >&2
+		return 2
+	fi
+	shift 3 2> /dev/null || :
+	for pubOne in "$@" ; do pubTo+=( --address-to "$pubOne" ) ; done
+	pubBody="$( cat )"
+	case "$pubBody" in
+		*[![:space:]]*) ;;
+		*)
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the detour of ${pubMember:-this member} was given an empty body -- nothing was sent" >&2
+			return 1
+		;;
+	esac
+	type AgentsToolsMemberCommsSlackRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.MemberCommsSlack.include" || return 1
+	## THE PRIVATE PART IS RECORDED WHERE IT LANDED, never in the session's own records: `MDAT_CHAT_RECORD=none` keeps
+	## it out of the session chat file, and the session keeps the pointer line instead.
+	printf '%s\n' "$pubBody" | MDAT_CHAT_RECORD=none AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-send-message "$pubMember" human-owner --identity-bot ${pubTo[@]+"${pubTo[@]}"} --from-stdin || pubRc=$?
+	if [ "$pubRc" != 0 ] ; then
+		echo "POINTER-FAILED=$pubOpen" >&2
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the private part of ${pubMember:-this member} did not reach the private conversation, so no pointer was posted to $pubOpen -- the private part was not reposted anywhere" >&2
+		return 1
+	fi
+	pubBody="posted to the direct conversation with the owner"
+	printf '%s\n' "$pubBody" | AgentsToolsMemberCommsSlackRun --intern-op-comms-slack-send-message "$pubMember" "$pubOpen" ${pubTo[@]+"${pubTo[@]}"} --from-stdin || pubRc=$?
+	if [ "$pubRc" != 0 ] ; then
+		echo "POINTER-FAILED=$pubOpen" >&2
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the private part of ${pubMember:-this member} was posted, and the pointer to $pubOpen was not -- the private part stays where it landed and is never reposted" >&2
+		return 1
+	fi
+	return 0
+}

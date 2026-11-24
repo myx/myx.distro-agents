@@ -48,6 +48,12 @@
 				''|inherit) ;;
 				*) [ -n "$reviewBySaid" ] || reviewBySaid="$routineReviewBy" ;;
 			esac
+			## THE TIER A ROUTINE NAMES IS ONE OF THE FOUR, OR NO START RUNS ON IT: a word none of the four names is
+			## refused here, and a routine that names none passes with the default its start resolves.
+			requirementVerdict="$( AgentsToolsRoutineRequirement security-tier spawn "$routineFilePath" )" || {
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $routineRecorded: ${requirementVerdict#*$'\t'} -- nothing was started" >&2
+				set +e ; spawnProxyRoutineRequirementsEnded=1 ; return 1
+			}
 			## THE SEPARATOR ITS ITEMS ARE JOINED BY IS CHECKED AT THE START, never only where the review reads it back (S6.31).
 			requirementVerdict="$( AgentsToolsRoutineRequirement deliverables spawn "$routineFilePath" )" || {
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $routineRecorded: ${requirementVerdict#*$'\t'} -- nothing was started" >&2

@@ -12,6 +12,9 @@
 ##      bullets hold no check name, and each is a line for the owner to read rather than a fault.
 ##   5. CONTROL, and the half that makes 2 to 4 mean anything: an epic holding both kinds draws one refusing row and two
 ##      report rows, each at its own line and none twice.
+##   6. A name is read as a whole word, as the runner names a check. `<name>.test.sh` and a check at the top of sh-test are checks.
+##      A name inside a longer word, or before another extension, is none. A bullet naming one present and one absent check draws
+##      one refusing row, and it names only the absent one. CONTROL: the same bullets with both names present refuse nothing.
 ## Red recipe: the `epic` rule set reads `## Done` for its shape alone today, so sections 3 and 4 read no row where a row is
 ## wanted, and section 5 reads one refusing row where two report rows are wanted. Nothing in the package reports either fact.
 ## The distinction this check reads is the existing `report-` convention, which refuses nothing; it proposes no new rule name.
@@ -25,11 +28,13 @@ rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 ## A check that exists in this tree, and a name that names no file, for the reading to tell apart.
 rigCheckPresent='AgentsContactsTierWordCheck'
 rigCheckAbsent='AgentsEpicDoneProofAbsentCheck'
+rigCheckTop='AgentsRunTestsSweepCheck'
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the dispatcher is not at the origin this workspace resolves: $rigTool"
 [ -f "$rigPackage/sh-test/common/$rigCheckPresent.test.sh" ] || rigRefuse "the known-positive control check is not at the origin this workspace resolves: $rigPackage/sh-test/common/$rigCheckPresent.test.sh"
+[ -f "$rigPackage/sh-test/$rigCheckTop.test.sh" ] || rigRefuse "the check this one treats as standing at the top of sh-test is not there: $rigPackage/sh-test/$rigCheckTop.test.sh"
 [ ! -e "$rigPackage/sh-test/common/$rigCheckAbsent.test.sh" ] || rigRefuse "the name this check treats as absent has a file after all, so its absent case would prove nothing: $rigPackage/sh-test/common/$rigCheckAbsent.test.sh"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsEpicDoneProofCheck )" || exit 1
@@ -108,7 +113,7 @@ rigUnprovedEpic="$( rigEpic unproved "- S2.1: the closed item holds now, and a r
 rigRun "$rigUnprovedEpic"
 rigAssert "the bullet is listed as a report row at its own line" "$( rigReportLines )" "$( rigLineOfWord "$rigUnprovedEpic" 'a reader confirms it by hand' )"
 rigAssert "it carries the item's own id, so a reader knows which bullet to read" \
-	"$( LC_ALL=C grep -c -e 'S2\\.1' "$rigTmp/said.out" || : )" 1
+	"$( LC_ALL=C grep -c -e 'S2\.1' "$rigTmp/said.out" || : )" 1
 rigAssert "and it is reported as no fault" "$( rigRefusingLines )" ""
 rigAssert "so the run refuses nothing: a listing is not a red" "$rigRc" 0
 
@@ -121,6 +126,21 @@ rigAssert "and the two unproved bullets are listed, each at its own line" "$( ri
 rigAssert "no line is reported twice, under either fact" \
 	"$( printf '%s,%s' "$( rigRefusingLines )" "$( rigReportLines )" | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -c . )/$( printf '%s,%s' "$( rigRefusingLines )" "$( rigReportLines )" | LC_ALL=C tr ',' '\n' | LC_ALL=C grep . | LC_ALL=C sort -u | LC_ALL=C grep -c . )" "3/3"
 rigAssert "and it refuses, because one of its bullets cites a proof that is not there" "$rigRc" 1
+
+echo "-- 6. a name is read as a whole word, as the runner names a check --"
+rigWordLines=( "- S2.1: by file name, proved by \`$rigCheckPresent.test.sh\`." "- S2.2: at the top of the suite, proved by \`$rigCheckTop\`." "- S2.3: inside a longer word, proved by \`${rigCheckPresent}List\`." "- S2.4: another kind of file, proved by \`AgentsOutputStyleCheck.awk\`." )
+rigWordEpic="$( rigEpic word "${rigWordLines[@]}" "- S2.5: two names, \`$rigCheckPresent\` and \`$rigCheckAbsent\`." )"
+rigLongAt="$( rigLineOfWord "$rigWordEpic" 'inside a longer word' )" rigAwkAt="$( rigLineOfWord "$rigWordEpic" 'another kind of file' )" rigTwoAt="$( rigLineOfWord "$rigWordEpic" 'two names' )"
+rigRun "$rigWordEpic"
+rigAssert "the file form and the top of the suite draw no row, so the rows stand at the other three bullets only" "$( rigRowLines )" "$rigLongAt,$rigAwkAt,$rigTwoAt"
+rigAssert "the longer word and the other extension name no check, and are listed" "$( rigReportLines )" "$rigLongAt,$rigAwkAt"
+rigAssert "the bullet naming a present and an absent check is the one fault, at its own line" "$( rigRefusingLines )" "$rigTwoAt"
+rigAssert "and its row names the absent file and not the present one" \
+	"$( LC_ALL=C grep -c -- "$rigCheckAbsent.test.sh" "$rigTmp/said.out" || : )/$( LC_ALL=C grep -c -- "$rigCheckPresent" "$rigTmp/said.out" || : )" 1/0
+rigAssert "the run refuses" "$rigRc" 1
+rigRun "$( rigEpic wordpresent "${rigWordLines[@]}" "- S2.5: two names, \`$rigCheckPresent\` and \`$rigCheckTop\`." )"
+rigAssert "control: with both names present the same bullets list the two and refuse nothing" "$( rigReportLines )/$( rigRefusingLines )" "$rigLongAt,$rigAwkAt/"
+rigAssert "and the run refuses nothing" "$rigRc" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	printf 'EPIC DONE PROOF: FAIL (%s passed, %s failed)\n' "$rigPassCount" "$rigFailCount" ; exit 1

@@ -100,14 +100,16 @@ AgentsToolsSpawnedAllRecordsInto(){ ## array variable, workspace (default MMDAPP
 	## THE REGISTRY IS THE INDEX, and the list is one string until it is handed over: a `set --` a path, or an eval a path, copies the whole
 	## list each time -- 14,343 ms on a rig of 1,857 records, and what the machine swapped on. A path here holds no space or quote (the store's
 	## own names are ids), which is what makes the single expansion sound.
-	local allName="$1" allWs="${2:-${MMDAPP:-/nonexistent}}" allOne allList="" allRegistry allTracking allSpawn allPath
+	local allName="$1" allWs="${2:-${MMDAPP:-/nonexistent}}" allOne allList="" allRegistry allTracking allSession allSpawn allPath
 	case "$allName" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
 	allRegistry="${allWs%/}/.local/agents/spawned-sessions.registry"
 	if [ -s "$allRegistry" ] ; then
-		while IFS=' ' read -r allTracking allSpawn allRest ; do
+		## A ROW'S RECORD IS NAMED BY ITS EIGHTH COLUMN, the run's own spawn id. The second column is the session, which names the record of
+		## the session's first run alone: read as the record, it points every resumed run at that first record and leaves the run unread.
+		while IFS=' ' read -r allTracking allSession _ _ _ _ _ allSpawn allRest ; do
 			[ -n "$allTracking" ] || continue
 			case "$allTracking" in -*|*[!A-Za-z0-9._-]*) continue ;; esac
-			allSpawn="${allSpawn:-$allTracking}"
+			case "$allSpawn" in ''|-) allSpawn="${allSession:-$allTracking}" ;; esac
 			case "$allSpawn" in -*|*[!A-Za-z0-9._-]*) continue ;; esac
 			allPath="${allWs%/}/.local/agents/spawned/$allTracking/$allSpawn.spawn.md"
 			[ -f "$allPath" ] || continue

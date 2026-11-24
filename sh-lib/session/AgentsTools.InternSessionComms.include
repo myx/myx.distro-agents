@@ -122,6 +122,7 @@ case "$1" in
 			trap '' HUP INT QUIT TSTP TTIN TTOU ALRM VTALRM PROF
 			trap 'commsWoken="yes"' PIPE USR1 USR2
 			trap 'commsEnd="TERM"' TERM
+			agentsTempSignalsOwned=yes
 		fi
 
 		## IT RUNS AS NO MEMBER: each name that carries a member's session is emptied here, for this operation and what it starts.
@@ -189,7 +190,7 @@ case "$1" in
 		fi
 		[ "$commsMode" != "--run" ] || AgentsToolsSessionCommsSay "the communications reader runs as pid $commsPid: it looks after the sessions of $MMDAPP, and TERM ends it in order"
 
-		local commsList="" commsListAt=-100 commsIdleFrom="$SECONDS" commsIdleLimit commsLoops=0 commsAny commsOne commsThread commsForce="" commsFrom2 commsLeave=""
+		local commsList="" commsListAt=-100 commsIdleFrom="$SECONDS" commsIdleLimit commsLoops=0 commsAny commsOne commsThread commsForce="" commsFrom2 commsLeave="" commsLockTries=0
 		local commsBase commsNow commsMark commsRows commsRow commsCount commsIdx commsBest commsBestAt commsBestIdx commsAt commsPick="" commsHeld commsSaidWait=""
 		local commsBeatDir="" commsBeatSlot=0
 		commsIdleLimit="${MDAT_COMMS_IDLE_SECONDS:-600}"
@@ -392,8 +393,19 @@ case "$1" in
 			else
 				IFS= read -r commsHeld < "$commsLock" 2> /dev/null || :
 			fi
+			if [ "$commsHeld" = "$commsMe" ] ; then
+				commsLockTries=0
+			fi
 			if [ "$commsHeld" != "$commsMe" ] ; then
-				commsLeave="its folder or its lock is gone"
+				## A LOST LOCK IS RETAKEN, BOUNDED, AND NOT AN END: a reader that ends over it hands the work to the next caller, and that
+				## caller starts a process. A lock held by a live reader is not taken, and this one stands down after the bound.
+				commsLockTries=$(( commsLockTries + 1 ))
+				if [ "$commsLockTries" -le "$agentsSessionCommsLockRetries" ] ; then
+					sleep 1 2> /dev/null || :
+					AgentsToolsSessionCommsLockTake || :
+					continue
+				fi
+				commsLeave="its lock was taken by another process, and ${agentsSessionCommsLockRetries} retakes did not win it back"
 				commsLock=""
 				break
 			fi

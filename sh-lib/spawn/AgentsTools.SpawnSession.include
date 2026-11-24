@@ -395,11 +395,10 @@ case "$1" in
 			for execEntry in ${routineExecutorsLine//,/ } ; do
 				case "$execEntry" in *-'*') partitionRoster="true" ;; esac
 			done
-		elif [ ${#spawnMembers[@]} -ge 2 ] && [ "$participantsGiven" != "true" ] ; then
-			## Two or more members with no --participants partition the run, one session each. WITH --participants THE CALL IS ONE
-			## COWORKING SESSION: the first member starts it and every further one joins it, as the comment below the limit says and
-			## as the owner rules (a coworking session is one thread). Partitioning it gave two sessions, two threads and two
-			## session headers for one task (mgpu preset reach, 2026-11-09).
+		elif [ ${#spawnMembers[@]} -ge 2 ] && [ "$participantsGiven" != "true" ] && ! AgentsToolsSpawnRoutineIsCoworking "$resolvedRoutineFile" ; then
+			## Two or more members of a routine that is not coworking, with no --participants, partition the run, one session each.
+			## A COWORKING ROUTINE, OR --participants, MAKES THE CALL ONE COWORKING SESSION: the first member starts it and every
+			## further one joins it, as the comment below the limit says and as the owner rules (a coworking session is one thread).
 			partitionRoster="true"
 		fi
 		[ ${#partitionScopes[@]} -eq 0 ] || partitionRoster="true"

@@ -65,7 +65,9 @@ AgentsToolsCollectStateSet(){ ## kind, member, key, value, ...
 ## directory this workspace holds, as `--intern-op-client-sweep-input-scan` asks. A client-* member is collected on the client
 ## side (MDAT_COMMS_SIDE=client), as the scan reads it.
 AgentsToolsCollectScanMembers(){
-	local scanFile scanExecutors scanExecutor scanName scanDir scanOut="" scanMember scanMemberDir scanExecutorDir
+	local scanFile scanExecutors scanExecutor scanName scanDir scanOut="" scanMember scanMemberDir scanExecutorDir scanRoot
+	type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
+	AgentsToolsSkillsetRootInto scanRoot "${MMDAPP:-}"
 	type AgentsToolsRoutineKeyOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
 	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 	while IFS=$'\t' read -r scanMember scanMemberDir ; do
@@ -76,14 +78,14 @@ AgentsToolsCollectScanMembers(){
 			scanExecutors="$( AgentsToolsRoutineKeyOwn "$scanFile" executors | LC_ALL=C tr ',' ' ' )"
 			for scanExecutor in $scanExecutors ; do
 				scanExecutorDir="$( AgentsToolsTeamMemberDirectory "$scanExecutor" )" || scanExecutorDir=""
-				case "$scanExecutorDir" in "${MMDAPP%/}/"*) ;; *) continue ;; esac
+				case "$scanExecutorDir" in "${MMDAPP%/}/"*) ;; "$scanRoot"/?*) ;; *) continue ;; esac
 				scanOut="$scanOut$scanExecutor"$'\n'
 			done
 		done
 	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
 	while IFS=$'\t' read -r scanName scanDir ; do
 		case "$scanName" in
-			client-*) case "$scanDir" in "${MMDAPP%/}/"*) scanOut="$scanOut$scanName"$'\n' ;; esac ;;
+			client-*) case "$scanDir" in "${MMDAPP%/}/"*) scanOut="$scanOut$scanName"$'\n' ;; "$scanRoot"/?*) scanOut="$scanOut$scanName"$'\n' ;; esac ;;
 		esac
 	done < <( AgentsToolsTeamMemberDirectoryText )
 	printf '%s' "$scanOut" | LC_ALL=C sort -u

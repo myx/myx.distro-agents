@@ -13,11 +13,14 @@ case "$1" in
 	--intern-comms-ingest)
 		## THE CALL IS READ WHOLE BEFORE ANYTHING IS DONE: a wrong shape answers this operation's own syntax, so no caller reads a
 		## broken call as a source that held nothing. The words are read by their places, and nothing is shifted away.
-		local ingestOpMember="${3:-}" ingestOpChannel="${4:-}"
-		if [ "${2:-}" != "--run" ] || [ -z "$ingestOpMember" ] || [ -z "$ingestOpChannel" ] || [ -n "${5:-}" ] ; then
+		local ingestOpMember="${3:-}" ingestOpChannel="${4:-}" ingestOpBot="" ingestOpFolder=""
+		if [ "${5:-}" = "--as-bot" ] && [ -z "${6:-}" ] ; then ingestOpBot="--as-bot" ; fi
+		if [ "${5:-}" = "--folder" ] && [ -n "${6:-}" ] && [ -z "${7:-}" ] ; then ingestOpFolder="${6}" ; fi
+		if [ "${5:-}" = "--as-bot" ] && [ "${6:-}" = "--folder" ] && [ -n "${7:-}" ] && [ -z "${8:-}" ] ; then ingestOpBot="--as-bot" ; ingestOpFolder="${7}" ; fi
+		if [ "${2:-}" != "--run" ] || [ -z "$ingestOpMember" ] || [ -z "$ingestOpChannel" ] || { [ -n "${5:-}" ] && [ -z "$ingestOpBot" ] && [ -z "$ingestOpFolder" ] ; } ; then
 			printf '%s\n' "$MDSC_CMD --intern-comms-ingest -- one pass of the comms source ingest for one source: it reads the source from its pointer's floor, writes the events the store does not hold, and moves the pointer to the last id it wrote (S1.12)." >&2
 			printf '%s\n' "" >&2
-			printf '%s\n' "  $MDSC_CMD --intern-comms-ingest --run <member> <channel id>" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-comms-ingest --run <member> <channel id> [--as-bot] [--folder <path>]" >&2
 			set +e ; return 1
 		fi
 		## The member names the cache folder and the account file of the read, so it is one path segment and never a path.
@@ -28,7 +31,7 @@ case "$1" in
 			;;
 		esac
 		type AgentsCommsIngestSlack > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsIngest.include"
-		AgentsCommsIngestSlack "$ingestOpMember" "$ingestOpChannel"
+		AgentsCommsIngestSlack "$ingestOpMember" "$ingestOpChannel" ${ingestOpBot:+"$ingestOpBot"} ${ingestOpFolder:+--folder "$ingestOpFolder"}
 		return $?
 	;;
 

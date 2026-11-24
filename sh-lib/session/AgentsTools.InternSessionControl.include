@@ -323,7 +323,7 @@ AgentsToolsSessionControlRows(){ ## session id
 	## THE SESSION'S OWN RECORDS, FROM ITS KEPT LIST: a grep over every record of the store, at every tick of every thread, was the whole
 	## churn of a machine with eleven sessions on it -- the store read once a tick, a thread over a thread, for nothing.
 	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
-	controlRowsNames="$( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null | LC_ALL=C awk -F'\t' '{ print $2 ; }' )" || :
+	controlRowsNames="$( AgentsToolsSpawnedSessionRecords "$1" own 2> /dev/null )" || :
 	[ -n "$controlRowsNames" ] || return 0
 	[ -d "${controlRowsFile%/*}" ] || mkdir -p "${controlRowsFile%/*}" 2> /dev/null
 	{
@@ -1104,6 +1104,7 @@ case "$1" in
 			trap '' HUP INT QUIT TSTP TTIN TTOU ALRM VTALRM PROF
 			trap 'controlWoken="yes"' PIPE USR1 USR2
 			trap 'controlEnd="TERM"' TERM
+			agentsTempSignalsOwned=yes
 			## A thread that was put back in place is put back again from its first moment on,
 			## whatever ends its shell before it ticks; a fresh one once it holds its lock.
 			agentsSessionControlStay=""

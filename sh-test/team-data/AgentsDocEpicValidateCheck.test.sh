@@ -45,6 +45,8 @@ rigRows(){ ## the rows of the last run as rule@line, comma-separated, in the ord
 	LC_ALL=C sed -n -E 's/^.*:([0-9]+): ([a-z-]+): .*$/\2@\1/p' "$rigTmp/said.out" | LC_ALL=C tr '\n' ',' | LC_ALL=C sed 's/,$//'
 }
 ## An epic of the given lines, the clean one unless a case changes it: $rigD/<name>.epic.md
+## Every Done bullet names this check, since a bullet that names none draws a `report-epic-done` row (AgentsEpicDoneProofCheck).
+rigDoneProof='proved by `AgentsDocEpicValidateCheck`'
 rigCleanLines=(
 	'# 20261102 rig: the epic'
 	''
@@ -61,7 +63,7 @@ rigCleanLines=(
 	''
 	'## Done'
 	''
-	'- S0.1: a closed item holds now.'
+	"- S0.1: a closed item holds now, $rigDoneProof."
 )
 rigEpic(){ ## name, lines... -- one line each argument
 	local epicName="$1" ; shift
@@ -132,19 +134,19 @@ echo "-- the Done section --"
 rigEpic nodone "${rigCleanLines[@]:0:13}"
 rigCheck nodone
 rigAssert "no Done section is a row"                                 "$rigRc:$( rigRows )" "1:epic-done@10"
-rigEpic donenotlast "${rigCleanLines[@]:0:13}" '## Done' '' '- S0.1: a closed item holds now.' '' '## S2 - After the done' '' '1. An outcome. Owner: magic-developer.'
+rigEpic donenotlast "${rigCleanLines[@]:0:13}" '## Done' '' "- S0.1: a closed item holds now, $rigDoneProof." '' '## S2 - After the done' '' '1. An outcome. Owner: magic-developer.'
 rigCheck donenotlast
 rigAssert "a section after Done is a row at that section"            "$rigRc:$( rigRows )" "1:epic-done@18"
-rigEpic badline "${rigCleanLines[@]:0:15}" '- S0.1: a closed item holds now.' '- a Done line with no id' '- S0.2 (a parenthesis): not the form'
+rigEpic badline "${rigCleanLines[@]:0:15}" "- S0.1: a closed item holds now, $rigDoneProof." '- a Done line with no id' '- S0.2 (a parenthesis): not the form'
 rigCheck badline
 rigAssert "a Done line off its form is a row at its line"            "$rigRc:$( rigRows )" "1:epic-done@17,epic-done@18"
-rigEpic donetwice "${rigCleanLines[@]:0:15}" '- S0.1: a closed item holds now.' '- S0.1: the same id again.'
+rigEpic donetwice "${rigCleanLines[@]:0:15}" "- S0.1: a closed item holds now, $rigDoneProof." "- S0.1: the same id again, $rigDoneProof."
 rigCheck donetwice
 rigAssert "a Done id that stands twice is a row at the second"         "$rigRc:$( rigRows )" "1:epic-done@17"
-rigEpic doneopen "${rigCleanLines[@]:0:12}" '## Done' '' '- S1.1: a closed item, and the item still stands.'
+rigEpic doneopen "${rigCleanLines[@]:0:12}" '## Done' '' "- S1.1: a closed item, and the item still stands, $rigDoneProof."
 rigCheck doneopen
 rigAssert "a Done id that still stands as an open item is a row"      "$rigRc:$( rigRows )" "1:epic-done@15"
-rigEpic donefeature "${rigCleanLines[@]:0:12}" '## Done' '' '- S1.2: a closed item.'
+rigEpic donefeature "${rigCleanLines[@]:0:12}" '## Done' '' "- S1.2: a closed item, $rigDoneProof."
 rigCheck donefeature
 rigAssert "a Done id that names no open item and stands in no feature" "$rigRc:$( rigRows )" "0:"
 

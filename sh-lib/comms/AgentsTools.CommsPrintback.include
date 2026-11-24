@@ -116,8 +116,11 @@ AgentsToolsCommsPrintbackTrackThread(){ ## session
 	printf '%s' "$trackThread"
 }
 
-## The target an unaddressed send of a session goes to: the session's own channel, decided by the kind it
-## recorded (F3.2), the same order the wait's default sources decide it in:
+## The target an unaddressed send of a session goes to: THE TIER THE SESSION RECORDED, and where it records
+## none, the session's own channel decided by the kind it recorded (F3.2), the same order the wait's default
+## sources decide it in:
+##   a tier  `AgentsToolsCommsTierTarget` names it (comms/AgentsTools.CommsTier.include): private the owner's
+##           direct conversation, system the tooling thread, shared a team channel, public nothing at all;
 ##   none   `printback:<session>`, the root-native printback channel;
 ##   track  the tooling thread (`AgentsToolsCommsPrintbackTrackThread`);
 ##   full   the session thread (`AgentsToolsSessionCurrentThreadFind`).
@@ -127,7 +130,7 @@ AgentsToolsCommsPrintbackTrackThread(){ ## session
 ## no thread and no kind names nowhere, as it always did. `session` may be left out, and this call's own
 ## session is used, as every session reader finds it (AgentsToolsSessionCurrentId).
 AgentsToolsCommsPrintbackSessionOwnTarget(){ ## session (optional: this call's own)
-	local ownSession="${1:-}" ownKind="" ownTarget=""
+	local ownSession="${1:-}" ownKind="" ownTarget="" ownTier=""
 	if [ -z "$ownSession" ] ; then
 		type AgentsToolsSessionCurrentId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include" || return 1
 		ownSession="$( AgentsToolsSessionCurrentId 2> /dev/null )" || ownSession=""
@@ -135,6 +138,19 @@ AgentsToolsCommsPrintbackSessionOwnTarget(){ ## session (optional: this call's o
 	[ -n "$ownSession" ] || return 1
 	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
 	AgentsToolsSessionChatDir "$ownSession" > /dev/null 2>&1 || return 1
+	## THE TIER FIRST: a session that recorded one has said where its messages go, and the kind is the fall-through
+	## for every session that recorded none.
+	type AgentsToolsSessionTierRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTier.include" || return 1
+	ownTier="$( AgentsToolsSessionTierRead "$ownSession" 2> /dev/null )" || ownTier=""
+	if [ -n "$ownTier" ] ; then
+		type AgentsToolsCommsTierTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsTier.include" || return 1
+		## Its own refusal reaches the caller: a tier whose channel is absent, and the public tier, must say why,
+		## or the send's own `<target> missing` would be the only word the member gets.
+		ownTarget="$( AgentsToolsCommsTierTarget "$ownTier" "$ownSession" )" || ownTarget=""
+		[ -n "$ownTarget" ] || return 1
+		printf '%s\n' "$ownTarget"
+		return 0
+	fi
 	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/chat/AgentsTools.RootHarnessKind.include"
 	ownKind="$( AgentsToolsRootHarnessKindRead "$ownSession" 2> /dev/null )" || ownKind=""
 	case "$ownKind" in

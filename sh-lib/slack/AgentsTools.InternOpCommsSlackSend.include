@@ -41,7 +41,8 @@ case "$1" in
 		shift || true
 		if [ -z "$target" ] && ! AgentsToolsCommsClientSide "$memberName" ; then
 			type AgentsToolsCommsPrintbackSessionOwnTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include"
-			target="$( AgentsToolsCommsPrintbackSessionOwnTarget 2> /dev/null )" || target=""
+			## Its own refusal is the member's: a tier whose channel is absent, and the public tier, say there why.
+			target="$( AgentsToolsCommsPrintbackSessionOwnTarget )" || target=""
 		fi
 		if [ -z "$target" ] ; then
 			if AgentsToolsCommsClientSide "$memberName" ; then
@@ -149,6 +150,19 @@ case "$1" in
 				case " $* " in *" --address-to "*) ;; *) set -- "$@" --address-to magic-coordinator ;; esac
 				echo "# $MDSC_CMD --slack-send-message: this session has no thread of its own, so the post goes to $runFallback, addressed to magic-coordinator." >&2
 			fi
+		fi
+		## A POST TO THE HUMAN-OWNER ANSWERS IN THE THREAD OF HIS OPEN MESSAGE (his rule): the newest reply this member owes him
+		## (schedule/owed/<member>) is the target. A top-level post to him names the conversation id, never the alias.
+		if [ "$target" = "human-owner" ] ; then
+			case " $* " in *" --update-ts "*) ;; *)
+				local ownerAccount="" ownerOwed=""
+				ownerAccount="$( AgentsSlackIdentityId human-owner )" || ownerAccount=""
+				[ -z "$ownerAccount" ] || ownerOwed="$( LC_ALL=C awk -F '\t' -v who="$ownerAccount" '$3 == who && $2 ~ /^slack:[A-Z0-9]+:[0-9.]+$/ { last = $2 ; } END { if ( last != "" ) print substr( last, 7 ) ; }' "$MMDAPP/.local/agents/schedule/owed/$memberName" 2> /dev/null )" || ownerOwed=""
+				if [ -n "$ownerOwed" ] ; then
+					target="$ownerOwed"
+					echo "# $MDSC_CMD --slack-send-message: the human-owner asked in the thread $ownerOwed, so this message answers there." >&2
+				fi
+			;; esac
 		fi
 		AgentsToolsEmitRequestDetailHeader "$memberName" "$target"
 		local resolved rc channel="" threadTs="" failoverRouting="" addressSessionId=""
@@ -1147,8 +1161,10 @@ blocks|verbatim|caller|stdin file"
 		## RECORDED FIRST, POSTED AFTER (F9.1): the message goes into the chat file of the run's session before Slack is
 		## called, and takes its ts and its thread once Slack has taken it. An edit changes a message already there and
 		## records nothing; a call with no session records nothing. Quiet, and never a reason for a send to fail.
+		## `MDAT_CHAT_RECORD=none` keeps a send out of that file: the detour's private part is recorded on the private
+		## conversation's own record alone, and the session keeps the pointer line instead.
 		local chatRecord="" chatKey="" chatNo=""
-		if [ -z "$updateTs" ] ; then
+		if [ -z "$updateTs" ] && [ "${MDAT_CHAT_RECORD:-own}" != "none" ] ; then
 			type AgentsToolsSessionChatSend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 			chatRecord="$( AgentsToolsSessionChatSend "$memberName" "$addressToList" "$chatBody" 2> /dev/null )" || chatRecord=""
 			chatKey="${chatRecord%% *}" ; chatNo="${chatRecord##* }"

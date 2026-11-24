@@ -12,6 +12,10 @@
 ##   6. the scan's header carries the kind, and the scan reaches it with no service call
 ##   8. his message answered only by the local copy of our reply, in a thread folder no pull made, yields no line: that folder's
 ##      own `slack-local-thread` line names it; the same copy in a folder with no line leaves the message owed
+##   9. his message in a direct conversation, in the thread of an earlier post of ours, answered by a later post of ours that is
+##      a thread of its own in the same conversation, yields no line: the cache keeps every post of a direct conversation as
+##      its own thread, so the thread alone never holds the answer. Three controls: our post before his message leaves him owed,
+##      our post more than an hour after it leaves him owed, and in the team channel a later post in another thread answers nothing
 ## Red before the kind: no `owner-owed` line at all. Offline: the store is the check's own, and nothing is requested.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -105,6 +109,27 @@ rigMsg "slack-bot-D0RIGLOCL1" 202611 "$rigBareAt" "$rigOwner" 'RIG-OWED-BARE ans
 ( MMDAPP="$rigWs" ; . "$rigPkg/sh-lib/comms/AgentsTools.CommsCache.include" \
 	&& AgentsToolsCommsCachePostStore "$rigStore/slack-bot-D0RIGLOCL1-$rigLocalAt" magic-coordinator 'RIG-LOCAL-REPLY' "D0RIGLOCL1:$rigLocalAt" true \
 	&& AgentsToolsCommsCachePostStore "$rigStore/slack-bot-D0RIGLOCL1-$rigBareAt" magic-coordinator 'RIG-LOCAL-BARE' ) > /dev/null 2>&1 || rigRefuse "the store's post writer could not write the local copies"
+## 9. A direct conversation kept as one thread folder a post, as the cache keeps it: his message in the thread of our earlier post, our
+## later post in a thread folder of its own. The control before it, and the team channel with the same two threads.
+rigConv "slack-bot-D0RIGDMX01" "D0RIGDMX01" magic-coordinator
+rigThread "slack-bot-D0RIGDMX01-$(( rigNow - 5900 )).000100" "D0RIGDMX01" "$(( rigNow - 5900 )).000100" magic-coordinator
+rigMsg "slack-bot-D0RIGDMX01-$(( rigNow - 5900 )).000100" 202611 "$(( rigNow - 5800 )).000100" "$rigOwner" 'RIG-OWED-DMCROSS answered by a later post in a thread of its own'
+rigThread "slack-bot-D0RIGDMX01-$(( rigNow - 5700 )).000100" "D0RIGDMX01" "$(( rigNow - 5700 )).000100" magic-coordinator
+rigMsg "slack-bot-D0RIGDMX01-$(( rigNow - 5700 )).000100" 202611 "$(( rigNow - 5700 )).000100" "$rigOther" 'RIG-ANSWER-DMCROSS'
+rigConv "slack-bot-D0RIGDMX02" "D0RIGDMX02" magic-coordinator
+rigThread "slack-bot-D0RIGDMX02-$(( rigNow - 5600 )).000100" "D0RIGDMX02" "$(( rigNow - 5600 )).000100" magic-coordinator
+rigMsg "slack-bot-D0RIGDMX02-$(( rigNow - 5600 )).000100" 202611 "$(( rigNow - 5600 )).000100" "$rigOther" 'RIG-EARLIER-DMBEFORE'
+rigThread "slack-bot-D0RIGDMX02-$(( rigNow - 5500 )).000100" "D0RIGDMX02" "$(( rigNow - 5500 )).000100" magic-coordinator
+rigMsg "slack-bot-D0RIGDMX02-$(( rigNow - 5500 )).000100" 202611 "$(( rigNow - 5400 )).000100" "$rigOwner" 'RIG-OWED-DMBEFORE our post came before his message'
+rigConv "slack-bot-D0RIGDMX03" "D0RIGDMX03" magic-coordinator
+rigThread "slack-bot-D0RIGDMX03-$(( rigNow - 9400 )).000100" "D0RIGDMX03" "$(( rigNow - 9400 )).000100" magic-coordinator
+rigMsg "slack-bot-D0RIGDMX03-$(( rigNow - 9400 )).000100" 202611 "$(( rigNow - 9300 )).000100" "$rigOwner" 'RIG-OWED-DMLATE our next post came hours later'
+rigThread "slack-bot-D0RIGDMX03-$(( rigNow - 2000 )).000100" "D0RIGDMX03" "$(( rigNow - 2000 )).000100" magic-coordinator
+rigMsg "slack-bot-D0RIGDMX03-$(( rigNow - 2000 )).000100" 202611 "$(( rigNow - 2000 )).000100" "$rigOther" 'RIG-ELSEWHERE-DMLATE a post on another matter'
+rigThread "slack-$rigTeam-$(( rigNow - 5300 )).000100" "$rigTeam" "$(( rigNow - 5300 )).000100" magic-coordinator
+rigMsg "slack-$rigTeam-$(( rigNow - 5300 )).000100" 202611 "$(( rigNow - 5300 )).000100" "$rigOwner" 'RIG-OWED-TEAMCROSS his message in a channel thread'
+rigThread "slack-$rigTeam-$(( rigNow - 5200 )).000100" "$rigTeam" "$(( rigNow - 5200 )).000100" magic-coordinator
+rigMsg "slack-$rigTeam-$(( rigNow - 5200 )).000100" 202611 "$(( rigNow - 5200 )).000100" "$rigOther" 'RIG-ELSEWHERE-TEAMCROSS a later post in another thread'
 ## 0. A channel that is neither the team channel nor a direct one.
 rigMsg "slack-CRIGTRACK1" 202611 "$(( rigNow - 6500 )).000100" "$rigOwner" 'RIG-OWED-OUTSIDE another channel'
 
@@ -156,6 +181,15 @@ rigAssert "its thread's unanswered message yields its own line" "$( rigOwed RIG-
 echo "-- 8. a local copy of our reply, in a thread folder no pull made --"
 rigAssert "his message answered only by our local copy in its thread yields no line" "$( rigOwed RIG-OWED-LOCAL )" ""
 rigAssert "control: the same copy in a folder that names no thread leaves him owed" "$( rigOwed RIG-OWED-BARE | LC_ALL=C awk '{ print $3 ; }' )" "D0RIGLOCL1:$rigBareAt"
+
+echo "-- 9. a direct conversation is one thread folder a post --"
+rigAssert "his message answered by our later post in a thread of its own yields no line" "$( rigOwed RIG-OWED-DMCROSS )" ""
+rigAssert "control: the same shape with our post before his message leaves him owed" \
+	"$( rigOwed RIG-OWED-DMBEFORE | LC_ALL=C awk '{ print $3 ; }' )" "D0RIGDMX02:$(( rigNow - 5400 )).000100"
+rigAssert "control: our next post, an hour or more after his message, answers nothing of his" \
+	"$( rigOwed RIG-OWED-DMLATE | LC_ALL=C awk '{ print $3 ; }' )" "D0RIGDMX03:$(( rigNow - 9300 )).000100"
+rigAssert "control: in the team channel a later post in another thread answers nothing" \
+	"$( rigOwed RIG-OWED-TEAMCROSS | LC_ALL=C awk '{ print $3 ; }' )" "$rigTeam:$(( rigNow - 5300 )).000100"
 
 echo "-- 6. the kind is the scanner's own, and no service is reached --"
 rigAssert "the scan's header lists the kind" \

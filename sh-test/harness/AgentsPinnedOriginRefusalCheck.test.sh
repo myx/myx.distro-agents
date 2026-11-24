@@ -3,14 +3,17 @@
 ## tree carries no tooling (the guard at the head of sh-scripts/DistroAgentsTools.fn.sh, MAGIC.md "MDLT_OPTION").
 ## Without the guard the same launch dies on a bare file-not-found, which no MCP host can explain.
 ## Guards: the served launch ends 1; exactly one stderr line names MDLT_OPTION as the reason, and one names the two
-## includes the launch loads, AgentsContext.include and AgentsContext.FrontTable.include; the pin is named; no stderr
-## line reads `No such file or directory`; nothing reaches the protocol wire.
+## includes the launch loads, AgentsContext.include and AgentsContext.FrontTable.include; the pin is named, and the
+## option's own value with it; both ways out are named; no stderr line reads `No such file or directory`; nothing
+## reaches the protocol wire. A pin carrying one of the two includes and not the other is refused the same way, so
+## each half of the guard's two-part test is exercised on its own.
 ## The control in the same run: the same launch against a pin carrying the tooling ends 0, writes its initialize frame,
 ## and names no refusal.
 ## Red: a copy of this tree whose guard tests another variable, so it never fires, fails `one line names MDLT_OPTION as
-## the reason`, `one line names the two includes the launch loads`, `the refusal names the pin` and `nothing reads as a
-## bare file-not-found`. Its exit status stays 1 there, on the bare file-not-found alone, so the status assertion alone
-## is no measure of the guard.
+## the reason`, `one line names the two includes the launch loads`, `the refusal names the pin`, `the refusal names the
+## option's own value`, `the refusal names both ways out` and `nothing reads as a bare file-not-found`. Its exit status
+## stays 1 there, on the bare file-not-found alone, so the status assertion alone is no measure of the guard. A copy
+## whose guard tests one include alone fails only the half it stopped testing.
 ## Offline: a rig of this check alone, removed at its end; the frame is the front door's own server answering one
 ## initialize message on stdin.
 set -u
@@ -61,6 +64,8 @@ rigAssert "the launch refuses"                              "$( cat "$rigTmp/pin
 rigAssert "one line names MDLT_OPTION as the reason"        "$( rigLines "$rigTmp/pinned-bare.err" 'MDLT_OPTION is set, so no origin resolution runs' )" 1
 rigAssert "one line names the two includes the launch loads" "$( rigLines "$rigTmp/pinned-bare.err" 'AgentsContext.include and AgentsContext.FrontTable.include' )" 1
 rigAssert "the refusal names the pin"                       "$( rigLines "$rigTmp/pinned-bare.err" "origin: $rigTmp/bare" )" 1
+rigAssert "the refusal names the option's own value"        "$( rigLines "$rigTmp/pinned-bare.err" "option: --run-from-path $rigTmp/bare" )" 1
+rigAssert "the refusal names both ways out"                 "$( rigLines "$rigTmp/pinned-bare.err" 'Unset MDLT_OPTION and MDLT_ORIGIN to let this workspace resolve its own origin, or point MDLT_ORIGIN at a tree carrying the tooling.' )" 1
 rigAssert "nothing reads as a bare file-not-found"          "$( rigLines "$rigTmp/pinned-bare.err" 'No such file or directory' )" 0
 rigAssert "nothing reaches the protocol wire"               "$( wc -c < "$rigTmp/pinned-bare.out" | LC_ALL=C tr -d ' ' )" 0
 
@@ -70,6 +75,19 @@ rigAssert "the launch serves"                               "$( cat "$rigTmp/pin
 rigAssert "it writes its initialize frame"                  "$( rigLines "$rigTmp/pinned-tooled.out" '"jsonrpc":"2.0","id":1,"result"' )" 1
 rigAssert "the frame names the protocol it speaks"          "$( rigLines "$rigTmp/pinned-tooled.out" '"protocolVersion"' )" 1
 rigAssert "the control refuses nothing"                     "$( rigLines "$rigTmp/pinned-tooled.err" 'MDLT_OPTION is set' )" 0
+
+## A pin carrying one of the two includes and not the other is refused as a tree carrying no tooling.
+echo "-- 3. a pin carrying one of the two includes, and not the other, is refused the same way --"
+for rigHalf in AgentsContext.include AgentsContext.FrontTable.include ; do
+	mkdir -p "$rigTmp/$rigHalf/myx/myx.distro-agents/sh-lib/harness" || exit 1
+	cp "$rigOrigin/myx/myx.distro-agents/sh-lib/harness/$rigHalf" "$rigTmp/$rigHalf/myx/myx.distro-agents/sh-lib/harness/" || exit 1
+	rigLaunch "$rigTmp/$rigHalf" "pinned-$rigHalf"
+	rigAssert "$rigHalf alone: the launch refuses"               "$( cat "$rigTmp/pinned-$rigHalf.rc" )" 1
+	rigAssert "$rigHalf alone: one line names MDLT_OPTION"       "$( rigLines "$rigTmp/pinned-$rigHalf.err" 'MDLT_OPTION is set, so no origin resolution runs' )" 1
+	rigAssert "$rigHalf alone: the refusal names the pin"        "$( rigLines "$rigTmp/pinned-$rigHalf.err" "origin: $rigTmp/$rigHalf" )" 1
+	rigAssert "$rigHalf alone: the refusal names both ways out"  "$( rigLines "$rigTmp/pinned-$rigHalf.err" 'Unset MDLT_OPTION and MDLT_ORIGIN to let this workspace resolve its own origin' )" 1
+	rigAssert "$rigHalf alone: nothing reaches the protocol wire" "$( wc -c < "$rigTmp/pinned-$rigHalf.out" | LC_ALL=C tr -d ' ' )" 0
+done
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ PINNED ORIGIN REFUSAL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

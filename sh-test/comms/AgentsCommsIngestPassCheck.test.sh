@@ -7,7 +7,9 @@
 ##   0. the control: the rig's store holds the channel sources this check wrote, and the fake records every call
 ##   1. a due channel source is ingested: its events are written, and its pointer is the last id it wrote in the EventIdentifier form
 ##   2. a source whose state has not moved since its ingest is not read again, and one pulled since it is read again
-##   3. a source read as the bot is skipped, and no folder of that account is written
+##   3. a source read as the bot is ingested too, handed on as --as-bot: it is in the pass's list and takes a pointer. It used to be
+##      skipped, and a source skipped after its recipe turned `true` was read once and never again, which is the silent drop this
+##      section now holds open
 ##   4. a source whose read failed leaves its pointer where it was and writes no event
 ##   5. the pass stops at its budget, and the next pass starts after the source it served last
 ##   6. a channel folder whose state names no recipe is skipped
@@ -129,13 +131,15 @@ rigPulled slack-CRIGONE001
 rigIngestPass 0
 rigAssert "a source pulled since its ingest is read again, and only it" "$( rigReads )" 4
 
-echo "-- 3. a source read as the bot is skipped, and no folder of that account is written --"
+echo "-- 3. a source read as the bot is ingested, handed on as --as-bot --"
 rigSource slack-bot-CRIGBOT001 CRIGBOT001 true
 rigIngestPass 3
 rigAssert "the pass ran" "$?" 0
-rigAssert "the bot source is in no pass's list" "$( rigList | LC_ALL=C grep -c -F 'CRIGBOT001' )" 0
-rigAssert "and holds no pointer" "$( [ -e "$rigStore/slack-bot-CRIGBOT001/.ingest.txt" ] && printf pointer || printf none )" none
-rigAssert "and no event was written for it" "$( rigEventCount slack-bot-CRIGBOT001 )" 0
+rigAssert "the bot source is in the pass's list" "$( rigList | LC_ALL=C grep -c -F 'CRIGBOT001' )" 1
+rigAssert "its row carries the bot flag" "$( rigList | LC_ALL=C awk -F'\t' '$2 == "CRIGBOT001" { print $4 ; }' )" true
+rigAssert "and it holds a pointer, so it is read again when its state moves" \
+	"$( [ -e "$rigStore/slack-bot-CRIGBOT001/.ingest.txt" ] && printf pointer || printf none )" pointer
+rigAssert "and its message was written as an event" "$( rigEventCount slack-bot-CRIGBOT001 )" 1
 
 echo "-- 4. a source whose read failed leaves its pointer where it was and writes no event --"
 rigSource slack-CRIGBAD001 CRIGBAD001 false

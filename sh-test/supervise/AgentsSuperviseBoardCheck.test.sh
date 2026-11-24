@@ -19,7 +19,7 @@ rigAssert(){ ## what, got, want
 	else rigFail=$(( rigFail + 1 )) ; printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; fi
 }
 rigWs="$rigTmp/ws" ; rigSpawned="$rigWs/.local/agents/spawned" ; rigItems="$rigTmp/items" ; rigEpics="$rigTmp/epics"
-mkdir -p "$rigItems/pending" "$rigItems/running" "$rigItems/processed" "$rigEpics" "$rigSpawned"
+mkdir -p "$rigItems/pending" "$rigItems/running" "$rigItems/blocked" "$rigItems/processed" "$rigEpics" "$rigSpawned"
 rigItem(){ ## state, name, header lines...
 	local itemState="$1" itemName="$2" ; shift 2
 	{ printf -- '---\n' ; printf '%s\n' "$@" ; printf -- '---\n\n# %s\n' "$itemName" ; } > "$rigItems/$itemState/$itemName.md"
@@ -46,6 +46,12 @@ rigItem running task-20260101T0016Z-duty-owned 'type: task' 'owner: magic-tester
 mkdir -p "$rigSpawned/16161616-0000-0000-0000-000000000016"
 printf -- '---\nspawn-id: %s\nsession-id: %s\nstatus: spawn-started\nowner: magic-tester\nstarted-at: %s\ndescription: duty\nroutine: magic-tester.work-duty.routine.md\n---\n' 16161616-0000-0000-0000-000000000016 16161616-0000-0000-0000-000000000016 "$( date '+%Y-%m-%d %H:%M' ) +0200" > "$rigSpawned/16161616-0000-0000-0000-000000000016/16161616-0000-0000-0000-000000000016.spawn.md"
 rigItem running task-20260101T0017Z-duty-other 'type: task' 'owner: magic-architect'
+## Blocked: an urgent task of an owner that runs nothing, an important one of an owner with a live run, the human-owner's, an unmarked one.
+rigItem blocked task-20260101T0030Z-idle-owner 'type: task' 'owner: partner-ndm-infra' 'mark: urgent'
+rigItem blocked task-20260101T0031Z-idle-important 'type: task' 'owner: keeper-ndm' 'mark: important'
+rigItem blocked task-20260101T0032Z-live-owner 'type: task' 'owner: magic-tester' 'mark: urgent'
+rigItem blocked task-20260101T0033Z-his 'type: task' 'owner: human-owner' 'mark: urgent'
+rigItem blocked task-20260101T0034Z-unmarked 'type: task' 'owner: partner-ndm-camunda'
 rigItem running dispatch-20260101T0015Z-spawn-proxy-1-15151515 'type: dispatch' 'status: dispatch-started' 'tracks: task-20260101T0015Z-tracked-ended'
 rigRecord 15151515-0000-0000-0000-000000000015 spawn-succeeded "$( date '+%Y-%m-%d %H:%M' ) +0200" 'a dispatched build'
 ## Pending: a recheck not due, a never-run verify, one with a build routine, one a run names.
@@ -125,6 +131,12 @@ rigAssert "one a running dispatch tracks, its run live, is not" "$( rigHas 'runn
 rigAssert "control: one a running dispatch tracks, its run ended, is named" "$( rigHas 'running-idle ws task-20260101T0015Z-tracked-ended' )" "1"
 rigAssert "one whose owner holds a live duty run is not" "$( rigHas 'running-idle ws task-20260101T0016Z-duty-owned' )" "0"
 rigAssert "control: one whose owner holds no live duty is named" "$( rigHas 'running-idle ws task-20260101T0017Z-duty-other' )" "1"
+echo "-- blocked-owner-idle --"
+rigAssert "an urgent blocked task of an owner that runs nothing is named, with the owner and the mark" "$( rigHas 'blocked-owner-idle ws task-20260101T0030Z-idle-owner owner=partner-ndm-infra mark=urgent' )" "1"
+rigAssert "an important one is named too" "$( rigHas 'blocked-owner-idle ws task-20260101T0031Z-idle-important owner=keeper-ndm mark=important' )" "1"
+rigAssert "control: one whose owner holds a live run is not" "$( rigHas 'task-20260101T0032Z-live-owner' )" "0"
+rigAssert "one the human-owner holds is not: he is asked, never started" "$( rigHas 'task-20260101T0033Z-his' )" "0"
+rigAssert "one carrying no urgent or important mark is not" "$( rigHas 'task-20260101T0034Z-unmarked' )" "0"
 echo "-- leftover --"
 rigAssert "a record still started two days on is named" "$( rigHas 'leftover ws dddddddd-0000-0000-0000-000000000008 magic-developer' )" "1"
 rigAssert "one started now is not" "$( rigHas 'eeeeeeee' )" "0"

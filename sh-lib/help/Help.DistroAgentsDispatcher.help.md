@@ -44,7 +44,9 @@
 		--spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 			A session of one routine's run, started for each team member named, or
 			for the caller where none is: the work-session dispatch every routine
-			runs under. The participants the executor is to invite, and what the
+			runs under. Two or more members of a routine that is not coworking
+			each get a session of their own. A coworking routine, or
+			`--participants`, makes the call one session that all the members join. The participants the executor is to invite, and what the
 			work likely needs, are checked and recorded, never started here.
 			The task is read from standard input. With no task there, the whole
 			`--description` is the task. `--handed-over-by` names the run whose
@@ -94,7 +96,9 @@
 		--override-flag [--no] <flag> [<ttl>] [--days <n>] [--member <member>]
 			An override of a flag: emergency, with a TTL; overtime; holidays, with a
 			TTL or until cleared; holding, with a TTL or until cleared, under which
-			the schedule starts no routine, duty or supervision; or learning; or supervised, which while it is on
+			the schedule starts no new work (no routine, supervision, pending item or other member's duty),
+			and still closes dead runs, ends finished ones and keeps magic-coordinator's duty for the board's
+			review; or learning; or supervised, which while it is on
 			keeps one supervision session of this rig running; or planned-maintenance,
 			with a TTL, under which the monitoring prints its alarms as muted. `--no` clears the
 			override. `--days <n>` belongs to overtime alone and ends it n worktime

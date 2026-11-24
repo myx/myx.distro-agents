@@ -202,8 +202,11 @@ AgentsHarnessAsk(){
 	## exists -- same rule and same reason as SendMessage's own default. An ad-hoc/
 	## solo spawn holding none keeps today's explicit-target requirement exactly.
 	if [ -z "$toolTo" ] ; then
-		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
-		toolTo="$( AgentsToolsSessionCurrentThreadFind 2>/dev/null )" || toolTo=""
+		## THE ONE RULE THAT ANSWERS THIS, the send path's too: the tier the session recorded, else its kind rule. So a
+		## `private` session's question lands in the private conversation, and a `public` one is refused there. Its
+		## refusal is the member's, and it names the contacts route, so it is never swallowed here.
+		type AgentsToolsCommsPrintbackSessionOwnTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include"
+		toolTo="$( AgentsToolsCommsPrintbackSessionOwnTarget )" || toolTo=""
 	fi
 	if [ -z "$toolTo" ] ; then
 		printf 'ERROR: %s: to is required and was empty, so there is nobody to ask. Nothing was sent.\n' "$harnessAskName" ; return 0
@@ -431,7 +434,7 @@ AgentsHarnessAsk(){
 		else
 			printf 'WARNING: %s: the question lock for %s could not be taken, so this question is posted without it, and its number may repeat one asked at the same moment.\n' "$harnessAskName" "$toolAddressTo" >&2
 		fi
-		askWhere="$( AgentsToolsAskThreadFind "$toolTo" "$toolAddressTo" "$askKey" "$harnessAgent" )"
+		askWhere="$( AgentsToolsAskThreadFind "$toolTo" "$toolAddressTo" "$askKey" "$harnessAgent" "$toolTaskRef" "$toolKind" )"
 		## A proposal always opens its own thread: the thread of one closed before is never joined.
 		case "$toolKind:$askWhere" in proposal:SAME$'\t'*) askWhere="" ;; esac
 	fi
@@ -566,7 +569,7 @@ AgentsHarnessAsk(){
 				printf 'ASK-RESULT: RECEIVED\nThe same question to %s was already asked as pending reply %s, and its thread already holds the answer, so nothing was posted and the record is now closed. What the tooling collected, as `ANSWERED <id> <tag> | <question> | <answer>`:\n%s\n' "$toolAddressTo" "$askDupId" "$askDupCollected"
 				return 0
 			fi
-			printf 'ASK-RESULT: ALREADY-OPEN\nThe same question to %s is already open as pending reply %s, asked by %s%s, so it was not posted again.\n' "$toolAddressTo" "$askDupId" "${askDupOwner:-an unknown member}" "${askDupSession:+ in session $askDupSession}"
+			printf 'ASK-RESULT: ALREADY-OPEN\nThe same question to %s, or another ask about the same item, is already open as pending reply %s, asked by %s%s, so it was not posted again. Wait for its answer and go on with other work meanwhile.\n' "$toolAddressTo" "$askDupId" "${askDupOwner:-an unknown member}" "${askDupSession:+ in session $askDupSession}"
 			if [ -n "$askDupSession" ] && [ "$askDupSession" = "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" ] ; then
 				AgentsHarnessAskWaitNext "$askDupId"
 				printf '%s pending_id=%s\n' "$harnessAskName" "$askDupId"

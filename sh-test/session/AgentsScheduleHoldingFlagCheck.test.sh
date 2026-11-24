@@ -6,7 +6,8 @@
 ##   1. SETTING holding stores an override with no end, and the override answers `holding: yes`.
 ##   2. --current-flags lists it, `holding: yes` while it holds and `holding: no` after `--override-flag --no holding`.
 ##   3. A TTL SETS AN END, and the flags line carries the seconds left.
-##   4. WHILE IT HOLDS THE LOOP STARTS NOTHING: no autorun, no duty, no pending board item, no supervision, no emergency start.
+##   4. WHILE IT HOLDS THE LOOP STARTS NO NEW WORK: no autorun, no pending board item, no supervision, no emergency start. The duty step still runs, for the
+##      review and the closes: what it starts is AgentsScheduleHoldFloorCheck's.
 ##   5. AND IT STILL REPORTS AND LEARNS: what ended is reported and the learning step still runs, and those change no running state.
 ##   6. CLEARED, THE LOOP STARTS AGAIN, so the flag is a hold and not a one-way switch.
 ## The settings reader is a stand-in over a key file of the rig's own, so no setting of any workspace is read or written here. Every step
@@ -138,9 +139,9 @@ rigRun 'AgentsToolsScheduleOverride --override-flag --no holding'
 echo "-- 4 and 5. while it holds the loop starts nothing, and still reports and learns --"
 : > "$rigTmp/calls"
 rigRun 'AgentsToolsScheduleOverride --override-flag holding > /dev/null ; AgentsToolsScheduleLoop'
-rigAssert "the pass says in one line that it is holding" "$( rigSaid 'holding: the schedule starts nothing while holding is set' )" said
+rigAssert "the pass says in one line that it is holding" "$( rigSaid 'holding: no new work is started while holding is set' )" said
 rigAssert "no autorun was started" "$( rigLog autorun )" 0
-rigAssert "no duty was started" "$( rigLog duty )" 0
+rigAssert "the duty step still runs, for the review and the closes" "$( rigLog duty )" 1
 rigAssert "no supervision was started" "$( rigLog supervision )" 0
 rigAssert "no emergency start was made" "$( rigLog emergency )" 0
 rigAssert "no pending board item was started" "$( rigLog start-pending )" 0
@@ -152,7 +153,7 @@ echo "-- 6. cleared, the loop starts again --"
 rigRun 'AgentsToolsScheduleOverride --override-flag --no holding > /dev/null ; AgentsToolsScheduleLoop'
 rigAssert "the autorun step runs again" "$( rigLog autorun )" 1
 rigAssert "and the duty step runs again" "$( rigLog duty )" 1
-rigAssert "and the pass no longer says it is holding" "$( rigSaid 'the schedule starts nothing while holding is set' )" not-said
+rigAssert "and the pass no longer says it is holding" "$( rigSaid 'no new work is started while holding is set' )" not-said
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SCHEDULE HOLDING FLAG CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1

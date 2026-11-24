@@ -160,7 +160,7 @@ AgentsToolsHandbackNext(){ ## member, spawn id, the outcome field of the handbac
 				*) nextGateRows="$( DistroAgentsTools --intern-doc-validate vault-item.epic-blueprint "$nextReal" 2>&1 )" || nextGateRc=$? ;;
 			esac
 		fi
-		[ "$nextGateRc" = 0 ] || nextWhy="the epic validator refuses the input, so no wave starts."$'\n\n```\n'"$( printf '%s\n' "$nextGateRows" | LC_ALL=C cut -c1-200 | head -8 )"$'\n```'
+		[ "$nextGateRc" = 0 ] || nextWhy="the epic validator refuses the input, so no wave starts."$'\n\n```\n'"$( printf '%s\n' "$nextGateRows" | LC_ALL=C grep -v -E ': report-[a-z-]+: ' | LC_ALL=C cut -c1-200 | head -8 )"$'\n```'
 	fi
 	if [ -n "$nextWhy" ] ; then
 		AgentsToolsHandbackNextRefuse "$nextWhy" "$nextManual"

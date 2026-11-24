@@ -1432,9 +1432,7 @@ def activityTree():
             "reads": {
                 ## THE SESSIONS THE TEAM HAS NOW, from the live blocks alone: one file a session whose thread runs, and never a
                 ## closed session's store. It is what every list of this root is made of.
-                ## THE SESSIONS THE TEAM HAS NOW, from the live blocks alone: one file a session whose thread runs, and never a
-                ## closed session's store. It is what every list of this root is made of.
-                "list:activity": {"operation": ["--manager-session-list"], "rows": "sessions", "kind": "sessions", "always": True},
+                "list:activity": {"operation": ["--manager-session-active-list"], "rows": "sessions", "kind": "sessions", "always": True},
                 ## THE SESSIONS THAT CLOSED, as a page of the append-only index: its own kind and its own key, so it costs its
                 ## window whatever the history holds, and its answer lands beside the live rows instead of replacing them.
                 "list:activity/closed-sessions": {"operation": ["--manager-session-closed-list"], "rows": "closed-sessions", "kind": "closed-sessions",

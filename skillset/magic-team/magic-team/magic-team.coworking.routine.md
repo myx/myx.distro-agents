@@ -4,6 +4,7 @@ executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: magic-team
 requires-session-kind: coworking
+security-tier: shared
 input-scan-def: routine-coworking-session
 review-by: inherit
 runs-at: none

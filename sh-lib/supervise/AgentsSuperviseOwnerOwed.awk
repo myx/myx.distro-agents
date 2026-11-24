@@ -11,6 +11,10 @@
 ## `slack-thread <channel>:<thread ts>`, as the cache-to-inbox transfer reads them, or from the line of a thread folder our own
 ## post made, `slack-local-thread <channel>:<thread ts>`, which nothing pulls (AgentsToolsCommsCachePostStore): the store owns that fact, and a
 ## folder's name is no second owner of it. LC_ALL=C.
+## A DIRECT CONVERSATION IS ONE EXCHANGE: the cache keeps each post of it as a thread folder of its own, so his message in the thread of our
+## earlier post is answered by our next post, which stands in another folder. There a message of another account in the same conversation
+## answers it when it follows within exchangeSeconds (default 3600): a later post on another matter answers nothing of his, and a late answer
+## clears the line only by standing in his own thread. The team channel keeps the thread rule, since a later post of anyone there answers nothing of his.
 
 function tsAfter(one, two,   oneSec, twoSec, oneFrac, twoFrac) {
 	if (two == "") return 1
@@ -38,6 +42,8 @@ function readPulling(   line, word, count, fields, target) {
 	if (target ~ /^[CD][A-Z0-9]+$/ && (target == team || target ~ /^D/)) owedConv = target
 }
 
+BEGIN { if (exchangeSeconds == "") exchangeSeconds = 3600 ; }
+
 FNR == 1 {
 	owedDir = FILENAME
 	sub(/\/[0-9][0-9][0-9][0-9][0-9][0-9]\/messages\.txt$/, "", owedDir)
@@ -56,7 +62,11 @@ owedConv == "" { next ; }
 	owedText = substr(owedRest, owedAt + 3)
 	if (owedWho == "") next
 	owedKey = owedConv "\037" owedThread
-	if (owedWho != owner) { if (tsAfter(owedTs, owedOther[owedKey])) owedOther[owedKey] = owedTs ; next ; }
+	if (owedWho != owner) {
+		if (tsAfter(owedTs, owedOther[owedKey])) owedOther[owedKey] = owedTs
+		if (owedConv ~ /^D/) owedDmAt[owedConv, ++owedDmCount[owedConv]] = owedTs + 0
+		next
+	}
 	owedOwn = owedConv "\037" owedTs
 	if (!(owedOwn in owedSeen)) {
 		owedSeen[owedOwn] = ++owedCount
@@ -74,6 +84,14 @@ END {
 		owedAt = owedWhen[owedOwn]
 		if (tsAfter(owedOther[owedConvOf[owedOwn] "\037" owedIn[owedOwn]], owedAt)) continue
 		if (owedIn[owedOwn] == "" && tsAfter(owedOther[owedConvOf[owedOwn] "\037" owedAt], owedAt)) continue
+		if (owedConvOf[owedOwn] ~ /^D/) {
+			owedAnswered = 0
+			for (owedAt2 = 1 ; owedAt2 <= owedDmCount[owedConvOf[owedOwn]] ; owedAt2++) {
+				owedGap = owedDmAt[owedConvOf[owedOwn], owedAt2] - (owedAt + 0)
+				if (owedGap > 0 && owedGap <= exchangeSeconds) { owedAnswered = 1 ; break ; }
+			}
+			if (owedAnswered) continue
+		}
 		owedAge = int((now - substr(owedAt, 1, index(owedAt, ".") - 1)) / 60)
 		if (owedAge < 0) owedAge = 0
 		owedHead = owedBody[owedOwn]

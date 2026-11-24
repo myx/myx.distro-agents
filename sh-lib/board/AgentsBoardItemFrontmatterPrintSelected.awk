@@ -1,6 +1,7 @@
 #!/usr/bin/env awk
 # Prints a caller-chosen, ordered subset of a board item's frontmatter keys; with -v title=1, led by the body's first heading as `title:`.
 # A key the item lacks is left out: an empty value tells the reader nothing and costs every scan a line.
+# With -v cap=N a value longer than N characters is cut there and says how long it was: a scan that lists many items does not carry a status history N times over.
 # THE TITLE IS OPT-IN: AgentsToolsRoutineKeyOwn (AgentsTools.RoutineRequirements.include) reads one key of a routine file through this program and takes
 # the value off the one line it prints, so a line it did not ask for breaks every routine start. Only a caller that lists items asks for the title.
 BEGIN {
@@ -44,6 +45,7 @@ END {
 		key = order[i]
 		val = vals[key]
 		if (!seen_fm && val == "") val = fallback[key]
+		if (cap + 0 > 0 && length(val) > cap + 0) val = substr(val, 1, cap + 0) " [cut: " length(val) " characters, the item holds the rest]"
 		if (val != "") printf "%s: %s\n", key, val
 	}
 }

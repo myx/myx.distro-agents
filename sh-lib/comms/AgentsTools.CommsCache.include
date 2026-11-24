@@ -206,7 +206,8 @@ AgentsToolsCommsCacheWanted(){ ## cache folder, the recipe line
 	wantSaid="$( AgentsToolsSessionCommsStart 2> /dev/null )" || wantSaid=""
 	## AND WAKES IT: the thread sleeps between passes and wakes on USR1 (its own trap), so the pull comes now and not at its next
 	## second. The pid is the one its lock proves live, pid and start together (AgentsToolsSessionCommsLive), read a moment ago.
-	## `starting`: another want of this second is starting the reader, which pulls every want first on its first loop; nothing to wake yet.
+	## `recent`: a start was made inside the gap and the reader it made is not holding the lock yet, so there is no pid to wake; it pulls
+	## every want on its first loop.
 	case "$wantSaid" in alive\ *|started\ *) wantPid="${wantSaid#* }" ; wantPid="${wantPid%% *}" ;; esac
 	case "$wantPid" in ''|*[!0-9]*) ;; *) kill -USR1 "$wantPid" 2> /dev/null || : ;; esac
 	return 0
@@ -446,7 +447,7 @@ AgentsToolsCommsCachePush(){ ## cache folder, now, most (optional; 0 or none: no
 ## is the posts of the whole pass, spent channel by channel in turn: a backlog of one channel never spends it all, and a workspace with
 ## many channels still makes only that many posts, so the pass that drains them still takes the console's messages and reads the threads.
 AgentsToolsCommsCachePushAll(){ ## now, most (optional; 0 or none: no bound)
-	local allOut allSeen=" " allMost="${2:-0}" allLeft allMade=0 allDir allCount=0 allShare allRound allBound
+	local allOut allSeen=" " allMost="${2:-0}" allLeft allMade=0 allDir allCount=0 allShare allRound allBound allCursor="" allLast=""
 	agentsCommsCachePushAllMade=0
 	[ -n "${MMDAPP:-}" ] || return 0
 	case "$allMost" in ''|*[!0123456789]*) allMost=0 ;; esac
@@ -458,6 +459,10 @@ AgentsToolsCommsCachePushAll(){ ## now, most (optional; 0 or none: no bound)
 		allCount=$(( allCount + 1 ))
 	done
 	[ "$allCount" -gt 0 ] || return 0
+	## THE WALK GOES ON FROM THE FOLDER AFTER THE LAST ONE SERVED, kept in `$MMDAPP/.local/agents/comms/push-cursor`. A bound smaller than the count of
+	## folders, spent from the first folder on every pass, serves the same few folders for ever and the others never post.
+	[ "$allMost" = 0 ] || { IFS= read -r allCursor < "$MMDAPP/.local/agents/comms/push-cursor" ; } 2> /dev/null || :
+	[ -z "$allCursor" ] || case "$allSeen" in *" $allCursor "*) allSeen=" ${allSeen#*" $allCursor "}${allSeen%%" $allCursor "*} $allCursor " ;; esac
 	## THE BOUND IS SHARED, NEVER SPENT IN FOLDER ORDER: each outbox first gets its share of the pass (at least one post), then what is left
 	## goes round again in order, so a full folder ahead of a small one never starves it.
 	allShare=0
@@ -470,10 +475,12 @@ AgentsToolsCommsCachePushAll(){ ## now, most (optional; 0 or none: no bound)
 			allBound="$allLeft"
 			[ "$allMost" = 0 ] || [ "$allRound" != share ] || [ "$allShare" -ge "$allLeft" ] || allBound="$allShare"
 			AgentsToolsCommsCachePush "$allDir" "$1" "$allBound"
+			allLast="$allDir"
 			allMade=$(( allMade + agentsCommsCachePushMade ))
 			[ "$allMost" = 0 ] || allLeft=$(( allLeft - agentsCommsCachePushMade ))
 		done
 	done
+	[ "$allMost" = 0 ] || [ -z "$allLast" ] || printf '%s\n' "$allLast" >| "$MMDAPP/.local/agents/comms/push-cursor" 2> /dev/null || :
 	## What the pass posted in all, for the thread's own end: a thread that is posting is at work.
 	agentsCommsCachePushAllMade="$allMade"
 	return 0
@@ -502,7 +509,7 @@ AgentsToolsCommsCacheSlackFile(){ ## member, cache folder, message ts, file id, 
 ## the service. Once an hour it deletes the marks older than 36 hours, and the entry with them.
 AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one call may pull, none or 0 for no bound)
 	local watchMarks="$MMDAPP/.local/cache/comms/.interest" watchService watchEntry watchEntryMark watchMark watchName watchDir watchHow watchTarget watchMember watchBot watchFloor watchQuiet watchBase watchMarkAt watchMarkTtl watchTtl="${MDAT_SLACK_THREAD_CACHE_SECONDS:-15}"
-	local watchMost="${2:-0}" watchDone=0
+	local watchMost="${2:-0}" watchDone=0 watchAll=() watchStart=0 watchStep=0 watchLast="" watchCursor="" watchFailed="" watchFailedAt=""
 	case "$watchMost" in ''|*[!0123456789]*) watchMost=0 ;; esac
 	case "$watchTtl" in ''|*[!0-9]*) watchTtl=15 ;; esac
 	## THE SWEEP (S1.12 stage 3), in item 12's order: the due channel sources are ingested, then the transfer hands over what the ingest
@@ -533,7 +540,16 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 	## THE MARKS ARE READ BY A GLOB, one file read each (call-path audit row 22): a mark holds the moment of the read that wrote it
 	## and the TTL it reads at, so a mark older than an hour by the pass clock is passed over here, with no find and no sed on
 	## the pass. The hourly sweep above removes what is past the delete age.
-	for watchMark in "$watchMarks"/* ; do
+	## THE WALK RESUMES AFTER THE MARK SERVED LAST (`.pull-cursor` beside the marks): a bound spent from the first mark on every pass reached the first busy channels
+	## alone, and a direct conversation late in the order was never pulled.
+	for watchMark in "$watchMarks"/* ; do watchAll+=( "$watchMark" ) ; done
+	{ read -r watchCursor < "$MMDAPP/.local/cache/comms/.pull-cursor" ; } 2> /dev/null || watchCursor=""
+	while [ "$watchStep" -lt "${#watchAll[@]}" ] ; do
+		[ "${watchAll[$watchStep]##*/}" != "$watchCursor" ] || { watchStart=$(( watchStep + 1 )) ; break ; }
+		watchStep=$(( watchStep + 1 ))
+	done
+	for (( watchStep = 0 ; watchStep < ${#watchAll[@]} ; watchStep++ )) ; do
+		watchMark="${watchAll[$(( ( watchStart + watchStep ) % ${#watchAll[@]} ))]}"
 		[ -f "$watchMark" ] || continue
 		watchName="${watchMark##*/}"
 		case "$watchName" in ''|.*|*[!A-Za-z0-9._-]*) continue ;; esac
@@ -543,6 +559,17 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 		case "$watchMarkAt" in ''|*[!0-9]*) continue ;; esac
 		[ $(( $1 - watchMarkAt )) -lt 3660 ] || continue
 		watchDir="$MMDAPP/.local/cache/comms/${watchName%%-*}/$watchName"
+		## A PULL THAT FAILED IS NOT TRIED AGAIN FOR AN HOUR (`.pull.failed`): a thread of more than 999 replies fails every read the same way, after hundreds of requests, and the one reader
+		## spent its life on it while every other channel waited. A reader waiting by the folder is let go, with what the cache holds.
+		if [ -f "$watchDir/.pull.failed" ] ; then
+			watchFailedAt="$( LC_ALL=C stat -f '%m' "$watchDir/.pull.failed" 2> /dev/null || LC_ALL=C stat -c '%Y' "$watchDir/.pull.failed" 2> /dev/null )" || watchFailedAt=0
+			case "$watchFailedAt" in ''|*[!0123456789]*) watchFailedAt=0 ;; esac
+			if [ $(( $1 - watchFailedAt )) -lt 3600 ] ; then
+				[ ! -f "$watchDir/.want" ] || { rm -f "$watchDir/.want" 2> /dev/null ; AgentsToolsCommsCacheSayReady "$watchDir" ; }
+				continue
+			fi
+		fi
+		watchFailed=""
 		## A WANT IS SERVED WHATEVER THE BUDGET: a reader waits by that folder's fifo now. The budget bounds the channels pulled on their own
 		## schedule, and once it is spent they wait for the next pass, while a wanted folder later in the order is still reached (a budget of
 		## two over a hundred and forty marks left keeper-ae3's mentions, late in the order, unpulled pass after pass).
@@ -569,7 +596,7 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 			slack-thread)
 				## The pull reads at the readers' own TTL (the mark's, watchBase): a thread pulled seconds ago is pulled again where a reader
 				## with a one-second TTL wants it, not served from a fifteen-second default the puller alone would hold.
-				MDAT_COMMS_CACHE_ONLY="" MDAT_SLACK_THREAD_CACHE_SECONDS="$watchBase" AgentsToolsCommsCacheSlackThread "$watchMember" "$watchTarget" "$watchDir/.pull.rendered" "$watchBot" "$1" > /dev/null 2>&1 || :
+				MDAT_COMMS_CACHE_ONLY="" MDAT_SLACK_THREAD_CACHE_SECONDS="$watchBase" AgentsToolsCommsCacheSlackThread "$watchMember" "$watchTarget" "$watchDir/.pull.rendered" "$watchBot" "$1" > /dev/null 2>&1 || watchFailed=yes
 				rm -f "$watchDir/.pull.rendered" "$watchDir/.pull.rendered.read" "$watchDir/.pull.rendered.err"
 			;;
 			slack-mentions)
@@ -585,13 +612,16 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 				[ -n "$watchFloor" ] || watchFloor="$agentsCommsCacheFrom"
 				[ -n "$watchFloor" ] || watchFloor="$( date +%s ).000000"
 				MDAT_COMMS_CACHE_ONLY="" MDAT_COMMS_CACHE_PULLER=true MDAT_SLACK_THREAD_CACHE_SECONDS="$watchBase" DistroAgentsTools --intern-op-comms-slack-read "$watchMember" "$watchTarget" --oldest "$watchFloor" \
-					$( [ "$watchBot" != "true" ] || printf '%s' --identity-bot ) > /dev/null 2>&1 < /dev/null || :
+					$( [ "$watchBot" != "true" ] || printf '%s' --identity-bot ) > /dev/null 2>&1 < /dev/null || watchFailed=yes
 			;;
 		esac
 		rm -f "$watchDir/.want" 2> /dev/null
+		if [ -n "$watchFailed" ] ; then : > "$watchDir/.pull.failed" 2> /dev/null || : ; else rm -f "$watchDir/.pull.failed" 2> /dev/null ; fi
 		AgentsToolsCommsCacheSayReady "$watchDir"
 		watchDone=$(( watchDone + 1 ))
+		watchLast="$watchName"
 	done
+	[ -z "$watchLast" ] || printf '%s\n' "$watchLast" > "$MMDAPP/.local/cache/comms/.pull-cursor" 2> /dev/null || :
 	return 0
 }
 

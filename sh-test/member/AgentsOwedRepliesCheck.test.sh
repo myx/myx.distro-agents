@@ -4,7 +4,7 @@
 ##   2. THE TOOLING'S OWN LINES are never owed: a line with [tracking:], [author-run:] or [sender:] is skipped.
 ##   3. THE BLOCK LISTS WHAT IS OLDER THAN THE BOUND, oldest first, and nothing younger; bound 0 lists all.
 ##   4. A SEND INTO THE THREAD CLEARS IT; a send into another thread of the channel does not.
-##   5. A DM ANSWERED AT ITS TOP clears every entry of that conversation.
+##   5. A POST AT THE TOP OF A DM answers no message and clears none; a send into the thread of a DM message clears that one.
 ## Offline: a temp workspace, no Slack.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -52,6 +52,9 @@ rigAssert "a send into another thread of the channel clears nothing" "$( wc -l <
 AgentsToolsOwedRepliesClear keeper-rig slack C0RIG0001 1794216240.000100
 rigAssert "a send into the message's thread clears it" "$( LC_ALL=C grep -c 'C0RIG0001' "$rigFile" )" "0"
 AgentsToolsOwedRepliesClear keeper-rig slack D0RIG0002 ""
-rigAssert "a DM answered at its top clears the conversation" "$( wc -l < "$rigFile" | tr -d ' ' )" "0"
+rigAssert "a post at the top of a DM clears no owed reply" "$( wc -l < "$rigFile" | tr -d ' ' )" "2"
+AgentsToolsOwedRepliesClear keeper-rig slack D0RIG0002 1794216360.000100
+rigAssert "a send into the thread of a DM message clears that one" "$( LC_ALL=C grep -c '1794216360.000100' "$rigFile" )" "0"
+rigAssert "a send into one DM thread leaves the other owed" "$( wc -l < "$rigFile" | tr -d ' ' )" "1"
 printf '%s: %s passed, %s failed\n' "${0##*/}" "$rigPassCount" "$rigFailCount"
 [ "$rigFailCount" = 0 ]

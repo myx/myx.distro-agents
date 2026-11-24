@@ -42,6 +42,18 @@ AgentsToolsRoutineKey(){ ## routine file path, key
 	printf '%s\n' "$keyValue"
 }
 
+## THE SECURITY TIER A ROUTINE NAMES: its own `security-tier:`, else its kind routine's, as `requires-session-kind:` is
+## inherited. One of `private`, `system`, `shared` or `public`; rc 1 with nothing printed where neither names one, and
+## where the word is none of the four. The last default belongs to the start that asks, so a silence is never a tier.
+AgentsToolsRoutineSecurityTier(){ ## routine file path
+	local tierWord=""
+	tierWord="$( AgentsToolsRoutineKey "${1:-}" security-tier )"
+	case "$tierWord" in
+		private|system|shared|public) printf '%s\n' "$tierWord" ;;
+		*) return 1 ;;
+	esac
+}
+
 ## Every value of a repeatable frontmatter key of a routine file (`input-scan-def:`, one line for each scan), its own, in
 ## order, one a line, its edges trimmed; nothing where the key is not there.
 AgentsToolsRoutineKeyLinesOwn(){ ## routine file path, key
@@ -304,6 +316,23 @@ AgentsToolsRoutineRequirement(){ ## requirement, site (save|spawn|start), routin
 				return 0
 			fi
 			printf 'reject\t%s\n' "review-by: $reqValue is none, inherit, or a reviewer: <session>[:<member>], <member>, <name>.routine, user-<account> or human-owner"
+			return 1
+		;;
+
+		security-tier)
+			## A routine that names no tier is a routine any start may put on any tier: its silence is no tier, and
+			## the start resolves the last default. A key it does name is one of the four, or the start stops.
+			case "$reqValue" in
+				'')
+					printf 'validate\t%s\n' "security-tier: the routine names none, and its start resolves the default"
+					return 0
+				;;
+				private|system|shared|public)
+					printf 'validate\t%s\n' "security-tier: $reqValue"
+					return 0
+				;;
+			esac
+			printf 'reject\t%s\n' "security-tier: $reqValue is not one of private, system, shared or public"
 			return 1
 		;;
 

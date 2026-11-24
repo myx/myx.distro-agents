@@ -90,7 +90,7 @@ rigAssert "both children are in the backlog" "$( rigLoc "$rigChildA" ) $( rigLoc
 rigAssert "each child names its project" "$( rigField "$rigChildA" spawned-by ) $( rigField "$rigChildB" spawned-by )" "${rigProject%.md} ${rigProject%.md}"
 
 echo "-- 2. the epic: listed, read by feature, valid --"
-printf '# 20261102 walk: the epic\n\nSource: `walk.sketch.md`. Each item names its sketch section.\n\nBuilders: our team members.\n\n## Decisions\n\n- Walk rule.\n\n## S1 - The walk\n\n1. The walked item. Owner: magic-developer.\n2. The other item. Owner: magic-developer.\n\n## Done\n\n- S0.1: an old close.\n' > "$rigEpics/20261102-walk.epic.md"
+printf '# 20261102 walk: the epic\n\nSource: `walk.sketch.md`. Each item names its sketch section.\n\nBuilders: our team members.\n\n## Decisions\n\n- Walk rule.\n\n## S1 - The walk\n\n1. The walked item. Owner: magic-developer.\n2. The other item. Owner: magic-developer.\n\n## Done\n\n- S0.1: an old close, proved by `AgentsProcessFlowWalkCheck`.\n' > "$rigEpics/20261102-walk.epic.md"
 rigRun "$rigTmp/e1" magic-coordinator AgentDispatcherTools --epic-list --team-member magic-coordinator "$rigEpics"
 rigAssert "the epic folder lists the epic" "$rigRc:$( rigHas '20261102-walk.epic.md' "$rigTmp/e1.out" )" "0:1"
 rigRun "$rigTmp/e2" magic-coordinator AgentDispatcherTools --epic-read --team-member magic-coordinator "$rigEpics/20261102-walk.epic.md" --feature S1
@@ -133,9 +133,9 @@ rigRun "$rigTmp/a2" magic-coordinator DistroAgentsItems --move-to-processed --te
 rigAssert "a second accept is refused and the item stays processed" "$( [ "$rigRc" != 0 ] && printf refused || printf allowed ):$( rigLoc "$rigChildA" )" "refused:processed"
 
 echo "-- 8. the epic item closes into ## Done --"
-rigRun "$rigTmp/c1" magic-coordinator AgentDispatcherTools --epic-update --team-member magic-coordinator "$rigEpics/20261102-walk.epic.md" --set-status S1.1 done "The walked item holds: ingest, plan, dispatch, review and accept ran."
+rigRun "$rigTmp/c1" magic-coordinator AgentDispatcherTools --epic-update --team-member magic-coordinator "$rigEpics/20261102-walk.epic.md" --set-status S1.1 done "The walked item holds: ingest, plan, dispatch, review and accept ran, proved by \`AgentsProcessFlowWalkCheck\`."
 rigAssert "the update ran" "$rigRc" 0
-rigAssert "the item left the feature and ## Done holds the caller's line" "$( rigHas 'The walked item. Owner' "$rigEpics/20261102-walk.epic.md" ) $( rigHas '- S1.1: The walked item holds: ingest, plan, dispatch, review and accept ran.' "$rigEpics/20261102-walk.epic.md" )" "0 1"
+rigAssert "the item left the feature and ## Done holds the caller's line" "$( rigHas 'The walked item. Owner' "$rigEpics/20261102-walk.epic.md" ) $( rigHas '- S1.1: The walked item holds: ingest, plan, dispatch, review and accept ran, proved by `AgentsProcessFlowWalkCheck`.' "$rigEpics/20261102-walk.epic.md" )" "0 1"
 rigRun "$rigTmp/c2" magic-coordinator DistroAgentsTools --intern-doc-validate epic "$rigEpics/20261102-walk.epic.md"
 rigAssert "the epic still validates clean" "$rigRc:$( wc -c < "$rigTmp/c2.out" | tr -d ' ' )" "0:0"
 

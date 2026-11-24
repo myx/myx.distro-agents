@@ -607,12 +607,13 @@ AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code, end r
 		## keeps them while one still reads as started. It never fails the close.
 		type AgentsToolsSpawnSandboxReleaseCopies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxSweep.include"
 		AgentsToolsSpawnSandboxReleaseCopies "${1%/*}" || :
-		## THE STAMPED PASS: the close of a run starts it, detached, and a sweep that fails never fails the close.
-		type AgentsToolsCleanupSweepDetached > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.CleanupSweep.include"
-		AgentsToolsCleanupSweepDetached
-		## THE CLOSE OF A RUN CHANGES THE RUNNING REGISTRY, so the schedule is asked for here as a start asks: a dead thread is started, a live one costs one read of its lock.
-		type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
-		AgentsToolsScheduleThreadAskDue view > /dev/null 2>&1 || :
+		local viewLock=""
+		## THE CLOSE OF A RUN CHANGES THE RUNNING REGISTRY, so the schedule is asked for here: a live thread costs one read of its lock and one kill -0.
+		[ "${MDAT_SCHEDULE_THREAD:-}" = off ] || { IFS= read -r viewLock < "$MMDAPP/.local/agents/schedule-thread/thread.lock" || [ -n "$viewLock" ] ; } 2> /dev/null || viewLock=""
+		if [ "${MDAT_SCHEDULE_THREAD:-}" != off ] && { [ -z "$viewLock" ] || ! kill -0 "${viewLock%% *}" 2> /dev/null ; } ; then
+			type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
+			AgentsToolsScheduleThreadAskDue view > /dev/null 2>&1 || :
+		fi
 		return 0
 	fi
 	echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the spawn record $1 could not be closed as spawn-$2 (exit $3), tried twice: it still says what it said" >&2 || :

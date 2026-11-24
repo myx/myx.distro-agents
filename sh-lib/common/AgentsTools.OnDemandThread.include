@@ -271,6 +271,7 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 	set +e +u
 	trap '' HUP INT QUIT TSTP TTIN TTOU ALRM VTALRM PROF PIPE USR1 USR2
 	trap 'serveEnd=TERM' TERM
+	agentsTempSignalsOwned=yes
 	exec 3> /dev/null || { printf '⛔ ERROR: the thread could not hold descriptor 3 open\n' >&2 ; return 1 ; }
 	## DESCRIPTOR 8, when a start handed it over, is this attempt's own hold on the request fifo: it stays open for the life of the
 	## process and this function never reads or closes it, so the fifo is never without a descriptor and a request written before the

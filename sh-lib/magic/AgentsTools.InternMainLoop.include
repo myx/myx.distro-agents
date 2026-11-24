@@ -170,6 +170,8 @@ case "$1" in
 		local mainLoopInterrupted="false"
 		## One Ctrl-C stops the loop outright: the iteration in flight ends at its next step and the loop returns.
 		trap 'mainLoopInterrupted="true"' INT TERM
+		## The loop owns its signals and its EXIT trap (the pid file below): a temp claim leaves both alone (AgentsToolsTempClaim).
+		agentsTempSignalsOwned=yes
 
 		## Health reporting must never kill what it reports on, so every step is swallowed:
 		## set -e is in force and a failing mktemp, write, chmod or mv would end the loop.

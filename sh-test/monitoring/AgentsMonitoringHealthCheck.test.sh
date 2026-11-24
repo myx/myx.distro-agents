@@ -46,6 +46,16 @@ rigAssert "the schedule thread reads dead"             "$( rigField "$rigOut" sc
 rigAssert "the outbox counts three"                    "$( rigField "$rigOut" comms-outbox )" 3
 rigAssert "two alarms, naming both"                    "$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "alarm" { print $3 ; }' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "comms-outbox schedule-thread "
 
+echo "-- 2b. a live daemon, its lock in the lock writer's own form (no newline), reads alive and raises no alarm --"
+sleep 60 &
+rigLivePid=$!
+printf '%s %s' "$rigLivePid" "$( . "$rigLib/run/AgentsTools.RunProcesses.include" ; AgentsToolsRunProcessStart "$rigLivePid" )" > "$rigWs/.local/agents/schedule-thread/thread.lock"
+rigOut="$( rigRead )"
+rigAssert "the schedule thread reads alive"            "$( rigField "$rigOut" schedule-thread )" alive
+rigAssert "and no alarm names it"                      "$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'\t' '$1 == "alarm" && $3 == "schedule-thread" { n++ ; } END { print n + 0 ; }' )" 0
+kill "$rigLivePid" 2> /dev/null || :
+wait "$rigLivePid" 2> /dev/null || :
+
 echo "-- 3. planned maintenance mutes the alarms and says so --"
 printf 'MDAT_SCHEDULE_PLANNED_MAINTENANCE=until %s\n' "$(( $( date +%s ) + 3600 ))" > "$rigWs/.local/.agents/magic-team.agent.env"
 rigOut="$( rigRead )"

@@ -82,6 +82,24 @@ AgentsToolsScheduleStartFailed "$rigKey" "⛔ ERROR: the routine is already runn
 rigAssert "no count" "$( rigCount )" "none"
 rigAssert "not held" "$( rigHeld )" "free"
 
+echo "-- 4b. a lock no run holds is given back, and a lock a run holds is left --"
+## THE RELEASE, replaced: the console's own release answers by its holder's records, and what it was asked for is kept in a file of this rig.
+rigReleaseRc=0
+AgentsToolsRoutineLockReleaseConsole(){ ## the routine-lock-document value, the reason
+	printf '%s\n' "$1" > "$rigTmp/released"
+	return "$rigReleaseRc"
+}
+rigLocked="⛔ ERROR: DistroAgentsTools: the routine is already running: its locking document note-x-state-and-lock.md (magic-coordinator) is held by session s1 of magic-coordinator (state work-duty-running)"
+: > "$rigStore/$rigKey.hold" ; rm -f "$rigTmp/released"
+rigReleaseRc=1
+AgentsToolsScheduleStartFailed "$rigKey" "$rigLocked"
+rigAssert "a holder with a record: the hold stands" "$( [ -e "$rigStore/$rigKey.hold" ] && printf held || printf free )" "held"
+rigAssert "and the release was asked for the lock the refusal names" "$( cat "$rigTmp/released" 2> /dev/null )" "inbox:magic-coordinator:note-x-state-and-lock.md"
+rigReleaseRc=0
+AgentsToolsScheduleStartFailed "$rigKey" "$rigLocked"
+rigAssert "a holder with no record: the hold is lifted, so the next pass starts it" "$( [ -e "$rigStore/$rigKey.hold" ] && printf held || printf free )" "free"
+rigAssert "and the count is still none" "$( rigCount )" "none"
+
 echo "-- 5. a success clears the count and the hold --"
 AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure" ; AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure" ; AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure"
 rigAssert "held before the success" "$( rigHeld )" "held"

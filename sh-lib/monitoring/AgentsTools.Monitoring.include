@@ -65,7 +65,7 @@ AgentsToolsMonitoringLockState(){ ## lock file
 	local lockLine="" lockRc
 	agentsMonitoringHolder="" agentsMonitoringState="none"
 	[ -f "$1" ] || return 0
-	{ IFS= read -r lockLine < "$1" ; } 2> /dev/null || lockLine=""
+	{ IFS= read -r lockLine < "$1" || [ -n "$lockLine" ] ; } 2> /dev/null || lockLine=""
 	agentsMonitoringHolder="${lockLine%% *}"
 	[ -n "$lockLine" ] || { agentsMonitoringState="dead" ; return 0 ; }
 	type AgentsToolsThreadLockHolderLives > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.ThreadLock.include"

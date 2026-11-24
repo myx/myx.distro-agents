@@ -218,6 +218,18 @@ that the code and docs do not readily tell you.
   pinned origin unchecked. An arm sourcing an include missing from the pinned tree exits 1 with a bare
   file-not-found, which an MCP host cannot explain. Where the include exists,
   a stale copy answers confidently. This is why the `myx.distro` MCP registration writes no `env` object.
+  The refusal itself comes from the executed-arm guard at `sh-scripts/DistroAgentsTools.fn.sh:886`, which
+  exits 1 at `:892` when either include is missing. The load-time hunk at `:20-23` carries no refusal of
+  its own. `keeper-myx` measured 2026-11-24 that reverting that hunk alone leaves the guard live, so the
+  launch still refuses and exits 1, after the bare file-not-found is printed first.
+- **The refusal has its own check, `sh-test/harness/AgentsPinnedOriginRefusalCheck.test.sh`.** It runs 22
+  assertions in three arms. One arm holds the refusal's text: the reason line, the pin, the option's
+  value, the two includes, and the two ways out. One holds each half of the two-include test alone, so a
+  pin carrying one include and not the other must refuse the same way. The third is the control: a pin
+  carrying the tooling serves, writes its initialize frame, and names no refusal. `magic-developer`
+  measured 2026-11-24 that this check is red before the guard is reached. Renaming the guard's variable
+  turns 12 of 22 red, dropping the option line 1, dropping the ways-out line 3, and each one-include
+  variant 3.
 - **A command run through an operation inherits the resolved environment.** That is why the MCP
   `execute` lives here: `myx.common`'s MCP path does no environment init.
 - **Reaching a `List*` tool.** `Require <Tool> ||:`, then `var="$(Distro <Tool> …)" || status=$?`,
@@ -2057,6 +2069,10 @@ contracts are here.
   with no result** (S6.16), not the last alone: a death after a result leaves that result last, and both
   the chat wire's `tool_calls` and the Messages wire's `tool_use` blocks are read, with `tool_call_id` and
   `tool_use_id` taken as the answers.
+- **A resume refuses a file whose writer still runs.** The context header names its writer, `writer_pid` and
+  `writer_start`: the harness process and its start. `AgentsHarnessContextResume` refuses with rc 7 while that same
+  process runs, so the proxy starts a new process, and each `context.jsonl` has one writer. `AgentsHarnessContextCheck`
+  holds both directions.
 - **Hook payload** is built from values already parsed; `session_id` and `cwd` are escaped once at source
   time. Decision and reason come from one read through `AgentsHarnessHookDecision.awk`. Hooks are
   fail-closed: unreadable config, a hook that does not finish, or an unreadable answer refuses.
@@ -3503,6 +3519,10 @@ flag would be a silent no-op there -- refused instead, same shape as the
     An absent `trash/` is not reported.
   - Ask git what the index holds and what HEAD holds before `rm`; an item staged but never committed must
     not reach the commit pathspec.
+  - A folder's file list reaches `awk` on stdin and `stat` through `find -exec … {} +`, never as arguments, so a
+    folder of any size is scanned. Each folder's sets, its clocks, git's index and HEAD, the stamped and the
+    depended names, are joined in one awk pass, so the scan grows linearly with the items. `AgentsInboxSplitCheck`
+    holds a folder past the argument limit.
   - Diversions: `archive: true` → `board/archived/` first; else an item named by a live item's
     `blocked-by`/`spawned-by` → `board/retained/`. Live is backlog, pending, running, blocked, parked,
     archived. Markers are read only when an item is due, bounded to frontmatter, in shell. Diversions are
@@ -3569,7 +3589,8 @@ flag would be a silent no-op there -- refused instead, same shape as the
   in neither. It commits alone.
   Re-marking is a no-op; an edit keeps the original stamp. An upsert puts an item where its stamp says, and
   moves one whose stamp changes its folder. Readers of the stamp use `AgentsInboxProcessedAtList.awk`, bounded
-  to a frontmatter block starting on line 1. `AgentsInboxSplitCheck` is the test.
+  to a frontmatter block starting on line 1, and takes its item paths on stdin, one a line, never as arguments.
+  `AgentsInboxSplitCheck` is the test.
 - **Published documents** (`--intern-artifact-publish`, `AgentsTools.InternArtifact.include`):
   - The type table is `AgentsToolsArtifactTypes`, one `<code> TAB <name>` row per
     numbered type. A kind matching a code or name (any case) is numbered.
@@ -4110,6 +4131,22 @@ op's own option arm.
   every 30 s and `agentsSessionCommsPullsPerPass` channels. The log is bound on every pass. These numbers exist because an
   unbounded push drained a backlog of thousands of event-track feed posts in one pass, and no console message or thread
   read happened for the length of it. Raise one only with a measurement of the pass it makes.
+
+- **A post the writer gives up is stamped, and its sender is told.** `AgentsToolsSessionCommsOutboxMark` marks the block `refused` where Slack said no.
+  It marks it `unknown` where a failed curl may have reached the message.
+  One line then goes into the sending session's chat file, addressed to the member it was sent as.
+  A block left at `-` with nobody told is the fault this serves.
+- **The reader starts at most once a minute, and `agentsSessionCommsStartGap` holds that gap at 60 seconds.** `.starting` keeps the moment of the last start and is never removed.
+  A reader that died on its first pass is therefore not replaced by a process per caller.
+  A caller that arrives inside the gap is answered `recent`.
+- **A lost lock is retaken, bounded, and not an end.** A running reader whose lock is gone or names another process retakes it up to `agentsSessionCommsLockRetries` times, one second apart.
+  It ends only after that bound.
+  A lost lock never makes the next caller start a process.
+  A lock held by a live reader is never taken.
+- **A `D` target is read as the user first, and as the bot only where the user identity cannot open it.** `AgentsCommsIngestSlack` keeps its channel recipe's bot field at `false` on that pass.
+  Its events, its pointer and its due test therefore stay in the one folder the pass lists.
+  A thread read as the bot records `true` in the fourth field of its own `slack-thread` recipe.
+  The two identity records are separate layers, and a DM the user identity cannot open needs both.
 
 ## 19. Email, Trello, Atlassian
 
@@ -5028,6 +5065,8 @@ Standing decisions of the human-owner. Each holds until he changes it.
 ## The queue, the liveness and the duty's inputs (S23, S4)
 
 - **The CheckList is also the queue.** With `SPAWN_LIMIT` of the team scope above 0, or `MDAT_SPAWN_LIMIT`, a `--spawn-session` that finds that many runs of this host alive makes no spawn. `AgentsToolsSpawnQueue` files the request as an inquiry in magic-coordinator's inbox and adds an item naming it to the CheckList of the coordinator's running work-duty. The call prints `SPAWN_QUEUED=true`, `SPAWN_QUEUE_ITEM` and `SPAWN_QUEUE_CHECKLIST`, and exits 0. A work-duty's own start and a start that joins a session are never queued. Unset or 0 is no limit.
+- **The schedule's pending start meets the same limit.** `AgentsToolsScheduleStartPending` asks `AgentsToolsSpawnLimitReached` once, when an item is ready to start. At the limit it moves nothing and starts nothing, so the item stays in `board-pending`, which is the queue. It starts the first item of its order: emergency, then urgent, then the rest, each tier oldest first by the stamp in the file name (`AgentsSchedulePendingOrder.awk`). `AgentsStartPendingLimitCheck` holds it.
+- **A hold stops new work and nothing else.** With `holding` set, the pass still runs `AgentsToolsScheduleWorkDuty` and `AgentsToolsScheduleIdleRunsEnd`. A dead duty is closed, a live duty keeps its lifetime rule, and a finished run is told to go. Only magic-coordinator's duty starts, and only while the board has news (`AgentsToolsScheduleBoardDemand`), so a handback is reviewed. `AgentsScheduleHoldFloorCheck` holds it.
 - **A parent adds to its executor's CheckList.** The CheckList tool takes `append` (item texts), `member` and `session`. The caller's session must be the `parent-session-id` of the named session, and `member` its executor. With no `session` the items go to the caller's own list. They are written pending, under a lock, to the end of `<member>.checklist.md`, and noted in `<member>.checklist.md.added`. The owner's next whole-list write keeps any of them it was not shown, and its next read clears the note.
 - **Liveness is a cached reading.** `AgentsToolsLivenessOf <spawn id> [<record>]` prints `alive`, `gone` or `unknown`, rc 2 for unknown. `alive` and `gone` are kept in `.local/agents/liveness/<spawn id>` for `AGENTS_LIVENESS_TTL` seconds (30). Unknown is never read as gone, so nothing closes or restarts on it, and never as alive. The duty scan, the stale close of a duty record and the board item holders ask it. A holder whose run is gone holds nothing. The loop's work-duty step closes a duty record whose run and supervising shell are both gone, so the restart rule reads an end.
 - **A handback addressed to the duty is a ready input.** The work-duty scan lists the review items with `review-by: <member>.work-duty.routine` under `## Handbacks ready for the duty` and a `# ready: <N>` line. A Wait on `scan:work-duty` returns with the report again while N is above 0, until the duty takes the item out of review.
@@ -5070,6 +5109,7 @@ Standing decisions of the human-owner. Each holds until he changes it.
 - **A close that cannot be recorded drops its own commit, never another writer's (S12.10).** `item-upsert` stays outside the thread, so it commits in its caller and discards that commit when the close then fails. That discard was `git reset --soft HEAD~1` with no test of what HEAD was, so a commit another writer made in between was the one dropped. `AgentsToolsItemUnlockKeep` and the sync-failure arm now read HEAD's subject first, and reset only where it is this call's own commit message. Measured in the live store on 2026-11-04: `board/review/.unseen-dispatch-20261103T225226Z-spawn-proxy-68534-637d5076.md` was committed at 04:30:28 and dropped by such a reset one second later, and reached no commit for the next 50 minutes. `sh-test/team-data/AgentsCloseKeepsOtherCommitCheck.test.sh` holds it. Not fixed here: the close's own commit stays on the branch below the other writer's, so the history keeps a close whose note was put back.
 - **The thread is one a store.** Its lock is `thread.lock`, holding `<pid> <start>` (`AgentsTools.ThreadLock.include`, which the three older threads do not use yet). It ends by itself once no request came for `MDAT_TEAM_DATA_COMMIT_IDLE_SECONDS` (60), and it gives the lock back first. A request left in that moment starts it again. `thread.log` is cut back to 64 KiB when it passes 128 KiB. `--intern-team-data-commit --one` makes one pass, for a check.
 - **A failed commit stays owed.** `AgentsToolsTeamDataCommitPathsNow` keeps the paths in `.local/agents/team-data-commit.owed`. The thread runs the same pass once a second with no request, so the debt is tried again every 30 seconds, and it does not keep the thread alive. A path that is gone and that git never knew is left out of a commit, since it fails the whole add, and so is a path that changed nothing.
+- **Path lists reach git on stdin.** `add`, `commit` and `rm` take them by `--pathspec-from-file=- --pathspec-file-nul`. `diff --cached` and `status` take no such list, so each reads the folder whole and one awk keeps the paths asked for. Git is asked once per folder the paths sit in, with `ls-files`, `ls-tree HEAD` and `check-ignore --stdin`, and one awk pass classes every path. So a list of any length commits, and the git calls grow with the folders, not the paths. `AgentsTeamDataWritersCommitCheck` holds a list past the limit.
 - **A resync settles the writers before it moves the tree (S12.4).** The store's checkout is also its writers' work tree, so a writer's file waiting for its commit is an uncommitted change to it. Git refuses to move a tree that holds such a change to a file origin changed too, which is how a duty start met `LOCK_UNCHECKABLE` and a retry a minute later passed. `AgentsToolsAdvanceCloneSync` calls `AgentsToolsTeamDataSettle` first: it asks the thread to commit what waits and holds for its answer, then commits anything still waiting itself. A store with nothing waiting costs one `git status`. A sync that still fails is a merge to settle, as the close push settles one, and the sync runs a second time. `sh-test/team-data/AgentsTeamDataResyncRaceCheck.test.sh` holds it. A head that moved under the pull, where a writer's commit landed between the sync's fetch and its merge and git says "fetch updated the current branch head", is a writer's transient of the same kind: the sync runs again, up to five times two seconds apart, before the failure is reported.
 - **The store's own `.local` is no team data.** A data folder with no repository of its own, inside another repository's work tree, is not that repository's: `AgentsToolsTeamDataCommitPathsNow` commits nothing where `MDAT_DATA_ROOT` is no repository root. A path under the store's `.local` is refused too, unless git already tracks it, so an existing stray leaves through the same step and no hand git is needed. A check rig lives under `$MMDAPP/.local/agents/scratch`, and `rigTempDir` refuses a `MMDAPP` that is the team-data store or inside it.
 - **`MDAT_TEAM_DATA_COMMIT_THREAD=off` commits in the writer's own process.** `AgentsRunTests.sh` sets it, so no check starts a thread. The check of the thread unsets it. `MDAT_TEAM_DATA_COMMIT_WAIT=yes` before the call holds the writer until the thread has answered its request, for at most 30 seconds, and past that the commit is made in the writer. `board-trash` uses it, since the history of a file must be made before the file goes.

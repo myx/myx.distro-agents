@@ -144,7 +144,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - Frontmatter keys:
   - mandatory: `type:`, `executors:`, `maintainers:`, `invitees:`, `requires-session-kind:`, and the autorun key `runs-at:`.
-  - optional: `access-control:`, the requirement keys `tracking-item:`, `operations:` and `start-context:`, `routine-lock-document:`, `input-scan-def:`, `review-by:`, `deliverables:`, `cache-prefix:`, `skips-inherited:`, and the autorun key `runs-after:`. No key says that a routine takes arguments. `--manager-routine-list` prints, per routine, its `executors:`, whether its `requires-session-kind:` is `coworking`, and the title line below -- nothing more.
+  - optional: `access-control:`, the requirement keys `tracking-item:`, `operations:` and `start-context:`, `routine-lock-document:`, `input-scan-def:`, `review-by:`, `security-tier:`, `deliverables:`, `cache-prefix:`, `skips-inherited:`, and the autorun key `runs-after:`. No key says that a routine takes arguments. `--manager-routine-list` prints, per routine, its `executors:`, whether its `requires-session-kind:` is `coworking`, and the title line below -- nothing more.
 - `type:`
   - `routine`: a routine is told from any other document by what it says of itself.
 - `requires-session-kind:` (mandatory)
@@ -167,6 +167,10 @@ Used to check this file's own definitions against its own goals when it is updat
   - One option is the spawner's own, `--wait <seconds>` (whole seconds, 1 or more, once on a line; the scan is not given it): `input-scan-def: <scan> --wait 300`. A scan whose report is empty is waited on for up to that many seconds. This happens at the start, before the lock and before anything is made. Empty means nothing in it but headings, `(none)`, `scope:` and `cap:` lines and `no new ...` notes; any other line is input. The wait reads, at every pass, the sources the routine declares in `wait-sources:`, else its member's own inbox. The scan is run again at each wake, and once when the time is out. If nothing came the start ends with no spawn, no lock, no record and one line saying so. With input present the start goes on at once, after the scan's own collect window gathered what arrived together (`WAIT_COLLECT_SECONDS` in the work-duty scan). The report the wait last made is the one the start saves. `validate`: the value is whole seconds, 1 or more, and the option is given once.
 - `review-by:` (optional)
   - Whether the run's dispatch item is reviewed. `inherit`, the default and written explicitly, has the review follow where the run reports to (`reports-to:`). `none` disables it, and the item closes straight to processed with `review: none` in its Decisions. Any other value names the reviewer, in the forms `--review-by` takes. A reviewer the caller of the spawn names stands, as the more specific.
+- `security-tier:` (optional)
+  - The tier every session of the routine records: `private`, `system`, `shared` or `public`. A spawn's own `--security-tier` stands ahead of it.
+  - A routine that names none takes the value of its kind routine. The kind routines hold the defaults: `shared` for `coworking` and `system` for `standalone`.
+  - A word that is none of the four stops the spawn, and the refusal names the four.
 - `deliverables:` (optional)
   - What the routine's steps produce, one item a line, the key repeated: `deliverables: <item>`.
   - The tooling copies the lines of the routine in force onto its item as the item enters review, and into its handback. The reviewer judges the item against them.

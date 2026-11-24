@@ -329,6 +329,16 @@ rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console
 rm -f "$rigTmp/brief.rig-member-a" "$rigTmp/brief.rig-member-b"
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 
+echo "-- a coworking routine with two members and no --participants: one session, never one session each --"
+printf -- '---\nexecutors: magic-coordinator\nmaintainers: rig-member-a\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' > "$rigSkills/rig-member-a/rig-member-a.cowork.routine.md"
+mkdir -p "$rigSkills/magic-coordinator" && printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine cowork rig-member-a rig-member-b )"
+rigAssert "one session, no children, the coordinator seated first" "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ):$( printf '%s\n' "$rigOut" | grep -c '^CHILDREN=' ):$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=magic-coordinator rig-member-a rig-member-b' )" "1:0:1"
+rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console never received a context: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
+rm -f "$rigTmp/brief.rig-member-a" "$rigTmp/brief.rig-member-b" "$rigTmp/brief.magic-coordinator"
+rm -rf "$rigSkills/magic-coordinator" "$rigSkills/rig-member-a/rig-member-a.cowork.routine.md"
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+
 echo "-- executors is the \"any member\" shorthand: refused, nothing spawned --"
 rigOut="$( rigRun "RIG-TASK-TEXT" --routine wildcard )"
 rigAssert "is refused"                                   "$( printf '%s\n' "$rigOut" | grep -c 'is not a plain comma-separated list of existing members' )" 1

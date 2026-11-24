@@ -21,13 +21,22 @@ AgentsToolsTempClaim(){ ## path...
 	local claimPath
 	if [ -z "$agentsTempArmed" ] ; then
 		agentsTempArmed=yes
-		agentsTempPriorExit="$( trap -p EXIT )"
-		agentsTempPriorExit="${agentsTempPriorExit#*\'}"
-		agentsTempPriorExit="${agentsTempPriorExit%\'*}"
+		agentsTempPriorExit=""
+		## THE EXIT TRAP OF A DAEMON BELONGS TO ITS OWN PROCESS. A command substitution keeps its text, and a claim made there would run it when the substitution ends.
+		## So a process that owns its signals has its EXIT trap chained only in itself, which is level 0.
+		if [ -z "${agentsTempSignalsOwned:-}" ] || [ "$BASH_SUBSHELL" = 0 ] ; then
+			agentsTempPriorExit="$( trap -p EXIT )"
+			agentsTempPriorExit="${agentsTempPriorExit#*\'}"
+			agentsTempPriorExit="${agentsTempPriorExit%\'*}"
+		fi
 		trap 'AgentsToolsTempRelease ; [ -z "${agentsTempPriorExit:-}" ] || eval "$agentsTempPriorExit"' EXIT
-		trap 'AgentsToolsTempRelease ; trap - TERM ; kill -s TERM $$' TERM
-		trap 'AgentsToolsTempRelease ; trap - INT ; kill -s INT $$' INT
-		trap 'AgentsToolsTempRelease ; trap - HUP ; kill -s HUP $$' HUP
+		## A PROCESS THAT OWNS ITS SIGNALS (a daemon thread ignores some and ends on TERM by its own flag) declares it in agentsTempSignalsOwned, and the claim
+		## sets no handler over them: its EXIT trap and its own end release the claimed files.
+		if [ -z "${agentsTempSignalsOwned:-}" ] ; then
+			trap 'AgentsToolsTempRelease ; trap - TERM ; kill -s TERM $$' TERM
+			trap 'AgentsToolsTempRelease ; trap - INT ; kill -s INT $$' INT
+			trap 'AgentsToolsTempRelease ; trap - HUP ; kill -s HUP $$' HUP
+		fi
 	fi
 	for claimPath in "$@" ; do
 		agentsTempClaimed[${#agentsTempClaimed[@]}]="$claimPath"

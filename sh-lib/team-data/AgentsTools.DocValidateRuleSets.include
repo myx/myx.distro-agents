@@ -482,14 +482,21 @@ AgentsToolsDocValidateSelfCheck(){ ## file, file as shown, the document's path (
 
 ## The rule set of the `epic` kind: the epic checked against its contract in one pass of AgentsEpicCheck.awk. A fault row refuses. A moved item whose
 ## epic is not beside this one, or has no such section, is said as a `report-` row: that needs a second file, which stdin has none of.
+## A Done line that names a check refuses where the sh-test of this origin holds no file for it. The file is found as the runner finds a check by name.
 AgentsToolsDocValidateEpic(){ ## file, file as shown, the document's path (empty for stdin)
-	local epicOut epicKind epicLine epicRule epicText epicDir=""
+	local epicOut epicKind epicLine epicRule epicText epicFile epicDir=""
 	epicOut="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsEpicCheck.awk" "$1" )" || return 1
 	[ -z "${3:-}" ] || epicDir="$( dirname "$3" )"
 	{
 		while IFS=$'\t' read -r epicKind epicLine epicRule epicText ; do
 			case "$epicKind" in
 				ROW) printf '%s\t%s\t%s\n' "$epicLine" "$epicRule" "$epicText" ;;
+				CHECK)
+					for epicFile in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/$epicText.test.sh" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test"/*/"$epicText.test.sh" ; do
+						[ ! -f "$epicFile" ] || break
+					done
+					[ -f "$epicFile" ] || printf '%s\t%s\t%s\n' "$epicLine" epic-done "$epicRule cites a check that is not in sh-test: $epicText.test.sh"
+				;;
 				MOVED)
 					[ -n "$epicDir" ] || continue
 					if [ ! -f "$epicDir/$epicRule" ] ; then printf '%s\t%s\t%s\n' "$epicLine" report-epic-moved "the epic $epicRule is not beside this one"

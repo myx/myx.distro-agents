@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionTier.include -- the one writer and the one reader of `security.tier`, the security tier a session
+## records in its own folder. Functions only, never run.
+##
+
+type AgentsSessionStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include" || return 1
+
+## Records the tier of one session, whole or not at all, by one rename: a write cut short must never read as a
+## session of another tier, or as one of no tier at all. rc 1 for a word that is none of the four, a session that is
+## no bare name, and a session with no folder. THE FIRST RECORD STANDS: a session that already records a tier keeps
+## it, so the restart of a session never moves the channel its messages go to.
+AgentsToolsSessionTierWrite(){ ## session, tier
+	local tierStore="" tierPath="" tierTemp=""
+	case "${2:-}" in
+		private|system|shared|public) ;;
+		*) return 1 ;;
+	esac
+	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	AgentsSessionStoreDirInto tierStore "${MMDAPP:-}" || return 1
+	printf -v tierPath '%s/%s/%s' "$tierStore" "$1" "$agentsSessionTierName"
+	[ -d "${tierPath%/*}" ] || return 1
+	[ ! -s "$tierPath" ] || return 0
+	tierTemp="$( mktemp "$tierPath.XXXXXX" 2> /dev/null )" || return 1
+	if printf '%s\n' "$2" > "$tierTemp" 2> /dev/null && mv -f "$tierTemp" "$tierPath" 2> /dev/null ; then
+		return 0
+	fi
+	rm -f -- "$tierTemp" 2> /dev/null || :
+	return 1
+}
+
+## The tier one session recorded: one of the four, rc 1 with nothing printed where it records none. The caller states
+## which default it used, so this reader never guesses one.
+AgentsToolsSessionTierRead(){ ## session
+	local tierStore="" tierPath="" tierLine=""
+	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	AgentsSessionStoreDirInto tierStore "${MMDAPP:-}" || return 1
+	printf -v tierPath '%s/%s/%s' "$tierStore" "$1" "$agentsSessionTierName"
+	[ -f "$tierPath" ] || return 1
+	IFS= read -r tierLine < "$tierPath" || :
+	case "$tierLine" in
+		private|system|shared|public) printf '%s\n' "$tierLine" ;;
+		*) return 1 ;;
+	esac
+}

@@ -91,6 +91,7 @@ case "$1" in
 			trap '' HUP INT QUIT TSTP TTIN TTOU ALRM VTALRM PROF
 			trap 'colThreadWoken="yes"' PIPE USR1 USR2
 			trap 'colThreadEnd="TERM"' TERM
+			agentsTempSignalsOwned=yes
 		fi
 
 		## IT RUNS AS NO MEMBER: each name that carries a member's session is emptied here, for this operation and what it starts.

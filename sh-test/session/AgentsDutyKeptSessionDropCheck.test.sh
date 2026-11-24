@@ -22,10 +22,11 @@ rigRefuse(){
 [ -f "$rigPackage/sh-lib/schedule/AgentsTools.DispatcherSchedule.include" ] || rigRefuse "the schedule's include is not at the origin this workspace resolves"
 [ -f "$rigPackage/sh-scripts/DistroAgentsTools.fn.sh" ] || rigRefuse "the tooling's entry point is not at the origin this workspace resolves"
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+. "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsDutyKeptSessionDropCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigPids=""
-trap 'for rigEach in $rigPids ; do kill -9 "$rigEach" 2> /dev/null ; done ; chmod -R u+w -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'for rigEach in $rigPids ; do kill -9 "$rigEach" 2> /dev/null ; done ; chmod -R u+w -- "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 trap 'exit 1' INT TERM
 rigWs="$rigTmp/ws" rigHome="$rigTmp/home" rigData="$rigTmp/data" rigBin="$rigTmp/bin"
 rigMember=magic-coordinator rigRoutine="$rigMember.work-duty.routine.md" rigKeptSession=keptsess-rig-01

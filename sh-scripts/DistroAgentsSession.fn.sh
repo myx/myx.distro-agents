@@ -169,6 +169,15 @@ DistroAgentsSession(){
 			return $?
 		;;
 
+		## One message to the channel this session's tier names, with a pointer left on the thread it came from.
+		--post-tier-message)
+			shift
+			DistroAgentsSessionTools
+			type AgentsToolsThisSessionTierPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
+			AgentsToolsThisSessionTierPost "$@"
+			return $?
+		;;
+
 		## The session thread read from the session chat file, all of it or with --own the caller's own traffic. No network call.
 		--get-session-thread)
 			shift

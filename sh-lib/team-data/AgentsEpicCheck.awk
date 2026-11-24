@@ -7,7 +7,8 @@
 ## One pass over the text, no store. Its Sections table, its Feature table, its Done section and its unmarked Rules are the rules
 ## here. A rule marked [judged] is for a reader. The [store] rule (a moved item exists in the epic it names) is asked of the
 ## caller, by the MOVED records. Run as: LC_ALL=C awk -f AgentsEpicCheck.awk <file>
-## Prints tab-separated records: `ROW <line> <rule> <text>` for a fault, `MOVED <line> <epic file> <feature id>` for each moved item.
+## Prints tab-separated records: `ROW <line> <rule> <text>` for a fault, `MOVED <line> <epic file> <feature id>` for each moved item,
+## `CHECK <line> <done id> <check name>` for each check a Done line names. The caller finds the check's file.
 ##
 ## The rules:
 ##   epic-title        the line the epic opens with is not `# <title>`, or a second level-1 heading stands
@@ -18,7 +19,9 @@
 ##   epic-owner        a feature with no owner line that has an open item naming no owner
 ##   epic-empty        a feature that holds no open item and no moved item
 ##   epic-done         `## Done` is absent, is not the last section, or holds a line that is not `- <id>: <what holds now>`,
-##                     or an id that stands twice there or still stands as an open item
+##                     or an id that stands twice there or still stands as an open item, or names a check that has no file in sh-test
+##   report-epic-done  a Done line that names no check: said, never refused. A check is a whole word `Agents<subject>Check`, the way
+##                     the runner names it, bare or as `<name>.test.sh`. A name inside a longer word, or before another extension, is none.
 ##
 ## A line inside a code fence is no heading and no item. Every closing `}` is preceded by a `;` (some awk builds reject the other form).
 ##
@@ -118,6 +121,16 @@ inDone {
 		if (doneId in doneSeen) row(FNR, "epic-done", "the id " doneId " stands twice here, first at line " doneSeen[doneId]) ;
 		else doneSeen[doneId] = FNR ;
 		doneIds[doneId] = FNR ;
+		doneRest = $0 ; doneNamed = 0 ;
+		while (match(doneRest, /Agents[A-Za-z0-9]+Check/)) {
+			doneAfter = substr(doneRest, RSTART + RLENGTH) ;
+			if ((RSTART == 1 || substr(doneRest, RSTART - 1, 1) !~ /[A-Za-z0-9_]/) && doneAfter !~ /^[A-Za-z0-9_]/ && (doneAfter !~ /^\.[A-Za-z]/ || doneAfter ~ /^\.test\.sh/)) {
+				printf "CHECK\t%d\t%s\t%s\n", FNR, doneId, substr(doneRest, RSTART, RLENGTH) ;
+				doneNamed++ ;
+			}
+			doneRest = doneAfter ;
+		}
+		if (!doneNamed) row(FNR, "report-epic-done", doneId " names no check that proves it") ;
 	}
 	next ;
 }

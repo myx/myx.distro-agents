@@ -14,7 +14,11 @@ type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.d
 			set +e ; return 1
 		done
 		AgentsToolsManagerSessionActiveRows "$listOp" || { set +e ; return 1 ; }
-		## THE LIST OF THE SESSIONS ASKS FOR THE SCHEDULE, as `--manager-session-list` does: a dead schedule thread is started at the look.
-		type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
-		AgentsToolsScheduleThreadAskDue view > /dev/null 2>&1 || :
+		local viewLock=""
+		## THE LIST OF THE SESSIONS ASKS FOR THE SCHEDULE, as `--manager-session-list` does: a live thread costs one read of its lock and one kill -0.
+		[ "${MDAT_SCHEDULE_THREAD:-}" = off ] || { IFS= read -r viewLock < "$MMDAPP/.local/agents/schedule-thread/thread.lock" || [ -n "$viewLock" ] ; } 2> /dev/null || viewLock=""
+		if [ "${MDAT_SCHEDULE_THREAD:-}" != off ] && { [ -z "$viewLock" ] || ! kill -0 "${viewLock%% *}" 2> /dev/null ; } ; then
+			type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
+			AgentsToolsScheduleThreadAskDue view > /dev/null 2>&1 || :
+		fi
 		return 0

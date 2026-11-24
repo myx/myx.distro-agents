@@ -194,7 +194,7 @@ AgentsToolsSpawnRowsBlockText(){ ## tracking name
 ## written `_`. Appended in end order and never rewritten: a session that closes again appends one more line, and a reader takes
 ## a session's last line as its truth.
 AgentsToolsSessionClosedAppend(){ ## session id, end word, token sum
-	local cdId="${1:-}" cdWord="${2:-finished}" cdTokens="${3:--}" cdFile cdSeq cdLast cdOne cdRuns="" cdFirst=""
+	local cdId="${1:-}" cdWord="${2:-finished}" cdTokens="${3:--}" cdFile cdSeq cdLast cdOne cdFolder cdRuns="" cdFirst=""
 	local cdMember="-" cdRoutine="-" cdHost="-" cdStart="-"
 	case "$cdId" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 1
@@ -209,12 +209,13 @@ AgentsToolsSessionClosedAppend(){ ## session id, end word, token sum
 		case "$cdSeq" in ''|*[!0123456789]*) cdSeq=0 ;; esac
 	fi
 	cdSeq=$(( cdSeq + 1 ))
-	## ONE PASS OVER THE SESSION'S OWN RECORDS, from its kept list: the folder of each of its runs, and the first of them,
-	## whose record carries the session's own headers.
-	while IFS=$'\t' read -r cdLast cdOne ; do
-		[ "$cdLast" = "own" ] || continue
+	## ONE PASS OVER THE SESSION'S OWN RECORDS, from its kept list: the sandbox folder of each of its runs, by the bare
+	## name a runs block is read by, and the first of them, whose record carries the session's own headers. The list is
+	## asked for the session's `own` records and prints one path a line, so each line is a path and nothing else.
+	while IFS= read -r cdOne ; do
 		[ -n "$cdOne" ] || continue
-		cdRuns="$cdRuns${cdRuns:+,}${cdOne%/*}"
+		cdFolder="${cdOne%/*}" ; cdFolder="${cdFolder##*/}"
+		cdRuns="$cdRuns${cdRuns:+,}$cdFolder"
 		[ -n "$cdFirst" ] || cdFirst="$cdOne"
 	done <<< "$( AgentsToolsSpawnedSessionRecords "$cdId" own 2> /dev/null )"
 	if [ -z "$cdRuns" ] ; then
@@ -227,6 +228,7 @@ AgentsToolsSessionClosedAppend(){ ## session id, end word, token sum
 		cdRoutine="$( AgentsToolsFrontmatterKey "$cdFirst" routine )"
 		cdHost="$( AgentsToolsFrontmatterKey "$cdFirst" host )"
 		cdStart="$( AgentsToolsFrontmatterKey "$cdFirst" started-at )"
+		cdStart="${cdStart// /_}"
 	}
 	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
 		"$cdSeq" "$cdId" "${cdMember:--}" "${cdRoutine:--}" "${cdHost:--}" \

@@ -144,7 +144,7 @@ rigLine="$( env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGI
 		AgentsToolsScheduleThreadPass
 	' 2> /dev/null )"
 rigAssert "the line of a pass over its gap names the loop with its steps, then the thread's own steps, each with its seconds" \
-	"$( printf '%s\n' "$rigLine" | LC_ALL=C grep -c -E '^pass: took [0-9]+s, over the 1s gap between passes: the next begins at once -- loop [23]s \(rig-step 2s\), dependencies [0-9]+s, children [0-9]+s, knowledge [0-9]+s, wanted [0-9]+s$' )" "1"
+	"$( printf '%s\n' "$rigLine" | LC_ALL=C grep -c -E '^pass: took [0-9]+s, over the 1s gap between passes: the next begins at once -- loop [23]s \(rig-step 2s\), dependencies [0-9]+s, children [0-9]+s, knowledge [0-9]+s, controls [0-9]+s, wanted [0-9]+s$' )" "1"
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SCHEDULE THREAD PASS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1
 fi

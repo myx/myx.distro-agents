@@ -141,6 +141,7 @@ Steps:
     - It sets the session's title and its chapters.
   - A second duty of this member answers what reaches it itself. Only its writes to the routine's state note wait for the lock.
   - Its answers follow the four reply rules of `magic-team.work-duty.routine.md`'s local rules.
+- **hold-floor**: a scan that opens with `**HOLDING:**` says the schedule holds new work. Work **reconcile-sessions**, **review-items**, **check-process-board** and **answer-run-asks** alone. Start and respawn nothing, and release no paused session. A dead run's item goes to `board-blocked`.
 - Work the input before you wait; never wait with input unworked.
 - A task whose nature is research, requirements or epic preparation is worked in `investigation` mode from its first round (`magic-team.armed.md`'s "Conversations").
 - A round is one run through the steps up to **post-the-round**. Where a rule below says "pass" or "round", it means that.

@@ -121,6 +121,17 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
 		routeOwn="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || routeOwn=""
 	fi
+	type AgentsToolsSessionCurrentId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include"
+	type AgentsToolsSessionTierRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTier.include"
+	local routeTier="" routeSession=""
+	routeSession="$( AgentsToolsSessionCurrentId 2> /dev/null )" || routeSession=""
+	routeTier="$( AgentsToolsSessionTierRead "$routeSession" 2> /dev/null )" || routeTier=""
+	if [ "$routeTier" = "public" ] ; then
+		## A PUBLIC SESSION SENDS NOTHING TO A TEAM STORE, its report included: a refusal, never a reroute, and the caller reads the flag.
+		printf 'REFUSED: this session is on the public tier, and a report is a send to a team store. Public is no channel the tooling posts to: the reply leaves through the contacts route, and nothing was sent.\n'
+		routePublic=1 ; routeTo="" ; routeAddress=""
+		return 1
+	fi
 	case "$routeOwn" in [CG][A-Z0-9]*:[0-9]*.[0-9]*) ;; *) routeOwn="" ;; esac
 	routeTo="$routeGiven" ; routeAddress="${2:-}"
 	type AgentsToolsRunRouteKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
@@ -263,8 +274,12 @@ AgentsHarnessToolSubagentHandbackRun(){ ## task, outcome, findings, unfinished, 
 	fi
 	## A handback goes where this run reports to (AgentsHarnessReportRoute), addressed as that route says. A session with no
 	## spawn record of its own has no route, and session-parent stays as the one address resolver says it.
-	local routeTo="" routeAddress=""
-	if AgentsHarnessReportRoute "$toolTo" "$toolAddressTo" ; then toolTo="$routeTo" ; toolAddressTo="$routeAddress" ; fi
+	local routeTo="" routeAddress="" routePublic=""
+	if AgentsHarnessReportRoute "$toolTo" "$toolAddressTo" ; then
+		toolTo="$routeTo" ; toolAddressTo="$routeAddress"
+	elif [ -n "$routePublic" ] ; then
+		return 0
+	fi
 	## A SESSION WITH NO ROUTE AND NO PARENT THREAD hands back in its own thread, where whoever runs it reads, else to the coordinator:
 	## never nowhere, since the handback takes no `to` to name another.
 	if [ "$toolTo" = "$harnessParentName" ] && ! AgentsHarnessSessionThread "$toolTo" > /dev/null 2>&1 ; then
@@ -407,8 +422,12 @@ AgentsHarnessToolReportFindings(){
 	if [ -z "$toolSubject" ] || [ -z "$toolFindings" ] ; then
 		printf 'ERROR: ReportFindings: both subject and findings are required, and one of them was empty. Nothing was sent.\n' ; return 0
 	fi
-	local routeTo="" routeAddress=""
-	if AgentsHarnessReportRoute "$toolTo" "$toolAddressTo" ; then toolTo="$routeTo" ; toolAddressTo="$routeAddress" ; fi
+	local routeTo="" routeAddress="" routePublic=""
+	if AgentsHarnessReportRoute "$toolTo" "$toolAddressTo" ; then
+		toolTo="$routeTo" ; toolAddressTo="$routeAddress"
+	elif [ -n "$routePublic" ] ; then
+		return 0
+	fi
 	if [ -z "$toolAddressTo" ] ; then
 		case "$toolTo" in "$harnessParentName"|"$harnessCurrentName") toolAddressTo="$( AgentsHarnessCallerMember )" ;; esac
 	fi

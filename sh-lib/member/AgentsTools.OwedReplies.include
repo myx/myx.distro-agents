@@ -45,15 +45,14 @@ AgentsToolsOwedRepliesNote(){ ## member, now (epoch)
 	return 0
 }
 
-## Clears what a send of the member answers: the reply address it posted to, and for a direct conversation every entry of that
-## conversation, since a DM answered at its top is answered. Never fails.
+## Clears what a send of the member answers: the reply address it posted to, and nothing else. A post at the top of a direct
+## conversation answers no message, so it clears none. Never fails.
 AgentsToolsOwedRepliesClear(){ ## member, service, conversation, thread ts (may be empty)
-	local owedFile owedConv="${3:-}" owedThread="${4:-}" owedKept owedDm=""
+	local owedFile owedConv="${3:-}" owedThread="${4:-}" owedKept
 	AgentsToolsOwedRepliesFile "$1" || return 0
 	[ -s "$owedFile" ] || return 0
-	case "$owedConv" in D*) owedDm=yes ;; esac
-	owedKept="$( LC_ALL=C awk -F'\t' -v key="${2:-slack}:$owedConv:$owedThread" -v conv="${2:-slack}:$owedConv:" -v dm="$owedDm" '
-		{ if ( $2 == key ) next ; if ( dm == "yes" && index( $2, conv ) == 1 ) next ; print ; }' "$owedFile" )"
+	owedKept="$( LC_ALL=C awk -F'\t' -v key="${2:-slack}:$owedConv:$owedThread" '
+		{ if ( $2 == key ) next ; print ; }' "$owedFile" )"
 	printf '%s\n' "$owedKept" | LC_ALL=C awk 'NF' > "$owedFile.tmp" 2> /dev/null && mv -f "$owedFile.tmp" "$owedFile" 2> /dev/null || :
 	return 0
 }

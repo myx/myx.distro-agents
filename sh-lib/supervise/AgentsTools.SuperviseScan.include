@@ -27,7 +27,9 @@
 ## minutes, which is a thread that should have ended itself and did not (S5.6); `rig-orphan` a control thread inside a run's output folder,
 ## a test rig, alive after that run's record closed (S5.2); `start-failing` a session with two or more failed starts in the
 ## last hour and none started since, `<ws> <session> <member> failed=<n> last=<n>m why=<its log's first error line>`
-## (AgentsTools.SuperviseStartFailing.include); `track` an event of a run's
+## (AgentsTools.SuperviseStartFailing.include); `duty-down` a member whose kept duty session has no duty open, `<ws> <member>
+## newest=<status> age=<n>m`, and `duty-detached` one whose duty runs in another session, `<ws> <member> kept=<id> live=<id>`
+## (AgentsTools.SuperviseDutyDown.include); `track` an event of a run's
 ## event-track thread since --since: a failed or refused tool call, an ask, an answer, a handback, a final answer, a model change.
 ## Then each workspace's board (AgentsTools.SuperviseBoard.include): `epic` every active epic's movement, `still` where nothing moves;
 ## `pending-skipped` approved work the schedule passes over in silence; `accepted-unlanded` an accept whose change never reached live;
@@ -141,10 +143,13 @@ AgentsToolsSuperviseScan(){
 		[ -d "$scanAgents" ] || { printf 'error %s - no .local/agents here\n' "${scanWs##*/}" ; continue ; }
 		## EVERY RECORD'S FIELDS IN ONE READ OF THEM ALL, before any question is read, since the asks below answer from it:
 		## `<sandbox> <name> <written> <spawn-id> <session-id> <owner> <status> <run-process> <parent-session-id> <agent-less>`, TAB-separated.
-		scanTable="$( AgentsToolsSpawnedRecordRows "$scanWs" spawn-id session-id owner status run-process parent-session-id agent-less 2> /dev/null )" || scanTable=""
+		scanTable="$( AgentsToolsSpawnedRecordRows "$scanWs" spawn-id session-id owner status run-process parent-session-id agent-less routine 2> /dev/null )" || scanTable=""
 		## A SESSION WHOSE STARTS KEEP FAILING, from the same table: it reads as starting while every start fails.
 		type AgentsToolsSuperviseStartFailing > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseStartFailing.include"
 		AgentsToolsSuperviseStartFailing "$scanWs" "$scanNow" "$scanTable"
+		## A MEMBER'S DUTY THAT IS NOT RUNNING, or runs in a session the schedule does not keep, from the same table.
+		type AgentsToolsSuperviseDutyDown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseDutyDown.include"
+		AgentsToolsSuperviseDutyDown "$scanWs" "$scanNow" "$scanTable"
 		## AN OPEN ASK WHOSE THREAD ANOTHER OPEN ASK ALSO NAMES, counted in one pass over the store before the loop below reads it.
 		scanAskFiles=( "$scanAgents"/pending/*.md )
 		scanNoiseThreads=""

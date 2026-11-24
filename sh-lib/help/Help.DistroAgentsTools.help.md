@@ -7339,8 +7339,10 @@
 			its TTL or, with none or a later one, when normal worktime starts, and is
 			refused during worktime; `holidays` is set with a TTL or, with none, until it
 			is cleared, at any hour, and while it holds `worktime` is off (`no (holiday)`);
-			`holding` is set the same way, and while it holds the schedule starts no
-			routine, duty or supervision, while running sessions go on;
+			`holding` is set the same way, and while it holds the schedule starts no new
+			work (no routine, supervision, pending item or other member's duty) and still
+			closes dead runs, ends finished ones and keeps magic-coordinator's duty for the
+			board's review, while running sessions go on;
 			`vacation` and `overtime` with `--member <member>` are one member's own flags,
 			each set with a TTL or until cleared: a member on vacation holds no duty and the
 			schedule starts nothing for it, a member on overtime holds a duty out of worktime;

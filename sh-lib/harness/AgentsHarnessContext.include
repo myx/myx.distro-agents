@@ -88,8 +88,8 @@ AgentsHarnessContextInit(){
 	## rewrite the executor's file at its start and both append to it, so the executor's records and lines no longer matched, its transcript
 	## stopped, and its kept context held another run's messages (AgentsHarnessContextFileOf, the one rule its readers use too).
 	harnessContextFile="$( AgentsHarnessContextFileOf "$MDAT_SPAWN_SANDBOX_ROOT" "$MDAT_SPAWN_SESSION_ID" )"
-	## A RESUME TAKES OVER THE FILE IT CONTINUES: the run it resumes has ended (AgentsReviewContextResumeEligible refuses a live one), and the
-	## kept context becomes this run's, in the same file.
+	## A RESUME TAKES OVER THE FILE IT CONTINUES: the run it resumes has ended (AgentsReviewContextResumeEligible refuses a live one, and
+	## AgentsHarnessContextResume refuses a file whose writer still runs), and the kept context becomes this run's, in the same file.
 	case "${MDAT_HARNESS_RESUME_CONTEXT:-}" in "${MDAT_SPAWN_SANDBOX_ROOT%/}"/context*.jsonl) harnessContextFile="$MDAT_HARNESS_RESUME_CONTEXT" ;; esac
 	## The transcript is rendered from the log from here on, not written by the per-call hooks.
 	agentsTranscriptFromLog=1
@@ -123,17 +123,20 @@ AgentsHarnessContextLine(){ ## n, kind, meta fragment (starting with a comma, or
 AgentsHarnessContextBegin(){ ## from (default 0)
 	local beginTools beginTemp beginIndex=0 beginKind
 	[ -n "$harnessContextFile" ] || return 0
+	type AgentsToolsRunProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	harnessContextLeg=$(( harnessContextLeg + 1 ))
 	harnessContextFrom="${1:-0}"
 	harnessContextLastAssistant=0
 	beginTools="$( AgentsHarnessContextToolsJson )"
 	beginTemp="$harnessContextFile.$$"
 	{
-		printf '{"type":"context","version":1,"session":"%s","member":"%s","service":"%s","model":"%s","api_host":"%s","wire":"%s","machine":"%s","leg":%s,"from":%s,"ts":"%s","cache_key":"%s","system_shared":%s,"task":"%s"}\n' \
+		## The writer is the run's own process, with its start: a resume refuses the file while that process still runs (AgentsHarnessContextResume).
+		printf '{"type":"context","version":1,"session":"%s","member":"%s","service":"%s","model":"%s","api_host":"%s","wire":"%s","machine":"%s","leg":%s,"from":%s,"ts":"%s","cache_key":"%s","system_shared":%s,"task":"%s","writer_pid":%s,"writer_start":"%s"}\n' \
 			"$MDAT_SPAWN_SESSION_ID" "$( AgentsHarnessContextEscape "${harnessAgent:-}" )" "$( AgentsHarnessContextEscape "${harnessProviderName:-}" )" \
 			"$( AgentsHarnessContextEscape "${harnessModel:-}" )" "$( AgentsHarnessContextEscape "${harnessHost:-}" )" "$harnessWire" \
 			"$( AgentsHarnessContextEscape "$( AgentsHarnessContextMachine )" )" "$harnessContextLeg" "$harnessContextFrom" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" \
-			"${agentsWirePromptCacheKey:-}" "${agentsWireSystemSharedBytes:-0}" "$( AgentsHarnessContextEscape "$harnessPrompt" )"
+			"${agentsWirePromptCacheKey:-}" "${agentsWireSystemSharedBytes:-0}" "$( AgentsHarnessContextEscape "$harnessPrompt" )" \
+			"$$" "$( AgentsToolsRunProcessStart "$$" )"
 		printf '{"type":"system","text":"%s"}\n' "$( AgentsHarnessContextSystemJson )"
 		printf '{"type":"tools","cksum":"%s","bytes":%s}\n' "$( printf '%s' "$beginTools" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 ; }' )" "$( printf '%s' "$beginTools" | LC_ALL=C wc -c | tr -d ' ' )"
 		while [ "$beginIndex" -lt "${#harnessMessages[@]}" ] ; do
@@ -288,7 +291,8 @@ AgentsHarnessContextResumeRoots(){ ## the kept system text and first records, as
 ## corrections. rc 1, with the reason on stderr, when it is not this run's to continue:
 ## another model, service, API host, wire or machine, or a file that does not parse.
 AgentsHarnessContextResume(){
-	local resumeFile="$MDAT_HARNESS_RESUME_CONTEXT" resumeCount resumeIndex=1 resumeDir resumeWhy="" resumeSystem resumeTools resumeKey resumeTask resumeRoots resumeCallId resumeCallIds resumeAnswered
+	local resumeFile="$MDAT_HARNESS_RESUME_CONTEXT" resumeCount resumeIndex=1 resumeDir resumeWhy="" resumeSystem resumeTools resumeKey resumeTask resumeRoots resumeCallId resumeCallIds resumeAnswered resumeWriter
+	type AgentsToolsRunProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	if [ ! -s "$resumeFile" ] ; then
 		resumeWhy="no context file at $resumeFile"
 	elif ! resumeCount="$( LC_ALL=C awk -v mode=validate ${harnessContextAwk[@]+"${harnessContextAwk[@]}"} "$resumeFile" 2>&1 )" ; then
@@ -303,6 +307,10 @@ AgentsHarnessContextResume(){
 		resumeWhy="the context was kept on wire $( AgentsHarnessContextHeader "$resumeFile" wire ), this run is $harnessWire"
 	elif [ "$( AgentsHarnessContextHeader "$resumeFile" machine )" != "$( AgentsHarnessContextMachine )" ] ; then
 		resumeWhy="the context was kept on host $( AgentsHarnessContextHeader "$resumeFile" machine ), not $( AgentsHarnessContextMachine )"
+	## Two writers in one file number its records twice over, and the file then loads nowhere: the run that writes it must have ended.
+	elif resumeWriter="$( AgentsHarnessContextHeader "$resumeFile" writer_pid )" && [ -n "$resumeWriter" ] && [ "$resumeWriter" != "$$" ] && kill -0 "$resumeWriter" 2> /dev/null \
+		&& [ "$( AgentsToolsRunProcessStart "$resumeWriter" )" = "$( AgentsHarnessContextHeader "$resumeFile" writer_start )" ] ; then
+		resumeWhy="its writer is still running: process $resumeWriter, started $( AgentsHarnessContextHeader "$resumeFile" writer_start )"
 	elif [ "${resumeCount:-0}" -lt 1 ] ; then
 		resumeWhy="the context holds no message"
 	fi

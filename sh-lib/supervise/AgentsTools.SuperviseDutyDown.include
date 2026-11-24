@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SuperviseDutyDown.include -- the scan's `duty-down` and `duty-detached` kinds: a member the schedule keeps a duty for
+## whose duty is not running, or runs in a session the schedule does not keep. Sourced, never run; functions only.
+##
+## WHY. A duty that is not running reads as quiet: no run, so no stall, no failure and no line. A duty that runs in another session
+## than the kept one is counted by the schedule as the member's duty, so it starts none, and the kept one stays a name nobody runs.
+## THE TEST. The schedule keeps the session of each `magic-*` and `keeper-*` member's duty (AgentsToolsScheduleKeptDutySessionInto), the
+## members that hold one, and drops it when the member's flags end the duty. A kept session, with no duty open and the newest duty record older than twenty minutes, is `duty-down`.
+## A kept session, with a duty open in another session, is `duty-detached`.
+## COST. One awk pass over the record table the scan already holds, and one read of a kept session for each member it names.
+##
+
+## <workspace> <now> <record table> -- prints `duty-down <ws> <member> newest=<status> age=<n>m` and
+## `duty-detached <ws> <member> kept=<session> live=<session>`, one a member. The table is the scan's own, its eleventh field the routine.
+AgentsToolsSuperviseDutyDown(){ ## workspace, now, table
+	type AgentsToolsScheduleKeptDutySessionInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
+	local downWs="$1" downMember downState downAge downLive downKept
+	while IFS=' ' read -r downMember downState downAge downLive ; do
+		[ -n "$downMember" ] || continue
+		AgentsToolsScheduleKeptDutySessionInto downKept "$downMember" "$downWs" || continue
+		if [ "$downState" = open ] ; then
+			[ "$downKept" = "$downLive" ] || printf 'duty-detached %s %s kept=%s live=%s\n' "${downWs##*/}" "$downMember" "${downKept:0:8}" "${downLive:0:8}"
+		else
+			printf 'duty-down %s %s newest=%s age=%sm\n' "${downWs##*/}" "$downMember" "$downState" "$downAge"
+		fi
+	done <<< "$( printf '%s\n' "$3" | LC_ALL=C awk -F'\t' -v nowAt="$2" '
+		$11 !~ /duty/ || $3 !~ /^[0-9]+$/ || $6 !~ /^(magic|keeper)-/ { next ; }
+		$7 == "spawn-started" { dutyOpen[$6] = $5 ; }
+		$3 + 0 > dutyNewestAt[$6] + 0 { dutyNewestAt[$6] = $3 ; dutyNewestStatus[$6] = $7 ; }
+		END {
+			for ( dutyMember in dutyNewestAt ) {
+				if ( dutyMember in dutyOpen ) print dutyMember, "open", 0, dutyOpen[dutyMember]
+				else if ( nowAt - dutyNewestAt[dutyMember] >= 1200 ) print dutyMember, dutyNewestStatus[dutyMember], int( ( nowAt - dutyNewestAt[dutyMember] ) / 60 ), "-"
+			}
+		}' )"
+}

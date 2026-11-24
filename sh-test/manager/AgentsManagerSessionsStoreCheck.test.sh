@@ -12,6 +12,9 @@
 ##   3. Epics: the read opens the vault's epic documents and no other file, with 3 board items and with 1600
 ##   4. the writers: a session spawned and then closed leaves its runs block, its live block and its closed line, each
 ##      valid by the token its own source carries now
+##   5. Closed Sessions: page 1 of the closed index's window opens the same number of files at 80 closed sessions as at
+##      1600, and a block and a record for each of the forty rows it shows. No file of a row outside that window, and the
+##      same census pointed at --manager-session-list reports a difference
 ## Red before the build, at 2026-11-23 21:07 UTC on the tree as it then stood, with `--manager-session-list` as the active
 ## read: 10 files opened at 3 closed sessions against 3210 at 1600, among them 3200 of closed sessions, and 3 board items
 ## opened at 3 board items against 1600 at 1600.
@@ -93,7 +96,7 @@ rigStoreFns='. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.Se
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStores.include" || exit 1'
 rigStoreWrite(){ ## workspace, a call of the store's functions
 	local storeWs="$1" storeText="$2" storeRc=0
-	( cd "$storeWs" && env -i HOME="$rigTmp/home" PATH="$rigTmp:$PATH" MMDAPP="$storeWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	( cd "$storeWs" && env -i MDAT_SCHEDULE_THREAD=off HOME="$rigTmp/home" PATH="$rigTmp:$PATH" MMDAPP="$storeWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash -c "$rigStoreFns
 $storeText" rig ) > "$rigTmp/store.out" 2> "$rigTmp/store.err" || storeRc=$?
 	[ "$storeRc" -eq 0 ] || { printf '⛔ the store writer failed: %s\n%s\n' "$storeText" "$( LC_ALL=C grep -v '^#' "$rigTmp/store.err" 2> /dev/null )" >&2 ; return 1 ; }
@@ -125,6 +128,13 @@ rigLiveSession(){ ## root, sandbox name, session id, started-at
 ## One closed session of a fixture, seeded as plain files: its record, its state and its closed line. No writer runs here
 ## for it, since 1600 of them would be 1600 shell calls. Nothing in it may be opened by the active read, and that is the
 ## point of the fixture: if the read did reach one, the count of files would grow by it.
+## THE CLOSED LINE IS IN THE STORE'S OWN COLUMN SHAPES, and no field of it holds a space: each moment as the close writes it,
+## a space written `_`. A line holding a space inside a field is read as more words than it has columns, and is no row at
+## all, which would be this fixture's fault and never the read's. The last field names the sandbox folder of the session's
+## run, which is what the close writes there, so the page has a runs block and a record to open for a row it shows.
+rigClosedMoment(){ ## a moment written as a record writes it: its words joined by `_`
+	printf '%s' "$1" | LC_ALL=C awk '{ for ( at = 1 ; at <= NF ; at++ ) printf "%s%s", ( at > 1 ? "_" : "" ), $at ; }'
+}
 rigClosedSession(){ ## root, sandbox name, session id, started-at, resolved-at, sequence number
 	local seWs="$1/ws" seBox="$2" seId="$3" seAt="$4" seResolved="$5" seSeq="$6"
 	mkdir -p "$seWs/.local/agents/spawned/$seBox" "$seWs/.local/agents/sessions/$seId/control" \
@@ -133,8 +143,9 @@ rigClosedSession(){ ## root, sandbox name, session id, started-at, resolved-at, 
 		> "$seWs/.local/agents/sessions/$seId/control/state"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: ws-rig\nowner: magic-tester\nstatus: spawn-succeeded\nstarted-at: %s\nresolved-at: %s\n---\n\n# Spawn session: %s\n' \
 		"$seId" "$seBox" "$rigHost" "$seAt" "$seResolved" "$seId" > "$seWs/.local/agents/spawned/$seBox/$seBox.spawn.md"
-	printf '%s\t%s\tmagic-tester\t-\t%s\t2025-06-01T10:00:00Z\tfinished\t%s\t-\t%s\n' \
-		"$seSeq" "$seId" "$rigHost" "$seAt" "$seBox" >> "$seWs/.local/agents/closed-sessions.index"
+	printf '%s\t%s\tmagic-tester\t-\t%s\t%s\tfinished\t%s\t-\t%s\n' \
+		"$seSeq" "$seId" "$rigHost" "$( rigClosedMoment "$seResolved" )" "$( rigClosedMoment "$seAt" )" "$seBox" \
+		>> "$seWs/.local/agents/closed-sessions.index"
 }
 
 ## A fixture: three live sessions, the closed history and the board items it is given, and the same two epic documents in
@@ -189,7 +200,7 @@ rigOpenedMatching(){ ## root, extended regular expression
 rigRead(){ ## root, the operation and its words...
 	local rdRoot="$1" ; shift
 	rigRc=0
-	( cd "$rdRoot/ws" && env -i AGENTS_REGISTRY_HOUSEKEEPING=1 HOME="$rdRoot/home" PATH="$rigTmp:$PATH" \
+	( cd "$rdRoot/ws" && env -i AGENTS_REGISTRY_HOUSEKEEPING=1 MDAT_SCHEDULE_THREAD=off HOME="$rdRoot/home" PATH="$rigTmp:$PATH" \
 		MMDAPP="$rdRoot/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rdRoot/skills" MDAT_DATA_ROOT="$rdRoot/data" \
 		bash "$rigTool" "$@" ) > "$rdRoot/out" 2> "$rdRoot/err" < /dev/null || rigRc=$?
 }
@@ -340,6 +351,110 @@ rigAssert "the close's own writer appends one line, naming the session it closed
 	"$( LC_ALL=C awk -F'\t' '$2 == "s-write" { n++ ; } END { print n + 0 ; }' "$rigWrClosed" 2> /dev/null )" "1"
 rigAssert "the closed line carries its sequence number first, and the end word in the seventh field" \
 	"$( LC_ALL=C awk -F'\t' '$2 == "s-write" { print $1, $7 ; }' "$rigWrClosed" 2> /dev/null )" "1 finished"
+
+## 5. CLOSED SESSIONS: page 1 of the index's window, and nothing proportional to the store.
+## ONE READ OF THE PAGE, with the read's own process-list cache dropped first. That cache is a file the read writes, kept ten
+## seconds: a read that misses it writes it, and a read that hits it does not. A file written moves both its marks, so it is
+## never counted as opened, but whether it is opened at all decides one file of the count. Dropped, every measured read pays
+## the same and the count is the page's alone.
+rigWindowRead(){ ## root, the operation and its words...
+	rm -f "$1/ws/.local/temp/ps-args.txt" 2> /dev/null
+	rigRead "$@"
+}
+## THE RUNS BLOCKS OF A RANGE OF ROWS, by the store's own block writer, one shell call for the range. A page reads a block a
+## row it shows, so the rows it must not touch are given blocks too: a read that reached them would open files that exist.
+rigClosedBlocks(){ ## root, first sequence number, last sequence number
+	local cbAt="$2" cbNames=""
+	while [ "$cbAt" -le "$3" ] ; do cbNames="$cbNames closed$cbAt" ; cbAt=$(( cbAt + 1 )) ; done
+	[ -n "$cbNames" ] || return 0
+	rigStoreWrite "$1/ws" "for blockOne in $cbNames ; do AgentsToolsSpawnRowsBlockWrite \"\$blockOne\" || exit 1 ; done" \
+		|| rigRefuse "the runs blocks of the closed fixture could not be written: $1"
+}
+## THE CLOSED FILES A READ OPENED, told by the row each belongs to: its record, its runs block or its state, each named by
+## the row's own sequence number.
+rigClosedOpened(){ ## root, from, to, in|out -- the files of a row of that range, or of a row outside it
+	rigOpened "$1" | LC_ALL=C awk -v from="$2" -v to="$3" -v want="$4" '
+		{ seq = "" ;
+		  if ( match( $0, /(sessions\/s-closed-|spawned\/closed|spawned-rows\/closed)[0-9]+/ ) ) {
+			seq = substr( $0, RSTART, RLENGTH ) ; sub( /^.*[^0-9]/, "", seq ) ; }
+		  if ( seq == "" && want == "out" ) next ;
+		  if ( ( want == "in" ) == ( seq != "" && seq + 0 >= from && seq + 0 <= to ) ) print $0 ; }'
+}
+rigClosedCount(){ ## root, from, to, in|out
+	rigClosedOpened "$1" "$2" "$3" "$4" | LC_ALL=C awk 'END { print NR + 0 ; }'
+}
+
+echo "-- 5. Closed Sessions: a page of the index's window, and nothing proportional to the store --"
+## THE THREE FIXTURES: the same three live sessions and the same two epics, over 3, 80 and 1600 closed sessions. At eighty
+## closed sessions and at sixteen hundred, page 1 holds the same forty rows, so those two are the pair the page is measured
+## on, and the three-row history is the one whose page 1 is past its count.
+for rigWinSide in few mid many ; do
+	case "$rigWinSide" in
+		few)  rigFixture "$rigTmp/closed-few" 3 0 ;;
+		mid)  rigFixture "$rigTmp/closed-mid" 80 0 ;;
+		many) rigFixture "$rigTmp/closed-many" 1600 0 ;;
+	esac
+done
+## THE ROWS A PAGE MUST TOUCH AND THE ROWS IT MUST NOT: page 1's own forty, and the first rows of page 0.
+rigClosedBlocks "$rigTmp/closed-few" 1 3
+rigClosedBlocks "$rigTmp/closed-mid" 1 50
+rigClosedBlocks "$rigTmp/closed-many" 1521 1570
+## One read of each fixture first, so the stores every read makes for itself are there in all three alike, and the measured
+## read is the page and nothing else.
+for rigWinSide in few mid many ; do
+	case "$rigWinSide" in few) rigWinRoot="$rigTmp/closed-few" ;; mid) rigWinRoot="$rigTmp/closed-mid" ;; many) rigWinRoot="$rigTmp/closed-many" ;; esac
+	rigMark "$rigWinRoot" ; rigWindowRead "$rigWinRoot" --manager-session-closed-list --page 1
+done
+rigMark "$rigTmp/closed-few" ; rigWindowRead "$rigTmp/closed-few" --manager-session-closed-list --page 0
+rigFewFirstRc="$rigRc" ; rigFewFirstRows="$( rigSessionRows "$rigTmp/closed-few" )"
+rigMark "$rigTmp/closed-few" ; rigWindowRead "$rigTmp/closed-few" --manager-session-closed-list --page 1
+rigFewPageRc="$rigRc" ; rigFewPageRows="$( rigSessionRows "$rigTmp/closed-few" )"
+rigFewPageFiles="$( rigOpenedCount "$rigTmp/closed-few" )"
+rigFewOut="$( rigClosedCount "$rigTmp/closed-few" 1 3 out )"
+rigMark "$rigTmp/closed-mid" ; rigWindowRead "$rigTmp/closed-mid" --manager-session-closed-list --page 1
+rigMidRc="$rigRc" ; rigMidRows="$( rigSessionRows "$rigTmp/closed-mid" )"
+rigMidFiles="$( rigOpenedCount "$rigTmp/closed-mid" )"
+rigMidIn="$( rigClosedCount "$rigTmp/closed-mid" 1 40 in )"
+rigMidOut="$( rigClosedCount "$rigTmp/closed-mid" 1 40 out )"
+rigMark "$rigTmp/closed-many" ; rigWindowRead "$rigTmp/closed-many" --manager-session-closed-list --page 1
+rigManyRc="$rigRc" ; rigManyRows="$( rigSessionRows "$rigTmp/closed-many" )"
+rigManyFiles="$( rigOpenedCount "$rigTmp/closed-many" )"
+rigManyIn="$( rigClosedCount "$rigTmp/closed-many" 1521 1560 in )"
+rigManyOut="$( rigClosedCount "$rigTmp/closed-many" 1521 1560 out )"
+printf '        files opened by page 1 of the closed list: %s at 3 closed sessions, %s at 80, %s at 1600\n' \
+	"$rigFewPageFiles" "$rigMidFiles" "$rigManyFiles"
+printf '        rows shown: %s at 3 (page 0 shows %s), %s at 80, %s at 1600\n' \
+	"$rigFewPageRows" "$rigFewFirstRows" "$rigMidRows" "$rigManyRows"
+printf '        files of the rows page 1 shows: %s at 80, %s at 1600. Of rows outside it: %s and %s\n' \
+	"$rigMidIn" "$rigManyIn" "$rigMidOut" "$rigManyOut"
+rigAssert "the closed list is real in all three fixtures: each read ends 0, and page 0 of the three-row history shows those three rows" \
+	"$rigFewFirstRc $rigFewFirstRows $rigMidRc $rigManyRc" "0 3 0 0"
+rigAssert "page 1 is past the count of a three-row history, and answers empty rather than a row the history does not have" \
+	"$rigFewPageRc $rigFewPageRows $rigFewOut" "0 0 0"
+rigAssert "page 1 shows forty rows at 80 closed sessions, and the same forty at 1600" "$( rigVerdict "$rigMidRows" "$rigManyRows" )" "same"
+rigAssert "page 1 opens the same number of files at 80 closed sessions and at 1600: the page decides it, not the store" \
+	"$( rigVerdict "$rigMidFiles" "$rigManyFiles" )" "same"
+rigAssert "page 1 opens a runs block and a record for each of the forty rows it shows, and no other closed file" \
+	"$rigMidIn $rigManyIn $rigMidOut $rigManyOut" "80 80 0 0"
+## THE WHOLE COUNT, stated as the shape it is made of: the closed index, the pending-replies registry, one live block for
+## each of the three live sessions the fixture holds, and then a runs block and a record for each row the page shows. Every
+## part of it is the page's, so a change that opens one more file for a row fails here, at both sizes alike.
+rigWindowExpect=$(( 5 + 2 * rigMidRows ))
+rigAssert "page 1's whole count is exactly the index, the asks registry, three live blocks and two files a row it shows" \
+	"$rigMidFiles $rigManyFiles" "$rigWindowExpect $rigWindowExpect"
+## THE CONTROL: the same census, pointed at the whole-store read. It must report a difference, or the counts above measure
+## nothing about the page. The rows of page 0 it opens are the files page 1 leaves alone.
+rigMark "$rigTmp/closed-mid" ; rigWindowRead "$rigTmp/closed-mid" --manager-session-list
+rigMidWholeRc="$rigRc" ; rigMidWholeFiles="$( rigOpenedCount "$rigTmp/closed-mid" )"
+rigMark "$rigTmp/closed-many" ; rigWindowRead "$rigTmp/closed-many" --manager-session-list
+rigManyWholeRc="$rigRc" ; rigManyWholeFiles="$( rigOpenedCount "$rigTmp/closed-many" )"
+rigManyWholeOut="$( rigClosedCount "$rigTmp/closed-many" 1521 1560 out )"
+printf '        the control, --manager-session-list: %s files at 80 closed sessions, %s at 1600, %s of them outside page 1\n' \
+	"$rigMidWholeFiles" "$rigManyWholeFiles" "$rigManyWholeOut"
+rigAssert "the same comparison, pointed at the whole-store read, reports a difference: the assertions above can fail" \
+	"$rigMidWholeRc $rigManyWholeRc $( rigVerdict "$rigMidWholeFiles" "$rigManyWholeFiles" )" "0 0 differs"
+rigAssert "the whole-store read opens the files of rows outside page 1's window, which the page read does not" \
+	"$( rigYesNo "$(( rigManyWholeOut > 0 ? 0 : 1 ))" )" "yes"
 
 echo
 if [ "$rigFail" -gt 0 ] ; then

@@ -8,11 +8,11 @@
 ## wrote, then one commit covers the items the transfer made. It runs on the comms reader, which standing ruling 14 makes the only thing
 ## that fetches a source: its call site is AgentsToolsCommsCachePullWatched.
 ##
-##   The kept list  $MMDAPP/.local/cache/comms/.ingest-pass/sources.txt, `<member><TAB><target><TAB><folder>` a channel source, sorted.
+##   The kept list  $MMDAPP/.local/cache/comms/.ingest-pass/sources.txt, `<member><TAB><target><TAB><folder><TAB><as bot>` a channel source, sorted.
 ##                  Rebuilt when the store folder is newer than it, and once an hour whatever the folder says.
-##   A source       a channel folder whose recipe line reads `slack-conversation <target> <member> <as bot>`. A folder read as the bot is
-##                  left out, because --intern-comms-ingest takes no --as-bot and reads as the member whose `.user-id` file names its
-##                  account. A thread folder is not a source: the ingest's history read carries its channel's threads.
+##   A source       a channel folder whose recipe line reads `slack-conversation <target> <member> <as bot>`. Both kinds are sources: one
+##                  read as the member's own account, and one read as the bot, which the pass hands on as `--as-bot`. A folder left out
+##                  would be read once and never again. A thread folder is not a source: the ingest's history read carries its threads.
 ##   A source is due its `.state.txt` is newer than its `.ingest.txt`, so a pull brought what the ingest has not read, and its own TTL
 ##                  has passed since that ingest (AgentsToolsSourceTtlOf, the one table). A source with no `.ingest.txt` is due at once.
 ##   The turn       $MMDAPP/.local/cache/comms/.ingest-pass/turn holds the folder served last, and the next pass starts after it, so a pass
@@ -28,7 +28,7 @@ AgentsCommsIngestPassDir(){
 }
 
 ## THE KEPT LIST, REBUILT ONLY WHEN THE STORE'S SHAPE MAY HAVE MOVED: no list at all, the store folder newer than it, or the list over an
-## hour old. A folder whose recipe names no member, and one read as the bot, are left out.
+## hour old. A folder whose recipe names no member is left out, and one read as the bot carries that flag in its own column.
 AgentsCommsIngestPassSources(){ ## the list path, the store folder
 	local srcPath="$1" srcStore="$2" srcState srcLine srcTarget srcMember srcBot srcRows="" srcTemp
 	if [ -f "$srcPath" ] && [ ! "$srcStore" -nt "$srcPath" ] ; then
@@ -49,10 +49,9 @@ AgentsCommsIngestPassSources(){ ## the list path, the store folder
 			esac
 		done < "$srcState"
 		[ -n "$srcMember" ] || continue
-		[ "$srcBot" != "true" ] || continue
 		case "$srcMember" in -*|*[!A-Za-z0-9._-]*) continue ;; esac
 		case "$srcTarget" in ''|*[!A-Za-z0-9._-]*) continue ;; esac
-		srcRows="$srcRows$srcMember"$'\t'"$srcTarget"$'\t'"${srcState%/.state.txt}"$'\n'
+		srcRows="$srcRows$srcMember"$'\t'"$srcTarget"$'\t'"${srcState%/.state.txt}"$'\t'"$srcBot"$'\n'
 	done
 	srcRows="$( printf '%s' "$srcRows" | LC_ALL=C sort )" || return 1
 	mkdir -p "${srcPath%/*}" 2> /dev/null || return 1
@@ -65,7 +64,7 @@ AgentsCommsIngestPassSources(){ ## the list path, the store folder
 ## anything; rc 1 a source could not be read, and the pass went on with the rest of its turn.
 AgentsCommsIngestPass(){ ## most (0 for no bound)
 	local passMost="${1:-0}" passDir passList passTurn="" passNow passAt=0 passStep=0 passServed=0 passFailed=0 passStart=0
-	local passLine passMember passTarget passPath passIngest passIngestAt passTtl passRows=() passTab
+	local passLine passMember passTarget passPath passBot passIngest passIngestAt passTtl passRows=() passTab
 	case "$passMost" in ''|*[!0123456789]*) passMost=0 ;; esac
 	[ -n "${MMDAPP:-}" ] || { echo "⛔ ERROR: the comms ingest pass needs a workspace" >&2 ; set +e ; return 1 ; }
 	passDir="$( AgentsCommsIngestPassDir )" || { set +e ; return 1 ; }
@@ -80,7 +79,11 @@ AgentsCommsIngestPass(){ ## most (0 for no bound)
 	[ ! -f "$passDir/turn" ] || { IFS= read -r passTurn 2> /dev/null < "$passDir/turn" || passTurn="" ; }
 	passNow="$( date +%s )"
 	while [ "$passAt" -lt "${#passRows[@]}" ] ; do
-		[ "${passRows[$passAt]##*/}" != "$passTurn" ] || { passStart=$(( passAt + 1 )) ; break ; }
+		passLine="${passRows[$passAt]}"
+		passLine="${passLine#*$passTab}"
+		passLine="${passLine#*$passTab}"
+		passLine="${passLine%%$passTab*}"
+		[ "${passLine##*/}" != "$passTurn" ] || { passStart=$(( passAt + 1 )) ; break ; }
 		passAt=$(( passAt + 1 ))
 	done
 	type AgentsToolsSourceTtlOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.SourceTtl.include"
@@ -91,7 +94,10 @@ AgentsCommsIngestPass(){ ## most (0 for no bound)
 		passMember="${passLine%%$passTab*}"
 		passLine="${passLine#*$passTab}"
 		passTarget="${passLine%%$passTab*}"
-		passPath="${passLine#*$passTab}"
+		passLine="${passLine#*$passTab}"
+		passPath="${passLine%%$passTab*}"
+		passBot="${passLine#*$passTab}"
+		[ "$passBot" = "true" ] || passBot=""
 		passIngest="$passPath/.ingest.txt"
 		if [ -f "$passIngest" ] ; then
 			[ "$passPath/.state.txt" -nt "$passIngest" ] || continue
@@ -102,7 +108,7 @@ AgentsCommsIngestPass(){ ## most (0 for no bound)
 			[ $(( passNow - passIngestAt )) -ge "$passTtl" ] || continue
 		fi
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-comms-ingest --run "$passMember" "$passTarget" || passFailed=$(( passFailed + 1 ))
+		DistroAgentsTools --intern-comms-ingest --run "$passMember" "$passTarget" ${passBot:+--as-bot} --folder "$passPath" || passFailed=$(( passFailed + 1 ))
 		printf '%s\n' "${passPath##*/}" > "$passDir/turn" 2> /dev/null || :
 		passServed=$(( passServed + 1 ))
 	done

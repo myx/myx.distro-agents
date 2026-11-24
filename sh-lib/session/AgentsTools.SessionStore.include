@@ -90,7 +90,7 @@ AgentsSessionLaunchWordInto(){ ## variable, session
 	local launchLine=""
 	printf -v "$1" '%s' ""
 	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
-	IFS= read -r launchLine < "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$2/launch" 2> /dev/null || :
+	IFS= read -r launchLine 2> /dev/null < "${MMDAPP:-/nonexistent}/$agentsSessionStoreLeaf/$2/launch" || :
 	printf -v "$1" '%s' "$launchLine"
 }
 

@@ -8,8 +8,8 @@
 ## copy, TAB-separated: its path under output/, the source root it came from, its bytes, and the stamp it was taken at. A
 ## STAGED PATCH OR NOTE is the run's own work, and stays.
 ##
-## Only a path the manifest names is removed, and a .patch, .diff or .md file is kept whatever names it. A folder holding
-## .git or project.inf that no line names is a copy this release cannot account for: it is reported, never removed.
+## Only a path the manifest names is removed, and a .patch, .diff or .md file is kept whatever names it. A path no line names is kept: the
+## release walks nothing of the copies. A sandbox with no work standing is emptied by the sweep (AgentsTools.CleanupSweep.include).
 ##
 ## Sourced, never run. Functions only.
 ##
@@ -18,7 +18,7 @@
 ## name, never by a path: the spawned store is this concern's own (AgentsSpawnedStoreDirInto). Prints the store-relative path
 ## of each one removed, and nothing where there was nothing to remove. rc 0.
 AgentsToolsSpawnSandboxReleaseOutput(){ ## sandbox folder name
-	local sbxName="${1:-}" sbxRoot="" sbxOut sbxManifest sbxPaths sbxNamed sbxPath sbxFull sbxFound sbxCopy
+	local sbxName="${1:-}" sbxRoot="" sbxOut sbxManifest sbxPaths sbxPath sbxFull
 	case "$sbxName" in ''|.|..|-*|*/*|*[[:space:]]*) return 0 ;; esac
 	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	AgentsSpawnedStoreDirInto sbxRoot "$MMDAPP" || return 0
@@ -29,7 +29,6 @@ AgentsToolsSpawnSandboxReleaseOutput(){ ## sandbox folder name
 	if [ -f "$sbxManifest" ] ; then
 		sbxPaths="$( LC_ALL=C awk -F '\t' 'NF { path = $1 ; sub( /\/+$/, "", path ) ; if ( path != "" ) print path ; }' "$sbxManifest" 2> /dev/null )" || sbxPaths=""
 	fi
-	sbxNamed=$'\n'"$sbxPaths"$'\n'
 	while IFS= read -r sbxPath ; do
 		[ -n "$sbxPath" ] || continue
 		case "$sbxPath" in
@@ -47,13 +46,5 @@ AgentsToolsSpawnSandboxReleaseOutput(){ ## sandbox folder name
 		sbxFull="${sbxFull%/*}"
 		while [ "$sbxFull" != "$sbxOut" ] && rmdir "$sbxFull" 2> /dev/null ; do sbxFull="${sbxFull%/*}" ; done
 	done <<< "$sbxPaths"
-	## A copy the manifest does not name is one this release cannot account for: the folder is kept and named, never removed.
-	while IFS= read -r sbxFound ; do
-		[ -n "$sbxFound" ] || continue
-		sbxCopy="${sbxFound%/*}"
-		sbxCopy="${sbxCopy#"$sbxOut"/}"
-		case "$sbxNamed" in *$'\n'"$sbxCopy"$'\n'*) continue ;; esac
-		printf '# %s: kept %s/output/%s, which holds .git or project.inf and which copies.manifest does not name\n' "${MDSC_CMD:-DistroAgentsTools}" "$sbxName" "$sbxCopy" >&2
-	done <<< "$( find "$sbxOut" -mindepth 2 \( -name .git -o -name project.inf \) -print 2> /dev/null )"
 	return 0
 }

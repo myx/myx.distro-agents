@@ -7,6 +7,10 @@
 ## prints no summary at all.
 ## Offline: a rig workspace and a rig store of this check's own, holding an aged and a fresh temp entry, one
 ## copy of a closed item's sandbox, one of an item in review, and one session folder 40 days old.
+## THE OUTPUT CLASS HAS AN AGE FLOOR, read from the newest entry inside output/ (the pass here sets 48 hours, and 120 for a staged deliverable):
+## a closed item's sandbox whose output is fresh is kept, as is one whose output holds a stage folder and a patch and is 72 hours old, and
+## a staged output past the longer floor is released. Run with RIG_OUTPUT_FLOOR_HOURS=0 and RIG_STAGED_FLOOR_HOURS=0 the pass has no floor, as
+## before it, and the check is red on the two kept sandboxes: that run is the proof that the check can fail.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
@@ -54,17 +58,35 @@ printf -- '---\ntype: dispatch\nowner: rig-member\nspawn-id: rigcl-review\n---\n
 	| rigStoreItem "$rigData" board review dispatch-rigcl-review.md || rigRefuse "the board item in review was not written"
 
 ## THE SANDBOXES: each past both settings, each holding one marked copy of a source tree in its output/.
-rigSandbox(){ ## run -- its record links the board item of the same name, dispatch-<run>
+## A MOMENT SECONDS AGO as touch writes it, on BSD and on GNU.
+rigAgo(){ ## seconds ago
+	date -r "$(( $( date +%s ) - $1 ))" +%Y%m%d%H%M 2> /dev/null || date -d "@$(( $( date +%s ) - $1 ))" +%Y%m%d%H%M
+}
+rigSandbox(){ ## run, the moment its output was last written as touch writes it (empty: now), staged (empty or yes) -- its record links the board item of the same name, dispatch-<run>
 	mkdir -p "$rigSp/$1/output/rig-member/rigpkg/.git" "$rigSp/$1/input/$1" || return 1
 	printf '# rigpkg\n' > "$rigSp/$1/output/rig-member/rigpkg/MAGIC.md"
 	: > "$rigSp/$1/output/rig-member/rigpkg/.git/HEAD"
 	printf 'rigpkg\t%s\t0\t2026-11-20T00:00:00Z\n' "$rigSp/$1/output/rig-member/rigpkg" > "$rigSp/$1/output/copies.manifest"
+	if [ -n "${3:-}" ] ; then
+		mkdir -p "$rigSp/$1/output/rig-member/stage" || return 1
+		printf 'changed\n' > "$rigSp/$1/output/rig-member/stage/changed.include"
+		printf -- '--- a/x\n+++ b/x\n' > "$rigSp/$1/output/rig-member/changed.patch"
+	fi
+	[ -z "${2:-}" ] || find "$rigSp/$1/output" -exec touch -t "$2" {} +
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nowner: rig-member\nhost: %s\nstatus: spawn-succeeded\nspawned-by: dispatch-%s\n---\n' \
 		"$1" "$1" "$rigHost" "$1" > "$rigSp/$1/$1.spawn.md"
 	touch -t 202611200000 "$rigSp/$1/$1.spawn.md"
 }
-rigSandbox rigcl-closed || rigRefuse "the closed item's sandbox was not made"
-rigSandbox rigcl-review || rigRefuse "the review item's sandbox was not made"
+rigSandbox rigcl-closed 202611010000 || rigRefuse "the closed item's sandbox was not made"
+rigSandbox rigcl-review 202611010000 || rigRefuse "the review item's sandbox was not made"
+## THE FLOOR'S CASES, each of a closed item: its output fresh; a staged output 72 hours old; a staged output past every floor.
+for rigRun in rigcl-fresh rigcl-stagemid rigcl-stageold ; do
+	printf -- '---\ntype: dispatch\nowner: rig-member\nspawn-id: %s\n---\n\n# rig work, closed\n' "$rigRun" \
+		| rigStoreItem "$rigData" board processed "dispatch-$rigRun.md" || rigRefuse "a closed board item was not written"
+done
+rigSandbox rigcl-fresh "" || rigRefuse "the fresh output's sandbox was not made"
+rigSandbox rigcl-stagemid "$( rigAgo 259200 )" yes || rigRefuse "the staged output's sandbox was not made"
+rigSandbox rigcl-stageold 202611010000 yes || rigRefuse "the old staged output's sandbox was not made"
 
 ## THE RECORD: one session folder 40 days old, which no age of the sweep's may take.
 mkdir -p "$rigSess/rigcl-session" || exit 1
@@ -75,14 +97,23 @@ echo "-- one apply pass over the rig --"
 ( cd "$rigWs" || exit 1
   env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
 	MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-	MDAT_TEAM_DATA_COMMIT_THREAD=off \
+	MDAT_TEAM_DATA_COMMIT_THREAD=off MDAT_CLEANUP_OUTPUT_AGE_HOURS="${RIG_OUTPUT_FLOOR_HOURS:-48}" MDAT_CLEANUP_STAGED_AGE_HOURS="${RIG_STAGED_FLOOR_HOURS:-120}" \
 	bash "$rigTool" --intern-cleanup-sweep --apply ) > "$rigTmp/sweep.out" 2> "$rigTmp/sweep.err"
 printf '%s' "$?" > "$rigTmp/sweep.rc"
-rigSummary="$( LC_ALL=C grep -x -e 'removed=2 left-records=1' "$rigTmp/sweep.out" "$rigTmp/sweep.err" 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
-rigAssert "one apply pass says removed=2 left-records=1" "$( cat "$rigTmp/sweep.rc" ):$rigSummary" "0:1"
+rigSummary="$( LC_ALL=C grep -x -e 'removed=3 left-records=1' "$rigTmp/sweep.out" "$rigTmp/sweep.err" 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
+rigAssert "one apply pass says removed=3 left-records=1: the aged scratch, the old output, the old staged output" "$( cat "$rigTmp/sweep.rc" ):$rigSummary" "0:1"
+rigHolds(){ ## run -- yes where its output still holds a file
+	[ -n "$( find "$rigSp/$1/output" -mindepth 1 -type f -print -quit 2> /dev/null )" ] && printf yes || printf no
+}
+rigAssert "the output of a closed item that was written a moment ago is kept" "$( rigHolds rigcl-fresh )" yes
+rigAssert "a staged output 72 hours old, inside its floor of 120, is kept" "$( rigHolds rigcl-stagemid )" yes
+rigAssert "the output of an item in review is kept" "$( rigHolds rigcl-review )" yes
+rigAssert "the old output of a closed item is released" "$( rigHolds rigcl-closed )" no
+rigAssert "the staged output past every floor is released" "$( rigHolds rigcl-stageold )" no
 [ ! -s "$rigTmp/sweep.err" ] || printf '  # the sweep said: %s\n' "$( LC_ALL=C grep -e 'ERROR' -e 'invalid option' "$rigTmp/sweep.err" 2> /dev/null | LC_ALL=C sed -n 1p )"
 
 if [ "$rigFailCount" -ne 0 ] ; then
+	printf '  # what the pass listed and said:\n' ; LC_ALL=C cut -c1-200 "$rigTmp/sweep.out" "$rigTmp/sweep.err" 2> /dev/null | LC_ALL=C sed -n 1,14p
 	echo "⛔ CLEANUP SWEEP CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi
 printf 'CLEANUP_SWEEP: OK (%d assertions, offline, rig tree only)\n' "$rigPassCount"

@@ -9,6 +9,10 @@
 
 agentsSessionStoreLeaf=".local/agents/sessions"
 agentsSpawnedStoreLeaf=".local/agents/spawned"
+
+## The tier record's name inside a session's own folder, beside `root-session.kind` and `session.thread`: one line of
+## `private`, `system`, `shared` or `public`, written whole or not at all by one rename (AgentsTools.SessionTier.include).
+agentsSessionTierName="security.tier"
 AgentsSessionMarkerFileInto(){ ## variable, run or session id, marker -- rc 1 for an id or a marker that is none
 	case "${2:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 1 ;; esac
 	case "${3:-}" in paused|parked|dismissed|stop.left|control/closed|control/state|root.want|root.end|root.pause|ended|floor-dropped|reload.due|skill.loaded) ;; *) return 1 ;; esac

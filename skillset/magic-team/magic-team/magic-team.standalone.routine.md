@@ -3,6 +3,7 @@ type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: standalone
+security-tier: system
 input-scan-def: none
 review-by: inherit
 runs-at: none

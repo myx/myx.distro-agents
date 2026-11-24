@@ -335,7 +335,6 @@ rigList(){
 		'common/AgentsRunTestsQueueCheck.test.sh|1|kill -TERM "$rigPidB"|@at-once' \
 		'common/AgentsRunTestsQueueCheck.test.sh|1|kill -KILL "$rigSlotGiver" "$rigPidA"|@at-once' \
 		'common/AgentsRunTestsQueueCheck.test.sh|1|kill -KILL "$rigSlotPid"|@at-once' \
-		'common/AgentsRunTestsIdentityCheck.test.sh|1|kill -KILL $rigStray|@at-once' \
 		'check-fixtures/runner-slot-keeper.py|1|os.killpg(child, group_signal)|the process group the keeper made for its own child, signalled only while that child is alive or ended and not yet reaped (it is waited for with WNOWAIT), so the group id is still that test and no other' \
 		'common/AgentsRunTestsStallCheck.test.sh|1|kill -KILL "$1" $( rigUnder "$1" )|@running-job' \
 		'common/AgentsRunTestsStallCheck.test.sh|1|kill -STOP "$rigWorkerPid"|@at-once' \
