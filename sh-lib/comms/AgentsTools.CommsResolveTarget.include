@@ -22,6 +22,49 @@ type AgentsToolsCommsClientSide > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dist
 type AgentsToolsSlackOneWayLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
 
 
+## A CONTACT'S OWN ADDRESS, on the other organisation's side: `client:<value>`, its value read from the
+## record's `slack-id`, else its `slack-conversation`, with the record's team label dropped. A contact is
+## reached through the client-* member of its organisation (the human-owner's ruling of 2026-11-25T00:45Z),
+## so its address is that side's, and the caller resolves it as that member. Prints the address, rc 0.
+## Where the record holds no Slack coordinate, or holds several, it prints the one line saying so, rc 3.
+AgentsToolsCommsContactAddress(){ ## contact id
+	local caFile caValues caValue caCount=0
+	type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	type AgentsToolsContactsPersonRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	AgentsToolsContactsStore resolve-target 2> /dev/null || { printf "'contact:%s' names nowhere: this workspace holds no contacts store.\n" "$1" ; return 3 ; }
+	caFile="$contactsPersons/$1.md"
+	[ -f "$caFile" ] || { printf "'contact:%s' names no contact this workspace holds, so it names nowhere. Find one with DistroAgentsContacts.fn.sh --find-contact <word>.\n" "$1" ; return 3 ; }
+	AgentsToolsContactsPersonRead "$caFile" || { printf "'contact:%s' names nowhere: its record could not be read.\n" "$1" ; return 3 ; }
+	caValues="$( printf '%s' "${crSlackId:-$crSlackConv}" | LC_ALL=C tr ',' '\n' | LC_ALL=C sed -n 's/^ *[^:][^:]*:\([A-Za-z0-9][A-Za-z0-9]*\) *$/\1/p' | LC_ALL=C sort -u )"
+	while IFS= read -r caValue ; do
+		[ -n "$caValue" ] || continue
+		caCount=$(( caCount + 1 ))
+	done <<< "$caValues"
+	case "$caCount" in
+		0) printf "'contact:%s' names nowhere: its record holds no Slack coordinate. Record one with DistroAgentsContacts.fn.sh --collect-contact --id %s --slack <team>:<id>.\n" "$1" "$1" ; return 3 ;;
+		1) printf 'client:%s\n' "$caValues" ; return 0 ;;
+		*) printf "'contact:%s' names no one address: its record holds %s Slack coordinates, and the person is never guessed between them.\n" "$1" "$( printf '%s' "$caValues" | LC_ALL=C tr '\n' ' ' )" ; return 3 ;;
+	esac
+}
+
+## The party a contact is asked through: the client-* member its record names, and its own address. A contact is reached
+## through the client-* member of its organisation, which alone holds that side's credentials (the human-owner's ruling,
+## Q970), so that member is who posts and who reads the answer. Prints `<client-member><TAB>client:<value>`, rc 0.
+## rc 3, with the one line that says what to record, where the record names no such member or holds no one address.
+AgentsToolsCommsContactRoute(){ ## contact id
+	local crId="${1:-}" crMember="" crAddress=""
+	type AgentsToolsContactsStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include"
+	AgentsToolsContactsStore resolve-target 2> /dev/null || { printf "'contact:%s' names nowhere: this workspace holds no contacts store.\n" "$crId" ; return 3 ; }
+	AgentsToolsContactsPersonRead "$contactsPersons/$crId.md" 2> /dev/null || { printf "'contact:%s' names no contact this workspace holds, so it names nowhere.\n" "$crId" ; return 3 ; }
+	for crMember in $( printf '%s' "$crReached" | LC_ALL=C tr ',' ' ' ) ; do
+		case "$crMember" in client-*) break ;; esac
+		crMember=""
+	done
+	[ -n "$crMember" ] || { printf "'contact:%s' names no client-* member to reach it by, so it names no other organisation: record one with DistroAgentsContacts.fn.sh --collect-contact --id %s --reached-by <client-member>.\n" "$crId" "$crId" ; return 3 ; }
+	crAddress="$( AgentsToolsCommsContactAddress "$crId" )" || return 3
+	printf '%s\t%s\n' "$crMember" "$crAddress"
+}
+
 ## Resolves alias|<channel>|<channel>:<ts> to CHANNEL= + THREAD_TS=; shared by every op taking a target.
 ## client:<addressee> names a conversation or a person on the other organisation's side of a
 ## client-* member, by id, with or without :<ts>: the marker stays on CHANNEL, so whatever
@@ -109,6 +152,18 @@ DistroAgentsToolsResolveTargetFresh(){ ## address, acting member (optional)
 	fi
 	## The full pointer a Wait shows, `slack:<conversation>[:<ts>]`, is the address as it stands: its driver word comes off first.
 	case "$target" in slack:*) target="${target#slack:}" ;; esac
+	## A CONTACT, `contact:<id>`, WITH OR WITHOUT `:<ts>`: the contact's own conversation on the other
+	## organisation's side, which is its record's Slack coordinate. A ts after it names the message there.
+	## The record holds the address; the acting member must be the client-* member that reaches it.
+	case "$target" in
+		contact:?*)
+			local contactRest="${target#contact:}" contactTs="" contactAddr="" contactRc=0
+			case "$contactRest" in *:*) contactTs="${contactRest#*:}" ; contactRest="${contactRest%%:*}" ;; esac
+			contactAddr="$( AgentsToolsCommsContactAddress "$contactRest" )" || contactRc=$?
+			[ "$contactRc" = 0 ] || { printf '%s\n' "$contactAddr" ; return 3 ; }
+			target="${contactAddr}${contactTs:+:$contactTs}"
+		;;
+	esac
 	case "$target" in
 		client:client:*) return 2 ;;
 		client:*) clientMark="client:" ; target="${target#client:}" ;;

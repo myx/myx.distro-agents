@@ -8,6 +8,8 @@
 ##   5. A SUCCESS clears the count and the hold, as the start's own success path does.
 ##   6. A HOLD PAST ITS MINUTES is lifted, with the count, so the next start is a fresh streak.
 ##   7. THE HOLD IS AGED ON THE PASS CLOCK, as the ten-minute hold of a start is: dated at a pass instant, it holds for its minutes of pass time.
+##   8. A FILING THE TOOLING REFUSED MAKES NO HOLD, AND THE NEXT FAILURE FILES IT AGAIN: a key never reads as held while the
+##      coordinator was told nothing, and a refusal does not spend the escalation.
 ## The inquiry's filing is replaced by a function of this check's own, so nothing is posted or written to any inbox.
 ## Red before the change: the functions are not defined, so every row fails.
 ## Offline: a rig workspace under this check's temp tree.
@@ -122,6 +124,26 @@ python3 -I -B -c 'import os, sys; e = int(sys.argv[1]); os.utime(sys.argv[2], (e
 rigAssert "dated at the pass instant, the key is held a minute of pass time later" "$( agentsSchedulePassNow=$(( rigPassAt + 60 )) ; rigHeld )" "held"
 rigAssert "and still at 359 minutes of pass time" "$( agentsSchedulePassNow=$(( rigPassAt + 359 * 60 )) ; rigHeld )" "held"
 rigAssert "control: past its 360 minutes of pass time it is free, the count gone with it" "$( agentsSchedulePassNow=$(( rigPassAt + 361 * 60 )) ; rigHeld ):$( rigCount )" "free:none"
+
+echo "-- 8. a refused filing holds nothing, and the next failure files again --"
+rm -f "$rigStore/$rigKey.fails" "$rigStore/$rigKey.escalated"
+## THE FILING, answered by this rig: the status its caller has to read, and how many times it was attempted.
+rigFilingRc=1
+rigAttempts=0
+AgentsToolsScheduleStartEscalate(){ ## key, failures in a row, the last failure's words
+	rigAttempts=$(( rigAttempts + 1 ))
+	return "$rigFilingRc"
+}
+AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure" ; AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure"
+AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure"
+rigAssert "a refused filing leaves the key unheld" "$( rigHeld )" "free"
+rigAssert "and it was tried once" "$rigAttempts" "1"
+AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure"
+rigAssert "the next failure files it again" "$rigAttempts" "2"
+rigAssert "and the key is still unheld" "$( rigHeld )" "free"
+rigFilingRc=0
+AgentsToolsScheduleStartFailed "$rigKey" "$rigFailure"
+rigAssert "control: a filing that lands holds the key" "$( rigHeld )" "held"
 
 export MMDAPP="$rigReal"
 if [ "$rigFailCount" -ne 0 ] ; then

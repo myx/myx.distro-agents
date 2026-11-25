@@ -14,6 +14,9 @@
 ## removes it, at its outermost give. So a locked span may call another locked step without waiting on itself, and a child shell that
 ## inherited the hold never frees its parent's lock. Every take is paired with a give on every path out of its span.
 ##
+## Fair to a waiter. A taker that must wait leaves a marker, store.want.<pid>, in the lock's folder. A taker that finds a live marker
+## holds back up to two seconds, so a writer that polls once a second is not starved by a process that takes the lock again at once.
+##
 
 teamStoreLockPath=""
 teamStoreLockDepth=0
@@ -67,7 +70,7 @@ AgentsToolsTeamDataStoreLockBreak(){ ## lock path, the holder this call read
 ## write into such a store lands as it did before. rc 1 not held: a live holder kept it for the whole wait.
 AgentsToolsTeamDataStoreLockTake(){ ## tries, label
 	local takeTries="${1:-300}" takeLabel="${2:-the team-data store}" takeTry=0
-	local takeLock="" takeHolder="" takeMade="" takeNoClobber=""
+	local takeLock="" takeHolder="" takeMade="" takeNoClobber="" takeMarker="" takeMarkerPid="" takeWanted="" takeHold=0 takeWant=""
 	if [ "${teamStoreLockDepth:-0}" -gt 0 ] ; then
 		teamStoreLockDepth=$(( teamStoreLockDepth + 1 ))
 		return 0
@@ -80,6 +83,18 @@ AgentsToolsTeamDataStoreLockTake(){ ## tries, label
 	fi
 	takeLock="$teamStoreLockDir/store.lock"
 	[ -d "$teamStoreLockDir" ] || mkdir -p "$teamStoreLockDir" 2> /dev/null || return 1
+	## A live waiter's marker holds this taker back, up to two seconds. A marker whose process is gone is removed.
+	while [ "$takeHold" -lt 2 ] ; do
+		takeWanted=""
+		for takeMarker in "$teamStoreLockDir"/store.want.* ; do
+			[ -e "$takeMarker" ] || continue
+			takeMarkerPid="${takeMarker##*.}"
+			if kill -0 "$takeMarkerPid" 2> /dev/null ; then takeWanted="yes" ; else rm -f "$takeMarker" 2> /dev/null ; fi
+		done
+		[ -n "$takeWanted" ] || break
+		takeHold=$(( takeHold + 1 ))
+		sleep 1
+	done
 	case "$-" in *C*) takeNoClobber="yes" ;; *) set -C ;; esac
 	while [ "$takeTry" -lt "$takeTries" ] ; do
 		takeTry=$(( takeTry + 1 ))
@@ -90,12 +105,14 @@ AgentsToolsTeamDataStoreLockTake(){ ## tries, label
 			teamStoreLockMine=1
 			teamStoreLockDepth=1
 			[ -n "$takeNoClobber" ] || set +C
+			[ -z "$takeWant" ] || rm -f "$teamStoreLockDir/store.want.$$" 2> /dev/null
 			return 0
 		fi
 		{ IFS= read -r takeHolder < "$takeLock" || [ -n "$takeHolder" ] ; } 2> /dev/null || takeHolder=""
 		if [ "$takeHolder" = "$$" ] ; then
 			teamStoreLockPath="$takeLock"
 			teamStoreLockDepth=1
+			[ -z "$takeWant" ] || rm -f "$teamStoreLockDir/store.want.$$" 2> /dev/null
 			return 0
 		fi
 		case "$takeHolder" in
@@ -110,9 +127,13 @@ AgentsToolsTeamDataStoreLockTake(){ ## tries, label
 			;;
 		esac
 		[ "$takeTry" -lt "$takeTries" ] || break
+		if [ -z "$takeWant" ] ; then
+			{ : > "$teamStoreLockDir/store.want.$$" ; } 2> /dev/null && takeWant="yes"
+		fi
 		sleep 1
 	done
 	[ -n "$takeNoClobber" ] || set +C
+	[ -z "$takeWant" ] || rm -f "$teamStoreLockDir/store.want.$$" 2> /dev/null
 	echo "⚠️ WARNING: ${MDSC_CMD:-the tooling}: $takeLabel: the store lock stayed held by $( cat "$takeLock" 2> /dev/null ) for ${takeTries}s: $( ps -o args= -p "$takeHolder" 2> /dev/null | cut -c1-160 )" >&2
 	return 1
 }

@@ -9,9 +9,13 @@
 		## --from-reflection <reflection-file>: the lesson this inquiry files came from a reflection of the filing member's own inbox, and
 		## filing it is that reflection's exit -- the reflection is marked processed in the same call, after the inquiry is written.
 		local inquiryReflection="" inquiryReflectionNext="" inquiryArgs=()
+		## --from-comment <service>:<page-or-file>:<comment-id>: the page comment this inquiry files from, and the record of it
+		## in the filing member's waterkmark note, which stops a repeat pass filing the same comment twice.
+		local inquiryComment="" inquiryCommentNext=""
 		for inquiryArg in "$@" ; do
 			[ -z "$inquiryNext" ] || { inquiryFrom="$inquiryArg" ; inquiryNext="" ; inquiryArgs+=( "$inquiryArg" ) ; continue ; }
 			[ -z "$inquiryReflectionNext" ] || { inquiryReflection="$inquiryArg" ; inquiryReflectionNext="" ; continue ; }
+			[ -z "$inquiryCommentNext" ] || { inquiryComment="$inquiryArg" ; inquiryCommentNext="" ; continue ; }
 			case "$inquiryArg" in
 				--edit-patch-from-stdin)
 					echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: --edit-patch-from-stdin is not taken -- an inquiry is filed whole, never patched -- nothing was written" >&2
@@ -19,12 +23,17 @@
 				;;
 				--from-member) inquiryNext=1 ; inquiryArgs+=( "$inquiryArg" ) ;;
 				--from-reflection) inquiryReflectionNext=1 ;;
+				--from-comment) inquiryCommentNext=1 ;;
 				--reply) inquiryArgs+=( "--reply-requested" ) ;;
 				*) inquiryArgs+=( "$inquiryArg" ) ;;
 			esac
 		done
 		if [ -n "$inquiryReflectionNext" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: --from-reflection takes a reflection file name -- nothing was done" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$inquiryCommentNext" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: --from-comment takes <service>:<page-or-file>:<comment-id> -- nothing was done" >&2
 			set +e ; return 1
 		fi
 		set -- ${inquiryArgs[@]+"${inquiryArgs[@]}"}
@@ -65,10 +74,10 @@
 		esac
 		## In an emergency a member target stays direct: no detour through the coordinator (AgentsToolsEmergencyHolds); an alias still resolves.
 		case "$inquiryTarget" in @*|*,*) ;; *) { type AgentsToolsEmergencyHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Emergency.include"; } ; ! AgentsToolsEmergencyHolds || inquiryRouted="" ;; esac
-		## The target is spent here either way: shift only on the reroute left a plain member target to be read again as the item filename.
-		shift
+		## The target stays the first word, the member the write names. A reroute puts the place it routes to in the target's stead.
 		if [ -n "$inquiryRouted" ] && [ "$inquiryRouted" != "$inquiryTarget" ] ; then
 			echo "# $MDSC_CMD --upsert-inbox-inquiry: routed to $inquiryRouted, not $inquiryTarget: an inquiry goes to one place, the coordinator by default; a member is written to directly only as the reply to its own inquiry, or as a domain owner." >&2
+			shift
 			set -- "$inquiryRouted" "$@"
 		fi
 		## The reflection is checked before anything is written: a bare name of a reflection still in the filing member's own incoming/.
@@ -85,6 +94,116 @@
 				echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: $inquiryReflection is not an unprocessed reflection in ${inquiryFrom:-the filing member}'s own inbox -- nothing was done" >&2
 				set +e ; return 1
 			fi
+		fi
+		## A COMMENT IS READ BEFORE ANYTHING IS WRITTEN: the item's title carries its id, a reply is never filed, and the filed
+		## comment is recorded in the filing member's watermark note, so a repeat pass files nothing.
+		local inquiryCommentFile="" inquiryCommentComposed="" inquiryCommentNote=""
+		if [ -n "$inquiryComment" ] ; then
+			local inquiryCommentService inquiryCommentPage inquiryCommentId inquiryCommentColons=""
+			local inquiryCommentSource="" inquiryCommentNextSource="" inquiryCommentArg="" inquiryCommentTitle=""
+			local inquiryCommentKey="" inquiryCommentRows="" inquiryCommentReadRc=0 inquiryCommentRow=""
+			local inquiryCommentParent="" inquiryCommentAuthor="" inquiryCommentBody="" inquiryCommentCreated=""
+			local inquiryCommentArgs=() inquiryCommentWanted="" inquiryCommentSawFile=""
+			inquiryCommentColons="${inquiryComment//[^:]/}"
+			if [ "$inquiryCommentColons" != "::" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: --from-comment takes <service>:<page-or-file>:<comment-id>, and $inquiryComment is not that -- nothing was done" >&2
+				set +e ; return 1
+			fi
+			inquiryCommentService="${inquiryComment%%:*}"
+			inquiryCommentPage="${inquiryComment#*:}" ; inquiryCommentPage="${inquiryCommentPage%%:*}"
+			inquiryCommentId="${inquiryComment##*:}"
+			case "$inquiryCommentService" in
+				confluence) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: --from-comment reads a comment through the read of its own service, and $inquiryCommentService has none -- nothing was done" >&2
+					set +e ; return 1
+				;;
+			esac
+			## THE CALLER'S OWN ITEM GIVES THE TITLE, and the title carries the comment id: two comments of one wording stay two items.
+			for inquiryCommentArg in "$@" ; do
+				if [ -n "$inquiryCommentNextSource" ] ; then inquiryCommentSource="$inquiryCommentArg" ; break ; fi
+				case "$inquiryCommentArg" in --from-file) inquiryCommentNextSource=1 ;; esac
+			done
+			if [ -z "$inquiryCommentSource" ] ; then
+				mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
+				inquiryCommentFile="$( mktemp "$MMDAPP/.local/temp/mdat-inquiry-comment-item.XXXXXX" 2> /dev/null )" || inquiryCommentFile=""
+				if [ -z "$inquiryCommentFile" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: --from-comment needs the item that carries the comment id, and a temp file for it could not be made -- nothing was done" >&2
+					set +e ; return 1
+				fi
+				cat > "$inquiryCommentFile" || {
+					rm -f "$inquiryCommentFile"
+					echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: --from-comment needs the item that carries the comment id on stdin, and it could not be read -- nothing was done" >&2
+					set +e ; return 1
+				}
+				inquiryCommentSource="$inquiryCommentFile"
+			fi
+			inquiryCommentTitle="$( LC_ALL=C awk '/^# / { print substr( $0, 3 ) ; exit ; }' "$inquiryCommentSource" 2> /dev/null )" || inquiryCommentTitle=""
+			case "$inquiryCommentTitle" in
+				*"$inquiryCommentId"*) ;;
+				*)
+					[ -z "$inquiryCommentFile" ] || rm -f "$inquiryCommentFile"
+					echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: the item's title must carry the comment id $inquiryCommentId, so two comments of one wording stay two items, and it reads '${inquiryCommentTitle}' -- nothing was done" >&2
+					set +e ; return 1
+				;;
+			esac
+			inquiryCommentKey="$inquiryCommentService:$inquiryCommentPage:$inquiryCommentId"
+			type AgentsToolsInboxNotePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+			inquiryCommentNote="$( AgentsToolsInboxNotePath "$inquiryFrom" note-20261008T000000Z-doc-comments-state-and-lock.md )" || inquiryCommentNote=""
+			if [ -z "$inquiryCommentNote" ] ; then
+				[ -z "$inquiryCommentFile" ] || rm -f "$inquiryCommentFile"
+				echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: the doc-comments state and lock note of ${inquiryFrom:-the filing member} has no place, so nothing records what is filed -- nothing was done" >&2
+				set +e ; return 1
+			fi
+			if [ -f "$inquiryCommentNote" ] && LC_ALL=C grep -q -x -F -e "$inquiryCommentKey" "$inquiryCommentNote" 2> /dev/null ; then
+				[ -z "$inquiryCommentFile" ] || rm -f "$inquiryCommentFile"
+				echo "# $MDSC_CMD --upsert-inbox-inquiry: $inquiryCommentKey is filed already, and ${inquiryCommentNote##*/} records it -- nothing was filed" >&2
+				return 0
+			fi
+			type DistroAgentsAtlassian > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsAtlassian.fn.sh"
+			inquiryCommentRows="$( DistroAgentsAtlassian --confluence-comment-read --team-member "$inquiryFrom" "$inquiryCommentPage" --inline 2>&1 )" || inquiryCommentReadRc=$?
+			if [ "$inquiryCommentReadRc" != 0 ] ; then
+				[ -z "$inquiryCommentFile" ] || rm -f "$inquiryCommentFile"
+				echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: the comments of page $inquiryCommentPage could not be read as $inquiryFrom: $inquiryCommentRows -- nothing was done" >&2
+				set +e ; return 1
+			fi
+			inquiryCommentRow="$( printf '%s\n' "$inquiryCommentRows" | LC_ALL=C awk -F '\t' -v id="$inquiryCommentId" '$1 == id { print ; exit ; }' )"
+			if [ -z "$inquiryCommentRow" ] ; then
+				[ -z "$inquiryCommentFile" ] || rm -f "$inquiryCommentFile"
+				echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: $inquiryCommentId is not a comment on page $inquiryCommentPage -- nothing was done" >&2
+				set +e ; return 1
+			fi
+			inquiryCommentParent="$( printf '%s\n' "$inquiryCommentRow" | LC_ALL=C awk -F '\t' '{ print ( NF >= 8 ? $NF : "" ) }' )"
+			if [ -n "$inquiryCommentParent" ] ; then
+				[ -z "$inquiryCommentFile" ] || rm -f "$inquiryCommentFile"
+				echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: $inquiryCommentId answers another comment, $inquiryCommentParent, and a reply is never filed as an inquiry of its own -- file the comment it answers -- nothing was done" >&2
+				set +e ; return 1
+			fi
+			inquiryCommentAuthor="$( printf '%s\n' "$inquiryCommentRow" | LC_ALL=C awk -F '\t' '{ print $2 }' )"
+			inquiryCommentCreated="$( printf '%s\n' "$inquiryCommentRow" | LC_ALL=C awk -F '\t' '{ print $3 }' )"
+			inquiryCommentBody="$( printf '%s\n' "$inquiryCommentRow" | LC_ALL=C awk -F '\t' '{ print $4 }' )"
+			## THE COMMENT'S OWN BODY IS THE INQUIRY'S TEXT, under the caller's title, with its author named.
+			mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
+			inquiryCommentComposed="$( mktemp "$MMDAPP/.local/temp/mdat-inquiry-comment.XXXXXX" 2> /dev/null )" || inquiryCommentComposed=""
+			if [ -z "$inquiryCommentComposed" ] ; then
+				[ -z "$inquiryCommentFile" ] || rm -f "$inquiryCommentFile"
+				echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: --from-comment composes the inquiry before it is written, and a temp file for it could not be made -- nothing was done" >&2
+				set +e ; return 1
+			fi
+			printf '# %s\n\n%s\n\nComment %s of page %s, by %s, created %s.\n' "$inquiryCommentTitle" "$inquiryCommentBody" "$inquiryCommentId" "$inquiryCommentPage" "$inquiryCommentAuthor" "$inquiryCommentCreated" > "$inquiryCommentComposed" || {
+				rm -f "$inquiryCommentComposed"
+				[ -z "$inquiryCommentFile" ] || rm -f "$inquiryCommentFile"
+				echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: the inquiry of comment $inquiryCommentId could not be composed -- nothing was done" >&2
+				set +e ; return 1
+			}
+			for inquiryCommentArg in "$@" ; do
+				if [ -n "$inquiryCommentWanted" ] ; then inquiryCommentArgs+=( "$inquiryCommentComposed" ) ; inquiryCommentWanted="" ; continue ; fi
+				case "$inquiryCommentArg" in --from-file) inquiryCommentWanted=1 ; inquiryCommentSawFile=1 ;; esac
+				inquiryCommentArgs+=( "$inquiryCommentArg" )
+			done
+			[ -z "$inquiryCommentWanted" ] || inquiryCommentArgs+=( "$inquiryCommentComposed" )
+			[ -n "$inquiryCommentSawFile" ] || inquiryCommentArgs+=( "--from-file" "$inquiryCommentComposed" )
+			set -- ${inquiryCommentArgs[@]+"${inquiryCommentArgs[@]}"}
 		fi
 		## ONE SUBJECT, ONE OPEN INQUIRY (the human-owner: match, then append): where the target's open inbox holds an inquiry from the same
 		## sender whose title shares 0.7 or more of its words with this one's, the new text is appended to it under a dated heading instead
@@ -145,11 +264,29 @@
 		## The merge notice is said only where the write is stored: a merge the gate refuses says the filing is not stored, never that it was appended.
 		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --upsert-inbox-inquiry || {
 			[ -z "$inquiryMerged" ] || rm -f "$inquiryMerged"
+			[ -z "$inquiryCommentComposed" ] || rm -f "$inquiryCommentComposed"
+			[ -z "$inquiryCommentFile" ] || rm -f "$inquiryCommentFile"
 			[ -z "$inquiryMerged" ] || echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: ${inquiryFiledName:-the filing} is not stored: the write that would have appended it to $inquirySame in $1's inbox, the open inquiry from $inquiryFrom on the same subject, is refused -- nothing was written" >&2
 			set +e ; return 1
 		}
 		[ -z "$inquiryMerged" ] || rm -f "$inquiryMerged"
 		[ -z "$inquiryMerged" ] || echo "# $MDSC_CMD --upsert-inbox-inquiry: appended to $inquirySame in $1's inbox, the open inquiry from $inquiryFrom on the same subject, instead of a second item $inquiryFiledName." >&2
+		## THE FILED COMMENT IS RECORDED WHERE THE NEXT PASS READS IT, once the inquiry has landed.
+		if [ -n "$inquiryComment" ] ; then
+			mkdir -p "${inquiryCommentNote%/*}" 2> /dev/null
+			if [ ! -f "$inquiryCommentNote" ] ; then
+				printf -- '---\ntype: note\nfrom: %s\ndate: %s\n---\n# Comments filed from pages\n\nEach line names one comment already filed as an inquiry: <service>:<page-or-file>:<comment-id>.\n' "$inquiryFrom" "$( date '+%Y-%m-%d %H:%M %z' )" > "$inquiryCommentNote" || {
+					echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: ${2:-the inquiry} is filed, but ${inquiryCommentNote##*/} could not be written, so a repeat pass would file $inquiryCommentKey again -- write it by hand" >&2
+					set +e ; return 1
+				}
+			fi
+			printf '%s\n' "$inquiryCommentKey" >> "$inquiryCommentNote" || {
+				echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: ${2:-the inquiry} is filed, but ${inquiryCommentNote##*/} could not be written, so a repeat pass would file $inquiryCommentKey again -- write it by hand" >&2
+				set +e ; return 1
+			}
+		fi
+		[ -z "$inquiryCommentComposed" ] || rm -f "$inquiryCommentComposed"
+		[ -z "$inquiryCommentFile" ] || rm -f "$inquiryCommentFile"
 		if [ -n "$inquiryReflection" ] ; then
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			DistroAgentsTools --intern-op-inbox-to-processed "$inquiryFrom" "$inquiryReflection" \

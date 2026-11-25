@@ -17,10 +17,15 @@
 ##
 ## The file: schedule/owed/<member>, one line an owed reply: `<epoch>\t<reply address>\t<user>\t<first 120 characters>`.
 
-AgentsToolsOwedRepliesFile(){ ## member -- sets owedFile, makes the folder; rc 1 for no workspace or a bad name
-	case "${1:-}" in ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 1 ;; esac
+## The path of a member's owed store into the variable, with no folder made. rc 1 for no workspace or a bad name.
+AgentsToolsOwedRepliesPathInto(){ ## out variable, member
+	case "${2:-}" in ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 1 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 1
-	owedFile="$MMDAPP/.local/agents/schedule/owed/$1"
+	printf -v "$1" '%s' "$MMDAPP/.local/agents/schedule/owed/$2"
+}
+
+AgentsToolsOwedRepliesFile(){ ## member -- sets owedFile and makes the folder. rc 1 for no workspace or a bad name
+	AgentsToolsOwedRepliesPathInto owedFile "${1:-}" || return 1
 	mkdir -p "${owedFile%/*}" 2> /dev/null || return 1
 }
 
@@ -33,6 +38,7 @@ AgentsToolsOwedRepliesNote(){ ## member, now (epoch)
 		BEGIN { while ( ( getline line < known ) > 0 ) { split( line, f, "\t" ) ; have[f[2]] = 1 ; } close( known ) ; }
 		/^[0-9]+\.[0-9]+ \| [^|]+ \| / {
 			if ( index( $0, "[tracking:" ) || index( $0, "[author-run:" ) || index( $0, "[addressee-run:" ) || index( $0, "[sender:" ) ) next
+			if ( $0 ~ /\| (\[[^]]*\] )*:[a-z0-9_+-]+: \*?_?[a-z][a-z0-9-]*_?\*? @[a-z0-9]+( \([^)]*\))? → / ) next
 			if ( !match( $0, /\[reply-to: [a-z]+:[^]]+\]/ ) ) next
 			key = substr( $0, RSTART + 11, RLENGTH - 12 )
 			if ( key in have ) next
@@ -69,4 +75,42 @@ AgentsToolsOwedRepliesPrint(){ ## member, now (epoch)
 		( now - $1 ) >= after { n++ ; lines = lines sprintf( "- %dm %s %s: %s\n", ( now - $1 ) / 60, $2, $3, $4 ) ; }
 		END { if ( n ) printf "OWED REPLIES: %d, each answered in its own thread, at the address shown; a send elsewhere does not close it\n%s", n, lines ; }'
 	return 0
+}
+
+## The newest owed reply, as `<channel>:<ts>`, into the variable. No fork. Filters: channel, user, age in seconds. rc 1 for none.
+AgentsToolsOwedRepliesNewest(){ ## out variable, member, channel, user, max age (0 for none), now (epoch)
+	local owedStoreFile="" owedLineEpoch owedLineKey owedLineUser owedLineText owedKeyRest owedKeyChannel owedKeyTs
+	local owedBestKey="" owedBestEpoch=-1 owedBadKeys="" owedMaxAge="${5:-}" owedNowEpoch="${6:-}"
+	AgentsToolsOwedRepliesPathInto owedStoreFile "${2:-}" || return 1
+	[ -s "$owedStoreFile" ] || return 1
+	case "$owedMaxAge" in ''|*[!0123456789]*) owedMaxAge=0 ;; esac
+	if [ "$owedMaxAge" -gt 0 ] ; then
+		case "$owedNowEpoch" in ''|*[!0123456789]*) owedNowEpoch="$( date +%s )" ;; esac
+	fi
+	while IFS=$'\t' read -r owedLineEpoch owedLineKey owedLineUser owedLineText ; do
+		case "$owedLineKey" in slack:*) ;; *) continue ;; esac
+		owedKeyRest="${owedLineKey#slack:}" ; owedKeyChannel="${owedKeyRest%%:*}" ; owedKeyTs="${owedKeyRest#*:}"
+		case "$owedKeyChannel:$owedKeyTs" in
+			*[![:upper:][:digit:]:.]*|:*|*:|.*|*:.*|*.|*.*.*|*:*:*|*:*[[:upper:]]*) owedKeyTs="" ;;
+			*.*) ;;
+			*) owedKeyTs="" ;;
+		esac
+		if [ -z "$owedKeyTs" ] ; then
+			echo "WARNING: the owed store of $2 held the line $owedLineKey, which is not slack:<channel>:<ts>, so it is dropped" >&2
+			owedBadKeys="$owedBadKeys$owedLineKey"$'\n'
+			continue
+		fi
+		[ -z "${3:-}" ] || [ "$owedKeyChannel" = "$3" ] || continue
+		[ -z "${4:-}" ] || [ "$owedLineUser" = "$4" ] || continue
+		case "$owedLineEpoch" in ''|*[!0123456789]*) continue ;; esac
+		[ "$owedMaxAge" -eq 0 ] || [ $(( owedNowEpoch - 10#$owedLineEpoch )) -le "$owedMaxAge" ] || continue
+		if [ $(( 10#$owedLineEpoch )) -ge "$owedBestEpoch" ] ; then
+			owedBestEpoch=$(( 10#$owedLineEpoch )) ; owedBestKey="$owedLineKey"
+		fi
+	done < "$owedStoreFile"
+	if [ -n "$owedBadKeys" ] ; then
+		OWED_BAD_KEYS="$owedBadKeys" LC_ALL=C awk -F'\t' 'BEGIN { n = split( ENVIRON["OWED_BAD_KEYS"], bad, "\n" ) ; for ( i = 1 ; i <= n ; i++ ) drop[bad[i]] = 1 ; } !( $2 in drop )' "$owedStoreFile" > "$owedStoreFile.tmp" 2> /dev/null && mv -f "$owedStoreFile.tmp" "$owedStoreFile" 2> /dev/null || rm -f "$owedStoreFile.tmp"
+	fi
+	[ -n "$owedBestKey" ] || return 1
+	printf -v "$1" '%s' "${owedBestKey#slack:}"
 }

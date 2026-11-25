@@ -200,7 +200,7 @@ Every `magic-tooling` operation this team-member uses. Behaviour is read with `-
 
 ## Tooling operations
 
-- `--upsert-inbox-inquiry <team-member> <item-filename>` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <target-member> <item-filename>` (`DistroAgentsItems`)
 
 # Maintainer Notes
 

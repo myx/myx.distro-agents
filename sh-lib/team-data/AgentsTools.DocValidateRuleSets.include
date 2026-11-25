@@ -15,6 +15,8 @@
 type AgentsToolsRoutineRequirement > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineRequirements.include"
 ## The row every rule set prints, from the functions every kind shares.
 type AgentsToolsDocValidateRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
+## The one parse of a routine's `executors:` value, so an entry is read here as a start reads it.
+type AgentsToolsRoutineExecutorsMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.RoutineExecutors.include"
 
 ## The line of a frontmatter key in a file; 1 where the key is not there.
 AgentsToolsDocValidateKeyLine(){ ## file, key
@@ -180,7 +182,7 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	## `all-present-members` in invitees alone): each entry is read as the spawner reads it, so a `<type>-*` or a
 	## `<type>-?` that names no member (fail on NONE) is said here, before a start would fail on it, and
 	## `all-present-members` is refused where it is no participants' word.
-	local routineEntry routineEntryRoster routineEntryReason routineEntryType routineInvKeyLine routineEntryNearest
+	local routineEntry routineEntryReason routineEntryType routineInvKeyLine routineEntryNearest
 	for routineKeyName in executors invitees maintainers ; do
 		case "$routineKeyName" in
 			executors) routineLine="$routineEffectiveExec" ; routineKeyLine="$routineExecLine" ;;
@@ -189,7 +191,9 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 		esac
 		[ -n "$routineLine" ] || continue
 		case "$routineLine" in ''|none) continue ;; esac
-		for routineEntry in ${routineLine//,/ } ; do
+		## Each name is read as the validator has always read it, on a comma or a space, and each entry's own
+		## parenthetical is set aside by the one parse first, so no parameter ever reaches a member test.
+		while IFS= read -r routineEntry ; do
 			case "$routineEntry" in ''|'*'|'magic-team'|'human-owner') continue ;; esac
 			if [ "$routineEntry" = "all-present-members" ] ; then
 				[ "$routineKeyName" = "invitees" ] || AgentsToolsDocValidateRow "$routineShown" "$routineKeyLine" "$routineKeyName" "$routineKeyName: all-present-members is a participants' word, and executors names members -- name the members, or <type>-* for all of a type"
@@ -214,7 +218,7 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 					AgentsToolsDocValidateRow "$routineShown" "$routineKeyLine" "$routineKeyName" "$routineKeyName: $routineEntry names no member of the type $routineEntryType on any workspace of this machine (fail on NONE) -- name the members instead, or write a <type>-* whose type has members"
 				;;
 			esac
-		done
+		done <<< "$( AgentsToolsRoutineExecutorsMembers "$routineLine" | LC_ALL=C tr ' ' '\n' )"
 	done
 	## The requirements, asked of the one evaluator at this site, its key already read above.
 	for routineKeyName in requires-session-kind tracking-item start-context review-by deliverables ; do
@@ -348,6 +352,12 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 		esac
 		printf '%s\n' "$routineRunsTime" | LC_ALL=C grep -q -E '^([01][0-9]|2[0-3]):[0-5][0-9]$' || routineRunsOk="no"
 		[ "$routineRunsOk" = "yes" ] || AgentsToolsDocValidateRow "$routineShown" "$routineRunsAtLine" runs-at "runs-at: $routineRunsAt is not none or <days> <HH:MM>, days being workdays, weekend, daily or a list such as mon,thu"
+		## A runs-at beside an executors the autorun skips starts nothing: AgentsToolsScheduleAutorun starts no routine whose
+		## executors is magic-team, * or empty, because it cannot choose which member starts a multi-member routine. The pairing
+		## is refused here, so the author is told rather than finding a schedule that runs nothing.
+		case "$routineEffectiveExec" in
+			''|magic-team|'*') AgentsToolsDocValidateRow "$routineShown" "$routineRunsAtLine" runs-at "runs-at: $routineRunsAt beside executors: ${routineEffectiveExec:-empty} starts nothing: the autorun starts no routine whose executors is magic-team, * or empty, since it cannot choose the member that starts a multi-member routine -- name the one member that starts it, or write runs-at: none" ;;
+		esac
 	fi
 	case "$routineRunsAfter" in
 		''|*[[:space:]]*|*,*) [ -z "$routineRunsAfter" ] || AgentsToolsDocValidateRow "$routineShown" "$routineRunsAfterLine" runs-after "runs-after: $routineRunsAfter is not one routine" ;;

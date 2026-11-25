@@ -22,6 +22,12 @@ if ! type AgentsToolsMagicCallerCheck >/dev/null 2>&1 ; then
 		local checkActing
 		checkActing="$( AgentsToolsActingMember )"
 		[ -n "$checkActing" ] && [ "$checkActing" != magic-coordinator ] || return 0
+		## THE DOCUMENTS ARE THE LIBRARIAN'S, AND THE TICKETS ARE EVERY MEMBER'S (the owner's ruling): the librarian writes the pages and the
+		## page comments, and posts the Trello comment; every member actualises the Jira state of an item it moves. The rest stays the coordinator's.
+		case "$checkActing:$1" in
+			*:jira-issue-transition|*:jira-issue-update|*:jira-comment-add) return 0 ;;
+			magic-librarian:confluence-page-create|magic-librarian:confluence-page-update|magic-librarian:confluence-page-move|magic-librarian:confluence-comment-add|magic-librarian:trello-post-comment) return 0 ;;
+		esac
 		echo "$MDSC_CMD: $1: ⛔ ERROR: this session acts as $checkActing, and $1 is magic-coordinator's only -- nothing was done: ask the session's magic-coordinator, which owns it, to run it.$( AgentsToolsCallerRefusalId "$checkActing" "$1" "magic-coordinator's only" )" >&2
 		return 1
 	}

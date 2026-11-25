@@ -1,13 +1,15 @@
 #!/usr/bin/env awk
 ## Which events of one comms source a reader must be handed (S1.12 stage 2, item 12). Reads one source's `YYYYMM/events.txt`, the
 ## file argument, and prints:
-##   MSG <TAB> <event id> <TAB> <message id> <TAB> <channel> <TAB> <the message's own minute, YYYYMMDD'T'HHmm'Z'> <TAB> <text>
+##   MSG <TAB> <event id> <TAB> <message id> <TAB> <channel> <TAB> <the message's own minute, YYYYMMDD'T'HHmm'Z'> <TAB> <thread root ts> <TAB> <author> <TAB> <text>
 ##   LAST <TAB> <the greatest event id in the file>
 ## A message qualifies when its event sorts after the pointer, its kind is `msg` or `edit`, its author is not the reader, and either
 ## the source is a direct conversation the reader is party to or its text carries `<@the reader's id>`. The tag is tested on the raw
 ## column, before any escape is undone, because Slack's own text holds it as `<@U…>`.
 ## -v target is the source's own target, `<channel>:<ts>` or `D…`. -v dir names the month folder a long body's file sits in.
 ## THE TEXT IS PRINTED STILL ESCAPED, as the store keeps it: `\037` a newline, `\036` a TAB. One event is one physical line here, so
+## THE THREAD ROOT is the row's own thread_ts (column 10). A top-level message prints `-`, and so does an empty author, so a tab-split read never collapses fields.
+## An `edit` row takes the root of the `msg` row of the same message in the same file.
 ## the caller reads it whole by a line, and it is the caller that undoes the escapes where a body is written. LC_ALL=C.
 
 function stamp(ts,   ms, dayCount, secOfDay, eraValue, dayOfEra, yearOfEra, yearValue, dayOfYear, monthPrime, dayValue, monthValue) {
@@ -44,6 +46,7 @@ BEGIN {
 NF < 16 { next ; }
 
 {
+	if ($2 == "msg" && $10 ~ /^[0-9]+\.[0-9]+$/) rootOf[$3] = $10
 	if (greatest == "" || $1 > greatest) greatest = $1
 	if ($1 <= pointer) next
 	if ($2 != "msg" && $2 != "edit") next
@@ -56,7 +59,9 @@ NF < 16 { next ; }
 		text = esc(text)
 	}
 	if (!direct && index(text, "<@" myId ">") == 0) next
-	printf "MSG\t%s\t%s\t%s\t%s\t%s\n", $1, $3, channel, stamp($3), text
+	root = $10
+	if (root !~ /^[0-9]+\.[0-9]+$/) root = ($3 in rootOf) ? rootOf[$3] : "-"
+	printf "MSG\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", $1, $3, channel, stamp($3), root, ($4 == "" ? "-" : $4), text
 }
 
 END {

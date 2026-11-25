@@ -11,6 +11,8 @@
 ## Also who may send: a spawned session acts only as itself through a --member-* op (send,
 ## react, email, wait, digest) and reads no config scope, the tooling's --intern-op-* form
 ## names any member, and the --magic-* form is the coordinator's.
+## Also the identity swap in both directions, once: a bot post Slack cannot place is retried under the member's own account, with its thread parent seen there.
+## No ping-pong when both fail, no swap on the client side. Slack answers come from the fake curl.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -212,6 +214,45 @@ rigAssert "--member-config-option is no member op: refused, printing no credenti
 	"$( printf '%s\n' "$rigScopeOut" | LC_ALL=C grep -c 'rig-user-token-KEEPER' ):$( printf '%s\n' "$rigScopeOut" | LC_ALL=C grep -c -x 'rc=1' )" "0:1"
 rigAssert "control: --agents-config-option, the tooling's, reads any scope" \
 	"$( rigOpAs keeper-myx --agents-config-option magic-coordinator --select SLACK_USER_TOKEN | LC_ALL=C grep -c -x -e rig-user-token-COORD -e rc=0 )" 2
+
+## THE SWAP GOES BOTH WAYS, ONCE. The bot is no member of a persona's direct message with the owner, so a post there under the bot is
+## channel_not_found, and the member's own account is the one that stands in it. The live fault: an ask never reached the owner.
+## Each answer is "<rc>:<tokens that posted>:<tokens that read the parent>:<TS lines>:<swap lines>:<identity named by the verdict>".
+rigMirrorEnv=() rigMirrorOp=( --slack-send-message --team-member )
+rigMirror(){ ## parent visible (yes|no), Slack's answers to the posts, member, target, send options...
+	local mirrorSee="$1" mirrorErrors="$2" mirrorMember="$3" mirrorTarget="$4" mirrorOut="" mirrorRc=0
+	shift 4
+	: > "$rigTmp/calls"
+	[ "$mirrorSee" != yes ] || : > "$rigTmp/replies-visible"
+	printf '%s\n' $mirrorErrors > "$rigTmp/post-errors"
+	mirrorOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" ${rigMirrorEnv[@]+"${rigMirrorEnv[@]}"} \
+		bash "$rigTool" "${rigMirrorOp[@]}" "$mirrorMember" "$mirrorTarget" "$@" RIG-BODY-MARKER 2>&1 )" || mirrorRc=$?
+	rm -f "$rigTmp/post-errors" "$rigTmp/replies-visible"
+	printf '%s:%s:%s:%s:%s:%s' "$mirrorRc" \
+		"$( LC_ALL=C awk '$1 == "chat.postMessage" { printf "%s%s", sep, $2 ; sep = "," ; }' "$rigTmp/calls" )" \
+		"$( LC_ALL=C awk '$1 == "conversations.replies" { printf "%s%s", sep, $2 ; sep = "," ; }' "$rigTmp/calls" )" \
+		"$( printf '%s\n' "$mirrorOut" | LC_ALL=C grep -c '^SENT_MESSAGE_TS=' )" \
+		"$( printf '%s\n' "$mirrorOut" | LC_ALL=C grep -c 'retrying once under' )" \
+		"$( printf '%s\n' "$mirrorOut" | LC_ALL=C sed -n 's/.*the conversation cannot be reached under \([a-z]*\) identity.*/\1/p' | head -1 )"
+}
+rigAssert "a bot send into a persona DM thread is channel_not_found: it is posted once, under the user identity, after the user sees the parent" \
+	"$( rigMirror yes channel_not_found keeper-myx DRIG00001:1700000000.000100 --identity-bot )" "0:rig-bot-token-TEAM,rig-user-token-KEEPER:rig-bot-token-TEAM,rig-user-token-KEEPER:1:1:"
+rigAssert "a top-level bot send answered not_in_channel, the join failing: it is posted once under the user identity, no parent read" \
+	"$( rigMirror no not_in_channel keeper-myx CRIG00001 --identity-bot )" "0:rig-bot-token-TEAM,rig-user-token-KEEPER::1:1:"
+rigAssert "the thread's parent is not seen by the user: the verdict stands, one post, no swap" \
+	"$( rigMirror no channel_not_found keeper-myx DRIG00001:1700000000.000100 --identity-bot )" "1:rig-bot-token-TEAM:rig-bot-token-TEAM,rig-user-token-KEEPER:0:0:bot"
+rigAssert "both identities fail, a thread: exactly two posts, bot then user, and the verdict names the user" \
+	"$( rigMirror yes 'channel_not_found channel_not_found channel_not_found ok' keeper-myx DRIG00001:1700000000.000100 --identity-bot )" "1:rig-bot-token-TEAM,rig-user-token-KEEPER:rig-bot-token-TEAM,rig-user-token-KEEPER:0:1:user"
+rigAssert "both identities fail from the user side: exactly two posts, user then bot, the old swap alone" \
+	"$( rigMirror yes 'channel_not_found channel_not_found channel_not_found ok' keeper-myx CRIG00001 )" "1:rig-user-token-KEEPER,rig-bot-token-TEAM::0:1:bot"
+rigAssert "control: from the user side the old swap still posts once under the bot" \
+	"$( rigMirror yes channel_not_found keeper-myx CRIG00001 )" "0:rig-user-token-KEEPER,rig-bot-token-TEAM::1:1:"
+rigAssert "a top-level bot send to the human-owner stays the bot's: no swap to the user identity, one post, the verdict stands" \
+	"$( rigMirror yes channel_not_found keeper-myx human-owner --identity-bot )" "1:rig-bot-token-TEAM::0:0:bot"
+rigMirrorOp=( --client-comms-slack-send-message ) rigMirrorEnv=( CLIENT_SLACK_USER_TOKEN=rig-user-token-CLIENT CLIENT_SLACK_BOT_TOKEN=rig-bot-token-CLIENT )
+rigAssert "a client-side member is not swapped: one post under its bot, and the verdict stands" \
+	"$( rigMirror yes channel_not_found client-ndm CRIG00001 --identity-bot )" "1:rig-bot-token-CLIENT::0:0:bot"
+rigMirrorEnv=() rigMirrorOp=( --slack-send-message --team-member )
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SLACK SEND IDENTITY CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

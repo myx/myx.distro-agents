@@ -974,7 +974,7 @@ AgentsRunYieldGive(){
 ## handed out: the first worker to mark the ticket yields for the run, once, and every other worker waits until the mark is gone and the
 ## lanes are the run's again. rc 0 where the worker stopped.
 AgentsRunYieldPoint(){
-	local pointLane
+	local pointLane pointUntil
 	AgentsRunYieldWaiters
 	[ -n "$runYieldWaiters" ] || [ -f "$runQueueDir/$runTicket.yield" ] || return 1
 	if [ -n "$runYieldWaiters" ] && ( set -C ; date +%s > "$runQueueDir/$runTicket.yield" ) 2> /dev/null ; then
@@ -983,7 +983,9 @@ AgentsRunYieldPoint(){
 	fi
 	## The lanes the run holds now, read from the lane files this runner holds: the yield takes back any lanes that stand free, so their
 	## numbers may be others than those this worker was forked with.
-	while : ; do
+	## THIS WAIT IS BOUNDED TOO, at runYieldBound: a mark that never goes is no reason for a worker to stand for ever.
+	pointUntil=$(( SECONDS + runYieldBound ))
+	while [ "$SECONDS" -lt "$pointUntil" ] ; do
 		runLaneMine=""
 		for pointLane in 1 "$runLaneDir"/lane.* ; do
 			pointLane="${pointLane##*/lane.}"
@@ -991,18 +993,50 @@ AgentsRunYieldPoint(){
 			[ "$( AgentsRunLaneHolder "$pointLane" )" != "$$" ] || runLaneMine="$runLaneMine $pointLane"
 		done
 		[ -f "$runQueueDir/$runTicket.yield" ] || [ -z "$runLaneMine" ] || break
+		[ ! -f "$runDir/stalled.txt" ] && [ ! -f "$runDir/driver-ended.txt" ] || break
 		sleep 1
 	done
 	return 0
 }
 
+## A WIDE RETEST STOPS AT A CHECK BOUNDARY FOR A NARROW ONE. The retest drain that started this run names the machine's
+## retest queue in MDAT_RETEST_YIELD_DIR, and a plain run or a check names nothing and reads nothing. A request waiting
+## there that names tests, and fewer of them than this run has still to run, is narrower than the request in flight and is
+## answered before this run goes on. A request naming no test is the widest of all, and yields to none.
+AgentsRunNarrowWait(){ ## -- the test count of the narrower request that waits; nothing where none does
+	local narrowFile narrowCount narrowLeft
+	[ -n "${MDAT_RETEST_YIELD_DIR:-}" ] || return 0
+	narrowLeft=$(( runCount - $( LC_ALL=C ls -1 "$runDir"/*.receipt 2> /dev/null | LC_ALL=C grep -c . ) ))
+	[ "$narrowLeft" -gt 0 ] || return 0
+	for narrowFile in "$MDAT_RETEST_YIELD_DIR"/*.request ; do
+		[ -f "$narrowFile" ] || continue
+		narrowCount="$( LC_ALL=C grep -c '^test: ' "$narrowFile" 2> /dev/null || : )"
+		case "$narrowCount" in ''|*[!0123456789]*|0) continue ;; esac
+		[ "$narrowCount" -lt "$narrowLeft" ] || continue
+		printf '%s\n' "$narrowCount"
+		return 0
+	done
+	return 0
+}
+
 AgentsRunWorker(){ ## worker number -- one task line of the driver: the tests of the run list one after another, each the first no worker has taken, until none is left
-	local workerName workerTimeout workerRan=""
+	local workerName workerTimeout workerRan="" workerNarrow
 	while read -r workerName workerTimeout ; do
 		[ -n "$workerName" ] || continue
 		## before a check is handed out: a worker that has run one since its last stop may give the run's lanes up, and every worker stops while one does
 		if [ -n "$workerRan" ] || [ -f "$runQueueDir/$runTicket.yield" ] ; then
 			! AgentsRunYieldPoint || workerRan=""
+		fi
+		## A RUN THAT HAS BEEN ENDED HANDS OUT NO FURTHER CHECK: no watch is left to end it again, and a check begun now
+		## would run with nothing watching the run it belongs to.
+		[ ! -f "$runDir/stalled.txt" ] && [ ! -f "$runDir/driver-ended.txt" ] || return 0
+		## A RUN THAT STOPPED FOR A NARROWER REQUEST HANDS OUT NO FURTHER CHECK: the drain takes back what it did not reach,
+		## and answers that request next. The note is written by whichever worker reaches this first.
+		[ ! -f "$runDir/retest-yield.txt" ] || return 0
+		workerNarrow="$( AgentsRunNarrowWait )"
+		if [ -n "$workerNarrow" ] ; then
+			( set -C ; printf 'narrow-tests: %s\nleft-to-run: %s\nyielded: %s\n' "$workerNarrow" "$(( runCount - $( LC_ALL=C ls -1 "$runDir"/*.receipt 2> /dev/null | LC_ALL=C grep -c . ) ))" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runDir/retest-yield.txt" ) 2> /dev/null || :
+			return 0
 		fi
 		## taken by whoever makes its log: made by one worker or not at all, never by two
 		( set -C ; printf '' > "$runDir/$workerName.log" ) 2>/dev/null || continue
@@ -1017,13 +1051,17 @@ AgentsRunWorker(){ ## worker number -- one task line of the driver: the tests of
 ## no receipt yet. The watch compares two of these lines and nothing else. `tests.list` is left
 ## out of it: the yield touches it, so counting it cannot tell a live wait from a wedge.
 runStallKeeper="$runKeeperDir/runner-stall-keeper.py"
-AgentsRunStallEnd(){ ## seconds stood still, and finished where every test has its receipt -- the note of it, and the driver ended with what is left under it
+AgentsRunStallEnd(){ ## seconds stood still, `finished` where every test has its receipt (with how many), or `gone` where no watch is left beside the run -- the note of it, and the driver ended with what is left under it
 	local endSelf endSignal endPid
-	## from here the watch is not told to go any more: it ends the run, and then itself
-	trap '' TERM
+	## from here the watch is not told to go any more: it ends the run, and then itself. A run whose watch is already gone
+	## is ended by its own shell, which goes on obeying TERM.
+	[ "${2:-stalled}" = gone ] || trap '' TERM
 	if [ "${2:-stalled}" = finished ] ; then
 		## EVERY TEST HAS ITS RECEIPT: the run is over and only the driver stands, held by a check that left a process behind.
 		printf 'driver-ended=%s\ntimeout=%s\nreceipts=%s\nended=%s\n' "$1" "$runTimeout" "$3" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runDir/driver-ended.txt" || :
+	elif [ "${2:-stalled}" = gone ] ; then
+		## NO WATCH IS LEFT BESIDE IT: nothing would end this run, so the note says which ending this was.
+		printf 'watch-gone=yes\ntimeout=%s\nended=%s\n' "$runTimeout" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runDir/stalled.txt" || { rm -f "$runDir/stalled.txt" ; return 1 ; }
 	else
 		printf 'stood-still=%s\ntimeout=%s\nmargin=%s\nended=%s\n' "$1" "$runTimeout" "$runStallMargin" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runDir/stalled.txt" || { rm -f "$runDir/stalled.txt" ; return 1 ; }
 	fi
@@ -1103,16 +1141,30 @@ case "$runTimeout" in ''|*[!0123456789]*) ;; *) [ "$(( 10#$runTimeout ))" = 0 ] 
 ## THE STATE THE RUN STARTS ON, walked once for the whole run (the pass record, above). A walk a test would pay the whole
 ## store on every test, and the suite is 935 tests on one machine.
 AgentsRunPassKey $( cut -d' ' -f1 "$runList" ) > "$runDir/pass-keys.start" 2> /dev/null || :
-Parallel --workers "$runWorkerCount" AgentsRunWorker <<< "$runWorkerList" | tee "$runDir/progress.txt"
+Parallel --workers "$runWorkerCount" AgentsRunWorker <<< "$runWorkerList" | tee "$runDir/progress.txt" &
+runDriverPid=$!
+## NOTHING WATCHES THE WATCH: a watch that is gone leaves nothing to end a run that goes on. So this shell ends the run
+## the moment its watch is no longer one of its jobs, and the note names that ending. Judged here, never from a subshell:
+## a background job is no job of a subshell's.
+while kill -0 "$runDriverPid" 2> /dev/null ; do
+	## A watch that has already ended the run has written its own note: the run it ended is winding down, not unwatched.
+	if [ -z "$runStallPid" ] || [ -f "$runDir/stalled.txt" ] || [ -f "$runDir/driver-ended.txt" ] ; then sleep 1 ; continue ; fi
+	case " $( jobs -pr | LC_ALL=C tr '\n' ' ' )" in *" $runStallPid "*) sleep 1 ; continue ;; esac
+	AgentsRunStallEnd 0 gone || :
+	break
+done
+wait "$runDriverPid" 2> /dev/null || :
 ## The run has ended: by itself, and the watch is told to go; or by the watch, which hears nothing while it ends
 ## the run, and is waited for. It is told only while this shell knows it to be running, never by a pid kept for later.
-runStalled="" runNever="" runNeverCount=0 runOpen="" runOpenCount=0
+runStalled="" runNever="" runNeverCount=0 runOpen="" runOpenCount=0 runNoWatch=""
 if [ -n "$runStallPid" ] ; then
 	case " $( jobs -pr | LC_ALL=C tr '\n' ' ' )" in *" $runStallPid "*) kill "$runStallPid" 2>/dev/null ;; esac
 	wait "$runStallPid" 2>/dev/null
 fi
 if [ -f "$runDir/stalled.txt" ] ; then
 	runStalled="$( sed -n 's/^stood-still=//p' "$runDir/stalled.txt" | sed -n 1p )" ; runStalled="${runStalled:-?}"
+	runNoWatch="$( sed -n 's/^watch-gone=//p' "$runDir/stalled.txt" | LC_ALL=C sed -n 1p )"
+	[ -z "$runNoWatch" ] || runStalled=""
 	for runName in $( cut -d' ' -f1 "$runList" ) ; do
 		[ ! -f "$runDir/$runName.receipt" ] || continue
 		if [ -f "$runDir/$runName.log" ] ; then runOpen="$runOpen $runName" ; runOpenCount=$(( runOpenCount + 1 ))
@@ -1198,6 +1250,10 @@ python3 -I -B "$runPassKeeper" prune "$runPassDir" "$runPassAge" 2>/dev/null || 
 echo "---" >&2
 grep '^FAIL' "$runDir/summary.txt" || :
 tail -n 1 "$runDir/summary.txt"
+if [ -n "$runNoWatch" ] ; then
+	echo "⛔ ERROR: AgentsRunTests.sh: this run was ended because no stall watch was left beside it: nothing was watching it for a run that stood still, so it was ended with the checks it had. Never ran, $runNeverCount of $runCount test(s):${runNever:- none}. Started and never ended, $runOpenCount:${runOpen:- none}. What did end is in $runDir/summary.txt, and the note of this in $runDir/stalled.txt" >&2
+	exit 124
+fi
 if [ -n "$runStalled" ] ; then
 	echo "⛔ ERROR: AgentsRunTests.sh: this run stood still and was ended as stalled: nothing of it started, ended or wrote a line for ${runStalled}s, longer than a test may take (${runTimeout}s) and ${runStallMargin}s more, so no test of it was running and none waited for a worker slot. Never ran, $runNeverCount of $runCount test(s):${runNever:- none}. Started and never ended, $runOpenCount:${runOpen:- none}. What did end is in $runDir/summary.txt, and the note of this in $runDir/stalled.txt" >&2
 	exit 124

@@ -413,7 +413,8 @@ AgentsToolsSpawnRoutineNearestMember(){ ## word
 
 ## The roster a routine's own executors value names, for a start with no member named: one
 ## member on a line, where the value is a comma-separated list of existing members, each name
-## trimmed, with `<type>-*` expanded to all members of that type (fail on NONE). Anything else
+## trimmed, each entry's own parenthetical set aside, with `<type>-*` expanded to all members of that type (fail
+## on NONE). Anything else
 ## names no spawnable roster: rc 1, and one line that says why -- `any-member` for an empty value
 ## and for the "any member" shorthand (`magic-team`, `*`, per
 ## magic-team/reference/skill-folder-model.md), `empty-name` for a list with an empty place,
@@ -423,18 +424,17 @@ AgentsToolsSpawnRoutineNearestMember(){ ## word
 ## `all-present-members` for the participants-only keyword that names the present members. THE ONE RULE of
 ## what a routine starts by itself: --spawn-session starts by it, and --manager-routine-list prints it.
 AgentsToolsSpawnRoutineExecutorsRoster(){ ## executors value
-	local rosterValue rosterList rosterName rosterNames="" rosterEntry rosterOut=""
+	local rosterValue rosterEntries rosterName rosterParams rosterNames="" rosterEntry rosterOut=""
+	type AgentsToolsRoutineExecutorsEntries > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.RoutineExecutors.include"
 	rosterValue="$( printf '%s' "$1" | LC_ALL=C awk '{ gsub(/^[ \t]+|[ \t]+$/, "") ; print ; }' )"
-	case "$rosterValue" in
-		''|'*'|'magic-team')
-			printf 'any-member\n'
-			return 1
-		;;
-	esac
-	IFS=',' read -r -a rosterList <<< "$rosterValue"
-	for rosterName in ${rosterList[@]+"${rosterList[@]}"} ; do
-		rosterName="${rosterName#"${rosterName%%[![:space:]]*}"}"
-		rosterName="${rosterName%"${rosterName##*[![:space:]]}"}"
+	case "$rosterValue" in ''|'*'|'magic-team') printf 'any-member\n' ; return 1 ;; esac
+	## The entries come from the one parse, so an entry's parenthetical is never read as part of its name. A lone
+	## `*` or `magic-team` is the any-member shorthand whatever parenthetical it carries, as the bare word is.
+	rosterEntries="$( AgentsToolsRoutineExecutorsEntries "$rosterValue" )"
+	if [ "$( printf '%s\n' "$rosterEntries" | LC_ALL=C grep -c . || : )" = 1 ] ; then
+		case "${rosterEntries%%$'\t'*}" in '*'|'magic-team') printf 'any-member\n' ; return 1 ;; esac
+	fi
+	while IFS=$'\t' read -r rosterName rosterParams ; do
 		if [ -z "$rosterName" ] ; then
 			printf 'empty-name\n'
 			return 1
@@ -447,7 +447,7 @@ AgentsToolsSpawnRoutineExecutorsRoster(){ ## executors value
 		while IFS= read -r rosterEntry ; do
 			[ -z "$rosterEntry" ] || rosterNames="$rosterNames$rosterEntry"$'\n'
 		done <<< "$rosterOut"
-	done
+	done <<< "$rosterEntries"
 	printf '%s' "$rosterNames"
 	return 0
 }

@@ -10,10 +10,16 @@
 ##  3. The keeper counts the checks of the run folder that have started and have no receipt yet.
 ##  4. The stall watch's window outwaits a legitimate yield: a run whose timeout plus margin is under the yield's whole
 ##     budget is not ended as stalled while its retake waits its bound, since no file of its folder changes meanwhile.
+##  5. A run whose stall watch is gone is ended rather than going on: its watch is killed while its first check is still held,
+##     and the check it would have handed out next never begins.
+##  6. A run whose every check holds its receipt, whose one worker stands waiting for a lane that never comes, and whose run
+##     folder has no stall watch to end it, ends itself at its bound instead of standing for the lane's whole life.
 ## Red before the change: the retake loop waits for ever, so the run never hands out its next check and never ends, a
 ## touch of tests.list or runner.log alone moves the keeper's line, and a window of the timeout plus the margin covers
 ## only part of a yield. The run's own bound is 120 s, so the red run of this check waits out that bound; the rig's own
-## bound is past it, and the run's time limit is far past both.
+## bound is past it, and the run's time limit is far past both. A run with no watch left beside it is ended with the
+## checks it has, and hands out no further check. A worker standing for a lane that never comes waits at most
+## runYieldBound, so a run whose every check holds its receipt ends at that bound.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigRunner="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-test/AgentsRunTests.sh"
@@ -205,6 +211,71 @@ rigUntilIn 1 'BEGIN f.1' "$rigTmp/log" 200 e || :
 rigAssert "and once that run gave its lane up, the run behind took it and began its check" "$( LC_ALL=C grep -c -x 'BEGIN f\.1' "$rigTmp/log" || : )" 1
 rigLet e.2 ; rigLet f.1
 rigEnd "$rigJobE" e 300 ; rigEnd "$rigJobF" f 300
+
+echo "-- 5. a run whose stall watch is gone is ended by itself --"
+## Nothing watches the watch. Two workers hold the run's two checks, and a run behind takes its only lane as it gives that lane
+## up, so the run is at its yield with one worker left to hand a check out. The watch is found through this rig's own python3
+## first on PATH: the shim writes the pid of its caller's own parent, which is the watch the runner started, beside the run
+## folder that call was for, and then runs the real python3.
+rigPython3="$( command -v python3 )"
+[ -n "$rigPython3" ] || rigRefuse "python3 is not on this rig's PATH, so the run's watch could not be found"
+mkdir -p "$rigTmp/shim" || rigRefuse "the rig's shim folder could not be made"
+cat > "$rigTmp/shim/python3" <<RIGSHIM
+#!/bin/sh
+if [ -n "\${RIG_SHARED:-}" ] ; then
+	case "\$*" in *runner-stall-keeper.py*)
+		printf '%s %s\\n' "\$( ps -o ppid= -p "\$PPID" 2> /dev/null | tr -d ' ' )" "\${4:-}" >> "\$RIG_SHARED/watch.pid"
+	;; esac
+fi
+exec "$rigPython3" "\$@"
+RIGSHIM
+chmod +x "$rigTmp/shim/python3" || rigRefuse "the rig's shim could not be made runnable"
+rigPackage g5 1 ; rigPackage h5 3
+PATH="$rigTmp/shim:$PATH" rigRun h5 -w 2 --wait -t 300 RigTiny ; rigJobH5=$rigLast
+rigUntilIn 2 'BEGIN h5.' "$rigTmp/log" 120 h5 || rigRefuse "the run's two workers never both began a check, so nothing below would be measured"
+rigH5Dir="$( LC_ALL=C sed -n 's/^# AgentsRunTests\.sh: .* run folder: //p' "$rigTmp/h5.out" | LC_ALL=C sed -n 1p )"
+[ -n "$rigH5Dir" ] || rigRefuse "the run never said where its folder is, so its own watch could not be told from another run's"
+rigRun g5 -w 1 --wait -t 300 RigTiny ; rigJobG5=$rigLast
+rigLineLeft=600
+while [ "$( rigTickets )" -lt 2 ] && [ "$rigLineLeft" -gt 0 ] && [ ! -s "$rigTmp/h5.rc" ] && [ ! -s "$rigTmp/g5.rc" ] ; do sleep 0.2 ; rigLineLeft=$(( rigLineLeft - 1 )) ; done
+[ "$( rigTickets )" -ge 2 ] || rigRefuse "the run behind never joined the machine's line, so nothing below would be measured"
+rigLet h5.1 ; rigLet h5.2
+rigUntilIn 1 'BEGIN g5.1' "$rigTmp/log" 200 h5 || :
+rigAssert "the run gave its only lane up at its yield, and the run behind took it" "$( LC_ALL=C grep -c -x 'BEGIN g5\.1' "$rigTmp/log" || : )" 1
+rigWatchLeft=600
+while [ ! -s "$rigTmp/watch.pid" ] && [ "$rigWatchLeft" -gt 0 ] && [ ! -s "$rigTmp/h5.rc" ] ; do sleep 0.2 ; rigWatchLeft=$(( rigWatchLeft - 1 )) ; done
+rigWatchPid="$( LC_ALL=C awk -v d="$rigH5Dir" '$2 == d { print $1 ; exit }' "$rigTmp/watch.pid" 2> /dev/null )"
+[ -n "$rigWatchPid" ] || rigRefuse "the run's stall watch never called its keeper, so no watch could be killed"
+rigProcNote "$rigWatchPid"
+rigProcSignal KILL "$rigWatchPid" || rigRefuse "the run's stall watch could not be killed, so nothing below would be measured"
+rigEnd "$rigJobH5" h5 150
+rigAssert "a run whose stall watch was gone was ended, rather than kept alive by its own yield" "$( [ "$rigRc" = never-ended ] && printf 'standing' || printf 'ended' )" ended
+rigAssert "and with no watch left beside it, it handed out no further check" "$( LC_ALL=C grep -c -x 'BEGIN h5\.3' "$rigTmp/log" || : )" 0
+rigLet h5.3 ; rigLet g5.1
+rigEnd "$rigJobG5" g5 200
+
+echo "-- 6. a run whose every check holds its receipt and whose one worker stands waiting ends itself --"
+## h6 runs with no stall watch of its own (-t 0), so no watch can end it and only its own bound can. The run behind takes its
+## only lane as h6 gives it up: the worker that gave the lane up goes on with the lanes it has, which are none, and the other
+## waits for a lane that never comes. Every check of h6 then holds its receipt, and that wait is all that is left of the run.
+rigPackage g6 1 ; rigPackage h6 3
+rigRun h6 -w 2 --wait -t 0 RigTiny ; rigJobH6=$rigLast
+rigUntilIn 2 'BEGIN h6.' "$rigTmp/log" 120 h6 || rigRefuse "the run's two workers never both began a check, so nothing below would be measured"
+rigRun g6 -w 1 --wait -t 300 RigTiny ; rigJobG6=$rigLast
+rigLineLeft=600
+while [ "$( rigTickets )" -lt 2 ] && [ "$rigLineLeft" -gt 0 ] && [ ! -s "$rigTmp/h6.rc" ] && [ ! -s "$rigTmp/g6.rc" ] ; do sleep 0.2 ; rigLineLeft=$(( rigLineLeft - 1 )) ; done
+[ "$( rigTickets )" -ge 2 ] || rigRefuse "the run behind never joined the machine's line, so nothing below would be measured"
+rigLet h6.1 ; rigLet h6.2
+rigUntilIn 1 'BEGIN g6.1' "$rigTmp/log" 200 h6 || :
+rigAssert "the run gave its only lane up at its yield, and the run behind took it" "$( LC_ALL=C grep -c -x 'BEGIN g6\.1' "$rigTmp/log" || : )" 1
+rigUntilIn 1 'BEGIN h6.3' "$rigTmp/log" 240 h6 || :
+rigLet h6.3
+rigUntilIn 3 'PASS  RigTiny' "$rigTmp/h6.out" 200 h6 || :
+rigAssert "every check of the run held its receipt, and one worker stood with nothing left to hand out" "$( rigSaid h6 'PASS  RigTiny' )" 3
+rigEnd "$rigJobH6" h6 200
+rigAssert "the run then ended itself at its own bound, rather than standing as long as the lane stayed away" "$( [ "$rigRc" = never-ended ] && printf 'standing' || printf 'ended' )" ended
+rigLet g6.1 ; rigEnd "$rigJobG6" g6 200
+rigLet g6.1 ; rigEnd "$rigJobG6" g6 200
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ RUN TESTS YIELD BOUND CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

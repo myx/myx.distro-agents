@@ -47,7 +47,8 @@ The brief given to one spawned session, carried exactly as the spawner wrote it,
 | `epic` | optional | member | `word` | The epic blueprint the item belongs to, by its vault name. With no `approved-by` of its own, the item takes that blueprint's go. |
 | `approved-by` | optional | member | `approval-ref` | Who gave the go, with the session and the time. Written with `approved-at`. |
 | `approved-at` | optional | member | `date-time` | When the go was given. Written with `approved-by`. |
-| `communication-channel-id` | optional | member | `channel-id` | The one external message the item traces to. |
+| `communication-channel-id` | optional | either | `channel-id` | The one external message the item traces to. A Slack message is `slack:<channel>:<thread root ts>`. `slack:<channel>` names a place and no thread. The tooling writes it at ingest, and a promoted item carries it unchanged. |
+| `request-thread` | optional | tooling | `channel-id` | The thread of the person's Slack message the session was started for, `slack:<channel>:<thread root ts>`. The spawn tooling writes it. |
 | `status` | required | tooling | `text` | The run's state, set by the spawner and the review flow, such as `dispatch-started`. |
 | `recheck-date` | optional | member | `date-time` | When the next iteration is due. Written with `condition`. |
 | `condition` | optional | member | `text` | What the item waits for: `unmet: …`, `met: …` or `none: …`. An `unmet` one is written with `recheck-date`. |

@@ -415,7 +415,11 @@ rigScene recode
 rigLive
 rigThreadData "$( rigMsg "$rigRoot" URIGOWNER RIG-ROOT "$rigRoot" )"
 rigCodeFile="$rigDir/code.stand-in"
-rigOpEnv="MDAT_COMMS_CODE_EXTRA=$rigCodeFile"
+## THE CODE TEST IS SHORTENED TO ONE LOOP, so the reader meets its own changed code sooner.
+## THIS ARM IS A GUARD, NOT THE FIX'S PROOF. Measured: it passes on a tree with the `restart` purpose removed as well as on the one with
+## it, because the first call of a scene clears `.starting` and the reader asks after that. The proof of the restart fix is
+## AgentsCommsSessionCommsRestartProbeCheck, which calls the start itself on a fresh marker and reads its answer.
+rigOpEnv="MDAT_COMMS_CODE_EXTRA=$rigCodeFile MDAT_COMMS_CODE_TEST_LOOPS=1"
 rigOp recode-start --start < /dev/null
 rigOpEnv=""
 rigDaemon3="$( LC_ALL=C sed -n 's/^started \([0-9][0-9]*\)$/\1/p' "$rigDir/recode-start.out" | head -1 )"
@@ -424,11 +428,14 @@ rigWaited=0
 while [ "$rigWaited" -lt 20 ] && [ "$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 ; }' )" != "${rigDaemon3:-none}" ] ; do sleep 0.5 ; rigWaited=$(( rigWaited + 1 )) ; done
 sleep 1
 : > "$rigCodeFile"
-rigWaited=0
-while [ "$rigWaited" -lt 160 ] ; do
+## THE RESTART IS POLLED FOR, NOT WAITED AT FOR A FIXED TIME. The reader tests its own code every 30 loops, and one loop in this scene costs
+## about 10 s: the rig's sleep returns at once and its console waits still take a second. A measured run detected the change 308 s after it,
+## and started the replacement one second later, so an 80 s bound could never be met here. The deadline is 400 s: that detection, and a margin.
+rigDeadline=$(( $( date +%s ) + 400 ))
+while [ "$( date +%s )" -lt "$rigDeadline" ] ; do
 	rigNow3="$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 ; }' )"
-	{ [ -n "$rigNow3" ] && [ "$rigNow3" != "${rigDaemon3:-none}" ] ; } && break
-	sleep 0.5 ; rigWaited=$(( rigWaited + 1 ))
+	[ -z "$rigNow3" ] || [ "$rigNow3" = "${rigDaemon3:-none}" ] || break
+	sleep 0.5
 done
 rigDaemon4="$( cat "$rigDir/ws/.local/agents/comms/lock" 2> /dev/null | LC_ALL=C awk '{ print $1 ; }' )"
 [ -z "$rigDaemon4" ] || { rigProcNote "$rigDaemon4" ; rigStarted="$rigStarted $rigDaemon4" ; }

@@ -131,7 +131,7 @@ AgentsToolsSpawnQueue(){ ## the limit line, the routine, the members, the descri
 	queueBy="$( AgentsToolsActingMember 2> /dev/null )" || queueBy=""
 	[ -n "$queueBy" ] || queueBy="magic-coordinator"
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	DistroAgentsTools --upsert-inbox-inquiry magic-coordinator "$queueName" --from-member "$queueBy" --from-file "$queueFile" > /dev/null 2>&1 || { rm -f "$queueFile" ; return 1 ; }
+	DistroAgentsTools --upsert-inbox-inquiry magic-coordinator "$queueName" --from-member "$queueBy" --from-file "$queueFile" > /dev/null || { rm -f "$queueFile" ; return 1 ; }
 	rm -f "$queueFile"
 	type AgentsToolsScheduleWorkDutyRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 	queueDuty="$( AgentsToolsScheduleWorkDutyRecord magic-coordinator 2> /dev/null )" || queueDuty=""

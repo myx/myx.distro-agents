@@ -48,7 +48,7 @@ DistroAgentsGoogle(){
 	[ -z "$frontDone" ] || return "$frontRc"
 	case "$1" in
 
-		--google-comment-post|--google-comment-read|--google-doc-read|--google-doc-write|--google-file-find|--google-sheet-clear|--google-sheet-info|--google-sheet-read|--google-sheet-write|--google-whoami)
+		--google-comment-post|--google-comment-read|--google-doc-read|--google-doc-write|--google-doc-replace|--google-file-find|--google-sheet-clear|--google-sheet-info|--google-sheet-read|--google-sheet-write|--google-whoami)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/google/AgentsTools.MemberCommsGoogle.include"
 			return $?
 		;;

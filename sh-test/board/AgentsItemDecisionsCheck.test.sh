@@ -6,7 +6,9 @@
 ## an unrelated blocker; an earlier answer is found by the same session's closed record or
 ## by the item's Decisions, and AskQuestion then posts nothing; a collect closes a
 ## question its Decisions answer; the spawn's conversation.md and a named-item scan show
-## the Decisions first. Offline: a temp workspace and data root under .local/temp, no Slack.
+## the Decisions first; a decision asked of a member party or a contact party is landed by
+## that party's own yes, and a contact's project tier decides it there and nowhere else.
+## Offline: a temp workspace and data root under .local/temp, no Slack.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -364,8 +366,8 @@ rigAskedId(){ LC_ALL=C grep -o -E '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 ## The person answers an open decision readback as a person does: once it is posted, in the thread its record names, the
 ## reply after the question. Waits up to 120 s for the record. rc 1 where none came.
 rigReplyCount=0
-rigAnswerAsked(){ ## reply text
-	local answerFile="" answerLeft=120 answerQ answerT answerRoot=""
+rigAnswerAsked(){ ## reply text, replying account (default URIGOWNER), seconds to wait (default 120)
+	local answerFile="" answerLeft="${3:-120}" answerBy="${2:-URIGOWNER}" answerQ answerT answerRoot=""
 	while [ "$answerLeft" -gt 0 ] ; do
 		for answerFile in "$rigStore"/*.md "" ; do
 			[ -n "$answerFile" ] || break
@@ -378,8 +380,8 @@ rigAnswerAsked(){ ## reply text
 	answerQ="$( rigField "$answerFile" question-ts )" ; answerT="$( rigField "$answerFile" thread-ts )" ; answerT="${answerT:-$answerQ}"
 	rigReplyCount=$(( rigReplyCount + 1 ))
 	[ "$answerT" = "$answerQ" ] || answerRoot="$( printf '{"ts":"%s","user":"URIGSELF1","text":"root"},' "$answerT" )"
-	printf '{"ok":true,"messages":[%s{"ts":"%s","user":"URIGSELF1","text":"question","thread_ts":"%s"},{"ts":"1700000002.00020%s","user":"URIGOWNER","text":"%s","thread_ts":"%s"}],"has_more":false}\n' \
-		"$answerRoot" "$answerQ" "$answerT" "$rigReplyCount" "$1" "$answerT" > "$RIG_SCENARIO/replies.$answerT.json"
+	printf '{"ok":true,"messages":[%s{"ts":"%s","user":"URIGSELF1","text":"question","thread_ts":"%s"},{"ts":"1700000002.00020%s","user":"%s","text":"%s","thread_ts":"%s"}],"has_more":false}\n' \
+		"$answerRoot" "$answerQ" "$answerT" "$rigReplyCount" "$answerBy" "$1" "$answerT" > "$RIG_SCENARIO/replies.$answerT.json"
 }
 ## As rigOp, with the skillset that gives the asking member its identity, as the AskQuestion block above has it: a readback is posted.
 rigDecOp(){ ## output name, op, arguments...
@@ -391,11 +393,15 @@ rigDecOp(){ ## output name, op, arguments...
 	return "$rigRc"
 }
 ## A waited call in the background, answered while it waits, and waited out: its limit is soft, and the runner's timeout bounds a hang.
+## rigAnswerAccount names the account that answers, where the party is not the human-owner: empty answers as URIGOWNER does.
+## rigAnswerWait bounds how long a row waits for its ask to appear, for a route that posts none.
+rigAnswerAccount=""
+rigAnswerWait=""
 rigDecWaited(){ ## reply text, output name, op, arguments...
 	local waitedReply="$1" waitedPid ; shift
 	rigDecOp "$@" &
 	waitedPid=$!
-	rigAnswerAsked "$waitedReply" || :
+	rigAnswerAsked "$waitedReply" "$rigAnswerAccount" "${rigAnswerWait:-120}" || :
 	rigRc=0 ; wait "$waitedPid" 2> /dev/null || rigRc=$?
 }
 rigDecOp dask1 --record-decision --team-member "$rigMember" "$rigAsked" --kind resolved --text "The rig asks before it records." --with human-owner
@@ -425,16 +431,74 @@ rigDecWaited "yes" dstr2 --record-decision --team-member "$rigMember" "$rigAsked
 rigDid4="$( LC_ALL=C grep -o -E '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' "$rigTmp/dstr2" | head -1 )"
 rigAssert "a yes strikes it, naming the readback"   "$rigRc:$( tail -1 "$rigTmp/dstr2" | cut -d' ' -f1 ):$( rigAskedLine 'resolved: The rig asks before it records.' | LC_ALL=C grep -c 'struck by magic-tester: The rig records it a better way now.' ):$( rigSection "$rigBoard/running/$rigAsked.md" | LC_ALL=C grep -c "dismissed: the line struck: .* (readback $rigDid4, confirmed by " )" 0:DECISION-RECORDED:1:1
 
+echo "-- the rig's contacts reach their organisation through a client member --"
+## A contact is reached through the client-* member of its organisation (AgentsTools.Contacts.include), so the rig holds
+## that member, the organisation it stands for, and each contact's Slack coordinate of that member's own team. The member
+## lives in the rig's member set root, which is where a session started here reads its members.
+mkdir -p "$rigTmp/data/contacts/persons" "$rigTmp/data/contacts/organisations" "$rigTmp/skills/client-rig"
+printf -- '---\ntype: contact-organisation\norganisation-id: rig-org\ndisplay-name: Rig Organisation\ndomain: rig.slack.invalid\n---\n# Organisation: Rig Organisation\n\n## Log\n\n' > "$rigTmp/data/contacts/organisations/rig-org.md"
+printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigTmp/skills/client-rig/client-rig.basic.md"
+printf '# rig armed\n' > "$rigTmp/skills/client-rig/client-rig.armed.md"
+printf -- '---\nname: client-rig\n---\n\n# client-rig, set up in the rig workspace\n' > "$rigTmp/skills/client-rig/SKILL.md"
+printf 'CLIENT_SLACK_USER_TOKEN=rig-user-token-RIGADMIN\nCLIENT_SLACK_WORKSPACE_DOMAIN=rig.slack.invalid\n' > "$rigTmp/ws/.local/.agents/client-rig.agent.env"
+
 echo "-- who decides it himself: a contact by its tier --"
-mkdir -p "$rigTmp/data/contacts/persons"
-printf -- '---\ncontact-id: rig-admin\ndisplay-name: Rig Admin\ntier: tier-admin\n---\n' > "$rigTmp/data/contacts/persons/rig-admin.md"
+printf -- '---\ncontact-id: rig-admin\ndisplay-name: Rig Admin\norganisation: rig-org\ntier: tier-admin\nreached-by: client-rig\nslack-id: client-rig:URIGADMIN1\n---\n' > "$rigTmp/data/contacts/persons/rig-admin.md"
 printf -- '---\ncontact-id: rig-guest\ndisplay-name: Rig Guest\norganisation: rig-org\n---\n' > "$rigTmp/data/contacts/persons/rig-guest.md"
 rigDecides(){ ( MDAT_DATA_ROOT="$rigTmp/data" AgentsToolsDecisionPartyDecides "$1" "${2:-}" ) && echo decides || echo goes-up ; }
 rigAssert "a tier-admin contact decides, a plain contact and a member outside it go up" "$( rigDecides contact:rig-admin ):$( rigDecides contact:rig-guest ):$( rigDecides contact:rig-nobody ):$( rigDecides keeper-myx )" "decides:goes-up:goes-up:goes-up"
-printf -- '---\ncontact-id: rig-projadmin\ndisplay-name: Rig Project Admin\norganisation: rig-org\nscope-tiers: rig-proj=tier-admin\n---\n' > "$rigTmp/data/contacts/persons/rig-projadmin.md"
+printf -- '---\ncontact-id: rig-projadmin\ndisplay-name: Rig Project Admin\norganisation: rig-org\nscope-tiers: rig-proj=tier-admin\nreached-by: client-rig\nslack-id: client-rig:URIGPROJA\n---\n' > "$rigTmp/data/contacts/persons/rig-projadmin.md"
 printf -- '---\ntype: task\nowner: magic-tester\nprojects: rig-other, rig-proj\n---\n\n# Rig project item\n' > "$rigTmp/rig-proj-item.md"
 printf -- '---\ntype: task\nowner: magic-tester\nprojects: rig-other\n---\n\n# Rig other item\n' > "$rigTmp/rig-other-item.md"
 rigAssert "an admin of a project the item names decides it, and only there" "$( rigDecides contact:rig-projadmin "$rigTmp/rig-proj-item.md" ):$( rigDecides contact:rig-projadmin "$rigTmp/rig-other-item.md" ):$( rigDecides contact:rig-projadmin )" "decides:goes-up:goes-up"
+
+echo "-- a party asked through the operation: its own yes lands the line --"
+## A member party's readback reaches its Slack account, as the tooling's identity cache keeps it. The cache's first
+## line is its lock generation, which this rig writes empty so its own rows are the ones read.
+mkdir -p "$rigTmp/ws/.local/agents/cache"
+printf '%s\n' "$( printf '' | LC_ALL=C cksum )" 'magic-coordinator=UCOORD0001=-=-=-=-' > "$rigTmp/ws/.local/agents/cache/slack-identities.cache"
+rigReadbackField(){ ## readback id, field -- an ask that never opened reads empty
+	[ -n "$1" ] || return 0
+	local rbFile="$rigStore/$1.md" ; [ -f "$rbFile" ] || rbFile="$rigStore/closed/$1.md"
+	[ -f "$rbFile" ] || return 0
+	rigField "$rbFile" "$2"
+}
+rigReadbackSlots(){ ## readback id -- its own fields, wherever the record now sits
+	[ -n "$1" ] || return 0
+	cat "$rigStore/$1.fields" "$rigStore/closed/$1.fields" 2> /dev/null
+}
+rigPartyLines(){ rigSection "$rigBoard/running/$1.md" | wc -l | tr -d ' ' ; }
+rigPartyConfirmedBy(){ ## item, account -- the party's own yes named on a line
+	rigSection "$rigBoard/running/$1.md" | LC_ALL=C grep -c -F "confirmed by $2 at " ;
+}
+rigMemberParty="task-20261008T2100Z-rig-member-party"
+printf -- '---\ntype: task\nowner: magic-tester\nreview-by: magic-coordinator\n---\n\n# Rig member party\n' > "$rigBoard/running/$rigMemberParty.md"
+rigAnswerAccount="UCOORD0001"
+rigDecWaited "yes" mparty1 --record-decision --team-member "$rigMember" "$rigMemberParty" --kind resolved --text "The rig member party decides this." --with magic-coordinator --wait
+rigMemberPartyId="$( rigAskedId mparty1 )"
+rigAssert "a member party is asked, and its own yes lands exactly one line" "$rigRc:$( rigReadbackField "$rigMemberPartyId" address-to ):$( rigPartyLines "$rigMemberParty" )" "0:magic-coordinator:1"
+rigAssert "that line names the member's own confirmation"          "$( rigPartyConfirmedBy "$rigMemberParty" UCOORD0001 )" 1
+rigContactDecided="task-20261008T2200Z-rig-contact-decided"
+printf -- '---\ntype: task\nowner: magic-tester\n---\n\n# Rig contact decided\n' > "$rigBoard/running/$rigContactDecided.md"
+## A contact asked here is never posted to, so its row waits seconds rather than minutes for the ask that never comes.
+rigAnswerAccount="URIGADMIN1" ; rigAnswerWait=8
+rigDecWaited "yes" cparty1 --record-decision --team-member "$rigMember" "$rigContactDecided" --kind clarification --text "The rig contact decides this." --with contact:rig-admin --wait
+rigContactDecidedId="$( rigAskedId cparty1 )"
+rigAssert "a contact party is asked, and its own yes lands exactly one line" "$rigRc:$( rigReadbackField "$rigContactDecidedId" address-to ):$( rigPartyLines "$rigContactDecided" )" "0:contact:rig-admin:1"
+rigAssert "that line names the contact's own confirmation"             "$( rigPartyConfirmedBy "$rigContactDecided" URIGADMIN1 )" 1
+rigContactScope="task-20261008T2201Z-rig-contact-scope"
+printf -- '---\ntype: task\nowner: magic-tester\nprojects: rig-other, rig-proj\n---\n\n# Rig contact scope\n' > "$rigBoard/running/$rigContactScope.md"
+rigContactElsewhere="task-20261008T2202Z-rig-contact-elsewhere"
+printf -- '---\ntype: task\nowner: magic-tester\nprojects: rig-other\n---\n\n# Rig contact elsewhere\n' > "$rigBoard/running/$rigContactElsewhere.md"
+rigAnswerAccount="URIGPROJA"
+rigDecWaited "yes" cscope1 --record-decision --team-member "$rigMember" "$rigContactScope" --kind resolved --text "The rig project admin decides this." --with contact:rig-projadmin --wait
+rigContactScopeId="$( rigAskedId cscope1 )"
+rigAssert "a contact holding the item's project decides it there, with nothing going up" "$( rigPartyConfirmedBy "$rigContactScope" URIGPROJA ):$( rigReadbackSlots "$rigContactScopeId" | LC_ALL=C grep -c '^decision-escalate' )" "1:0"
+rigDecWaited "yes" celsewhere1 --record-decision --team-member "$rigMember" "$rigContactElsewhere" --kind resolved --text "The rig project admin decides this too." --with contact:rig-projadmin --wait
+rigContactElsewhereId="$( rigAskedId celsewhere1 )"
+rigContactUpId="$( rigReadbackSlots "$rigContactElsewhereId" | LC_ALL=C awk -F'\t' '$1 == "escalated" { print $2 ; exit }' )"
+rigAssert "the same contact outside that scope lands nothing, and goes up to the human-owner" "$( rigPartyLines "$rigContactElsewhere" ):$( [ -n "$rigContactUpId" ] && echo up ):$( rigReadbackField "$rigContactUpId" address-to )" "0:up:human-owner"
+rigAnswerAccount="" ; rigAnswerWait=""
 echo "-- confirmed by one who cannot decide it: it goes up to the human-owner, and his answer lands it --"
 rigAssert "asked of the human-owner, nothing goes up" "$( cat "$rigStore/$rigDid1.fields" "$rigStore/closed/$rigDid1.fields" 2> /dev/null | LC_ALL=C grep -c '^decision-escalate' )" 0
 rigEsc="task-20261008T1800Z-rig-decision-escalated"

@@ -702,6 +702,8 @@ AgentsToolsScheduleKeptDutySessionInto(){ ## variable, member, workspace
 ## starting/<key>.fails. At MDAT_SCHEDULE_START_FAILS_ESCALATE of them (3) one inquiry goes to magic-coordinator's inbox and the key
 ## is held, starting/<key>.escalated, for MDAT_SCHEDULE_START_FAILS_HOLD_MINUTES (360). A start the routine's own lock refused is a
 ## wait, not a failure, and counts for nothing. A success clears the count and the hold. The pass report names every held key.
+## THE HOLD IS MADE BY A FILED INQUIRY ALONE: a filing the tooling refused writes no hold, so the next failure in the streak files it
+## again, and no key reads as held while the coordinator was told nothing.
 AgentsToolsScheduleStartFailed(){ ## key, the start's output
 	local failStore="$MMDAPP/.local/agents/schedule/starting" failCount=0 failLimit="${MDAT_SCHEDULE_START_FAILS_ESCALATE:-3}" failWhy
 	case "$failLimit" in ''|*[!0123456789]*|0) failLimit=3 ;; esac
@@ -724,20 +726,25 @@ AgentsToolsScheduleStartFailed(){ ## key, the start's output
 	failWhy="$( printf '%s\n' "$2" | LC_ALL=C grep -m 1 -A 4 'ERROR' 2> /dev/null | LC_ALL=C tr -s '\n' ' ' | LC_ALL=C cut -c1-600 )"
 	[ -n "$failWhy" ] || failWhy="$( printf '%s\n' "$2" | LC_ALL=C grep -v '^[[:space:]]*$' | LC_ALL=C tail -n 1 | LC_ALL=C cut -c1-200 )"
 	[ -n "$failWhy" ] || failWhy="it printed nothing"
-	: > "$failStore/$1.escalated" 2> /dev/null || :
-	AgentsToolsScheduleStartEscalate "$1" "$failCount" "$failWhy" || :
+	if AgentsToolsScheduleStartEscalate "$1" "$failCount" "$failWhy" ; then
+		: > "$failStore/$1.escalated" 2> /dev/null || :
+	fi
 	return 0
 }
 
 ## The inquiry, in magic-coordinator's inbox, as --supervise-fault files one: written for the coordinator who reads it cold.
 AgentsToolsScheduleStartEscalate(){ ## key, failures in a row, the last failure's words
-	local escName escHold="${MDAT_SCHEDULE_START_FAILS_HOLD_MINUTES:-360}" escSaid
+	local escName escHold="${MDAT_SCHEDULE_START_FAILS_HOLD_MINUTES:-360}" escSaid escWhy
 	case "$escHold" in ''|*[!0123456789]*|0) escHold=360 ;; esac
 	escName="inquiry-$( date -u +%Y%m%dT%H%M%SZ )-schedule-cannot-start-$( printf '%s' "$1" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C tr -c 'a-z0-9' '-' | LC_ALL=C sed -e 's/--*/-/g' -e 's/^-//' -e 's/-$//' | cut -c1-50 ).md"
-	escSaid="$( printf '# Inquiry: the schedule cannot start %s\n\nThe start of `%s` failed %s times in a row on %s. The schedule holds it for %s minutes, then tries again. While it is held, what it starts stays down.\n\n## The last failure\n\n%s\n\n## Next step\n\nFind the cause and fix it. A start that succeeds clears the hold. Until the hold ends, nothing starts this key.\n' \
+	## rc 0 is the filing's own status, read from the tool and never from its words: a refusal is never a filed inquiry.
+	if ! escSaid="$( printf '# Inquiry: the schedule cannot start %s\n\nThe start of `%s` failed %s times in a row on %s. The schedule holds it for %s minutes, then tries again. While it is held, what it starts stays down.\n\n## The last failure\n\n%s\n\n## Next step\n\nFind the cause and fix it. A start that succeeds clears the hold. Until the hold ends, nothing starts this key.\n' \
 		"$1" "$1" "$2" "${MMDAPP##*/}" "$escHold" "$3" \
-		| bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" --upsert-inbox-inquiry magic-coordinator "$escName" 2>&1 )" || :
-	case "$escSaid" in *ERROR*) echo "schedule: the inquiry on the failing start of $1 could not be filed: $( printf '%s' "$escSaid" | LC_ALL=C grep -m1 'ERROR' | cut -c1-300 )" ;; esac
+		| bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsItems.fn.sh" --upsert-inbox-inquiry magic-coordinator "$escName" 2>&1 )" ; then
+		escWhy="$( printf '%s\n' "$escSaid" | LC_ALL=C grep -m1 'ERROR' || printf '%s\n' "$escSaid" | LC_ALL=C grep -v '^[[:space:]]*$' | LC_ALL=C tail -n 1 )"
+		echo "schedule: the inquiry on the failing start of $1 could not be filed, so the key is not held and the next failure files it again: $( printf '%s' "${escWhy:-it printed nothing}" | cut -c1-300 )" >&2
+		return 1
+	fi
 	return 0
 }
 
@@ -1958,7 +1965,8 @@ AgentsToolsScheduleWorkDuty(){
 		[ "$dutyMember" != magic-coordinator ] || dutyAllowed="$dutyCoordinator"
 		[ "$dutyAllowed" = yes ] || [ -z "$dutyUrgent" ] || case "$dutyOwners" in *$'\n'"$dutyMember"$'\n'*) dutyAllowed=yes ;; esac
 		[ "$dutyAllowed" = yes ] || [ -z "$dutyUrgent" ] || AgentsToolsInboxFolderInto dutyInbox "$dutyMember" incoming || dutyInbox=""
-		[ "$dutyAllowed" = yes ] || [ -z "$dutyUrgent" ] || [ -z "$dutyInbox" ] || ! LC_ALL=C grep -q -x -F 'from: magic-coordinator' "$dutyInbox"/*.md 2> /dev/null || dutyAllowed=yes
+		## THE COORDINATOR'S DIRECT TASK (S18): its kind is the file name's inquiry- prefix, and the sender's own line is read. A note it sent starts nobody.
+		[ "$dutyAllowed" = yes ] || [ -z "$dutyUrgent" ] || [ -z "$dutyInbox" ] || ! LC_ALL=C grep -q -x -F 'from: magic-coordinator' "$dutyInbox"/inquiry-*.md 2> /dev/null || dutyAllowed=yes
 		[ "$dutyAllowed" = yes ] || [ -z "$( AgentsToolsScheduleMemberFlag overtime "$dutyMember" "$dutyNow" )" ] || dutyAllowed=yes
 		## A member on vacation is looked at for nothing: no tag, no mention, no duty.
 		[ -z "$( AgentsToolsScheduleMemberFlag vacation "$dutyMember" "$dutyNow" )" ] || continue
@@ -1984,7 +1992,7 @@ AgentsToolsScheduleWorkDuty(){
 		[ "$dutyMember" != magic-coordinator ] || dutyAllowed="$dutyCoordinator"
 		[ "$dutyAllowed" = yes ] || [ -z "$dutyUrgent" ] || case "$dutyOwners" in *$'\n'"$dutyMember"$'\n'*) dutyAllowed=yes ;; esac
 		[ "$dutyAllowed" = yes ] || [ -z "$dutyUrgent" ] || AgentsToolsInboxFolderInto dutyInbox "$dutyMember" incoming || dutyInbox=""
-		[ "$dutyAllowed" = yes ] || [ -z "$dutyUrgent" ] || [ -z "$dutyInbox" ] || ! LC_ALL=C grep -q -x -F 'from: magic-coordinator' "$dutyInbox"/*.md 2> /dev/null || dutyAllowed=yes
+		[ "$dutyAllowed" = yes ] || [ -z "$dutyUrgent" ] || [ -z "$dutyInbox" ] || ! LC_ALL=C grep -q -x -F 'from: magic-coordinator' "$dutyInbox"/inquiry-*.md 2> /dev/null || dutyAllowed=yes
 		[ "$dutyAllowed" = yes ] || [ -z "$( AgentsToolsScheduleMemberFlag overtime "$dutyMember" "$dutyNow" )" ] || dutyAllowed=yes
 		dutyVacation=""
 		[ -z "$( AgentsToolsScheduleMemberFlag vacation "$dutyMember" "$dutyNow" )" ] || { dutyAllowed=no ; dutyVacation=yes ; }
@@ -2042,7 +2050,49 @@ AgentsToolsScheduleWorkDuty(){
 			[ ! -f "$( AgentsSpawnedRecord "$dutyKeptSession" )" ] || dutyKeptRoutine="$( AgentsToolsFrontmatterKey "$( AgentsSpawnedRecord "$dutyKeptSession" )" routine )"
 			[ -z "$dutyKeptRoutine" ] || [ "$dutyKeptRoutine" = "$dutyRoutine" ] || rm -f "$MMDAPP/.local/agents/schedule/duty-session/$dutyMember"
 		fi
-		if AgentsToolsScheduleSpawn "work-duty.$dutyMember" --session-thread:event-track --routine "$dutyRoutine" "$dutyMember" ; then
+		## A DUTY STARTED FOR A PERSON'S MESSAGE opens its thread under it, by the thread the header of the newest Slack message in the member's inbox names.
+		## That message must be newer than the tag pointer and no older than three owed-reply bounds, else it is passed over and said.
+		## A message with a `[sender: ` line is the team's own and is passed over. With none found the start passes none, and the duty thread opens in the owner conversation.
+		local dutyRequest="" dutyItems=() dutyItem dutyItemLine dutyItemId dutyItemFence dutyItemTeam dutyIndex dutyItemTs dutyItemEpoch dutyPointer dutyNow dutyBound
+		if AgentsToolsInboxFolderInto dutyInbox "$dutyMember" incoming && [ -d "$dutyInbox" ] ; then
+			dutyItems=( "$dutyInbox"/note-*-slack-*.md )
+			dutyIndex=${#dutyItems[@]}
+			while [ "$dutyIndex" -gt 0 ] ; do
+				dutyIndex=$(( dutyIndex - 1 ))
+				dutyItem="${dutyItems[$dutyIndex]}"
+				[ -f "$dutyItem" ] || continue
+				dutyItemId="" dutyItemTeam="" dutyItemFence=0
+				while IFS= read -r dutyItemLine ; do
+					if [ "$dutyItemFence" -lt 2 ] ; then
+						case "$dutyItemLine" in
+							---) dutyItemFence=$(( dutyItemFence + 1 )) ;;
+							communication-channel-id:\ *) [ -n "$dutyItemId" ] || dutyItemId="${dutyItemLine#*: }" ;;
+						esac
+						continue
+					fi
+					case "$dutyItemLine" in *"[sender: "*) dutyItemTeam=yes ; break ;; esac
+				done < "$dutyItem"
+				[ -z "$dutyItemTeam" ] || continue
+				case "$dutyItemId" in slack:*) ;; *) continue ;; esac
+				dutyItemTs="${dutyItem##*-slack-}" ; dutyItemEpoch="${dutyItemTs%%.*}"
+				case "$dutyItemEpoch" in ''|*[!0123456789]*) dutyItemEpoch=0 ;; esac
+				dutyPointer="$( AgentsToolsScheduleTagPointer "$dutyMember" )" ; dutyNow="$( date +%s )" ; dutyBound="${MDAT_OWED_REPLY_SECONDS:-1800}"
+				case "$dutyBound" in ''|*[!0123456789]*) dutyBound=1800 ;; esac
+				dutyBound=$(( dutyBound * 3 ))
+				if [ "$dutyItemEpoch" -le "${dutyPointer:-0}" ] || [ "$dutyItemEpoch" -lt $(( dutyNow - dutyBound )) ] ; then
+					echo "work-duty: the newest Slack message of $dutyMember, ${dutyItem##*/}, is not newer than the tag pointer or is older than $dutyBound s, so its duty thread opens in the owner conversation" >&2
+					break
+				fi
+				type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include" || echo "work-duty: AgentsTools.SpawnSandboxInput.include did not load, so the duty of $dutyMember starts with no request thread" >&2
+				if AgentsToolsSpawnConversationThreadValid "${dutyItemId#slack:}" ; then
+					dutyRequest="${dutyItemId#slack:}"
+				else
+					echo "work-duty: the newest Slack message of $dutyMember names ${dutyItemId#slack:}, which is no <channel>:<thread ts>, so its duty thread opens in the owner conversation" >&2
+				fi
+				break
+			done
+		fi
+		if AgentsToolsScheduleSpawn "work-duty.$dutyMember" --session-thread:event-track --routine "$dutyRoutine" ${dutyRequest:+--conversation "$dutyRequest"} "$dutyMember" ; then
 			mkdir -p "$MMDAPP/.local/agents/schedule/duty" 2> /dev/null && date +%s > "$MMDAPP/.local/agents/schedule/duty/$dutyMember"
 			AgentsToolsScheduleTagCarry "$dutyMember"
 			AgentsToolsScheduleTagGive "$dutyMember"
@@ -2341,7 +2391,7 @@ AgentsToolsScheduleVerifyStale(){ ## item file name, the item's file (may be emp
 ## first, then its `restart-session` group, else its `owner`, is spawned on that routine. A move refused starts nothing, and says why.
 AgentsToolsScheduleStartPending(){
 	local pendFile pendName pendNow pendRecheck pendEpoch pendRoutine pendRc pendMembers pendOut pendMark pendOne pendFast="" pendFlags pendOpen=no pendHeld="" pendGo="" pendLimit
-	local pendLine pendFence pendSeen pendRestart pendOwner pendCondition
+	local pendLine pendFence pendSeen pendRestart pendOwner pendCondition pendAddress pendSlack pendRequest
 	AgentsToolsScheduleStartsAllowed || return 0
 	type AgentsToolsRecheckConditionUnmet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
 	type AgentsToolsBoardItemHandler > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
@@ -2379,11 +2429,11 @@ AgentsToolsScheduleStartPending(){
 		case "$pendName" in dispatch-*) continue ;; esac
 		## THE ITEM'S HEADERS, READ ONCE, by the shell: the first value of each key the start reads, in the first front-matter block,
 		## as the one front-matter reader takes it (AgentsToolsFrontmatterKey), where a read of each key was a process each.
-		pendGo="" pendRecheck="" pendCondition="" pendRestart="" pendOwner="" pendMark="" pendFence=0 pendSeen=" "
+		pendGo="" pendRecheck="" pendCondition="" pendRestart="" pendOwner="" pendMark="" pendAddress="" pendSlack="" pendFence=0 pendSeen=" "
 		while IFS= read -r pendLine ; do
 			if [ "$pendFence" = 0 ] ; then [ "$pendLine" = "---" ] || break ; pendFence=1 ; continue ; fi
 			[ "$pendLine" != "---" ] || break
-			case "${pendLine%%: *}" in approved-by|recheck-date|condition|restart-session|owner|mark) ;; *) continue ;; esac
+			case "${pendLine%%: *}" in approved-by|recheck-date|condition|restart-session|owner|mark|communication-channel-id|references|spawned-by|tracks|groomed-from) ;; *) continue ;; esac
 			case "$pendLine" in *": "*) ;; *) continue ;; esac
 			case "$pendSeen" in *" ${pendLine%%: *} "*) continue ;; esac
 			pendSeen="$pendSeen${pendLine%%: *} "
@@ -2394,6 +2444,8 @@ AgentsToolsScheduleStartPending(){
 				restart-session) pendRestart="${pendLine#*: }" ;;
 				owner) pendOwner="${pendLine#*: }" ;;
 				mark) pendMark="${pendLine#*: }" ;;
+				communication-channel-id) pendAddress="${pendLine#*: }" ;;
+				*) case "${pendLine#*: }" in *-slack-*) pendSlack=yes ;; esac ;;
 			esac
 		done < "$pendFile"
 		## The go is the item's own, else its epic's: a child of an approved epic carries `epic:` alone and no copy of the go.
@@ -2474,10 +2526,24 @@ AgentsToolsScheduleStartPending(){
 			printf 'start-pending: %s not moved to running, nothing started: %s\n' "$pendName" "$( printf '%s\n' "$pendOut" | LC_ALL=C grep -m 1 -E 'ERROR|REFUS' | LC_ALL=C cut -c1-300 )"
 			continue
 		}
+		## THE REQUEST THREAD RIDES ON THE ITEM, read here where the start is made, so a held or unapproved item says nothing. A header that names no thread, or an item from a Slack inbox item with no header, is said and the start goes on.
+		pendRequest=""
+		case "$pendAddress" in
+			slack:*)
+				type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include" || printf 'start-pending: AgentsTools.SpawnSandboxInput.include did not load, so %s starts with no request thread\n' "$pendName"
+				if AgentsToolsSpawnConversationThreadValid "${pendAddress#slack:}" ; then
+					pendRequest="${pendAddress#slack:}"
+				else
+					printf 'start-pending: %s names the Slack place %s, which is no <channel>:<thread ts>, so it starts with no request thread\n' "$pendName" "${pendAddress#slack:}"
+				fi
+			;;
+			'') [ -z "$pendSlack" ] || printf 'start-pending: %s traces to a Slack inbox item and carries no communication-channel-id, so it starts with no request thread\n' "$pendName" ;;
+		esac
 		## The members are split on purpose: each is one argument of the spawner.
 		# shellcheck disable=SC2086
 		if AgentsToolsScheduleSpawn "pending.${pendName%.md}" --routine "$pendRoutine" \
 			--description "Board item $pendName, approved, started from board-pending by the schedule: run its next iteration by $pendRoutine. The item is in board-running, its start recorded by the schedule." \
+			${pendRequest:+--conversation "$pendRequest"} \
 			$pendMembers ; then
 			printf 'start-pending: starting %s by %s for %s, its receipt is written once the session is known\n' "$pendName" "$pendRoutine" "$pendMembers"
 			return 0

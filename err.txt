@@ -1,0 +1,2 @@
+SystemContext: init: /Users/myx/Workspaces/ws-myx-devops/source
+⛔ ERROR: AgentsLocalHarness.sh: the local server could not be reached (curl rc=7), so no model was read

@@ -1,10 +1,12 @@
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
-📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-read [--team-member <team-member>] <page-id>
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-read [--team-member <team-member>] <page-id> [--inline] [--since <iso-utc-date>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-check [--team-member <team-member>] [<page-id>...]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-delete [--team-member <team-member>] <page-id>
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-move [--team-member <team-member>] <page-id> --parent-id <parent-page-id>
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]
-📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-update [--team-member <team-member>] <page-id> (--version <n>|--if-version <n>) --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-render [--team-member <team-member>] --source <spec> [--page-id <page-id>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-create [--team-member <team-member>] --key <space-key> --name <text> [--description <text>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-list [--team-member <team-member>] [--cursor <value>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]
@@ -89,24 +91,57 @@
 		--jira-sprint-list <board-id> [--start-at <n>] / --jira-sprint-issue-search <sprint-id> [--start-at <n>]
 			The sprints of one board; the issues of one sprint, from the place named on.
 
-		--confluence-page-read <page-id> [--format storage|atlas_doc_format] [--version <n>]
-			Prints one page, or the version of it named.
+		--confluence-page-read <page-id> [--format storage|atlas_doc_format] [--version <n>]			Prints one page, or the version of it named.
 
 		--confluence-page-search <cql> [--limit <n>]
 			Prints the pages a CQL query finds, up to the limit given.
+
+		--confluence-page-check [<page-id>...]
+			Checks each page against the documentation convention's mechanical rules, and
+			prints one row per failing page and rule: the page's id, the rule's own id and
+			what failed. Read-only. Exit 1 where it printed a row, and 0 where every page
+			passes.
+
+			With no page id it checks the ids the workspace setting
+			`CONFLUENCE_PAGE_CHECK_PAGES` names, comma-separated, and refuses with 6 where
+			that setting holds none: a page set belongs to the workspace, never to this
+			package.
+
+			The rules are R1, R2, R3, R4, R5, R8's title uniqueness, R9, R10, R11's
+			credential half and R13, of the `confluence-page` contract proposed to
+			`magic-librarian`. R6, R7, R12 and R14 need the page inventory or a live read,
+			and R15 is decided only once this check is wired to the render.
+
+			A page it cannot read is a failing row, never a skip: a 404 is a missing page
+			and a page this identity may not see, and the row says both. A link whose target
+			the checked set's spaces do not hold is reported on stderr as uncompared.
 
 		--confluence-page-create (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>)
 			Creates one page in that space, the body in Confluence's storage format, under a
 			parent page where `--parent-id` names one.
 
-		--confluence-page-update <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>)
+			A 🙋 WARNING on stderr before the request says the page cannot be removed
+			afterwards unless this identity holds delete there, so a page made for a
+			measurement stays in its space. The page is still created.
+
+		--confluence-page-update <page-id> (--version <n>|--if-version <n>) --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>)
 			Replaces one page's title and body. `--version <n>` is the version the page was
 			read at (`version.number` of --confluence-page-read): the operation writes
 			version n+1 itself, and the service refuses with 409 where the page has moved
 			past n, so a page changed since it was read is not overwritten unseen.
 
+			`--if-version <n>` is the same number, read again here before anything is sent. A
+			page that stands at another version is a CONFLICT printed on stderr, exit 10, and
+			nothing written. This is the form a regeneration uses: its body was rendered
+			against that version, and writing it over a newer body would drop the other
+			writer's words with no error at all.
+
 		--confluence-page-delete <page-id>
 			Deletes one page.
+
+			A 404 is read back once, so the answer separates a page this identity may not
+			delete from a page that is not there. Both stay exit 8, and whether another
+			identity still holds a page the read-back cannot see is UNKNOWN.
 
 		--confluence-page-move <page-id> --parent-id <parent-page-id>
 			Puts one page under that parent, which makes it that page's
@@ -126,11 +161,32 @@
 			so nothing moved and a retry of the same call changes
 			nothing. Every other status means the move was not sent.
 
-		--confluence-comment-read <page-id>
-			Prints the comments of one page.
+		--confluence-comment-read <page-id> [--inline] [--since <iso-utc-date>]
+			Prints the comments of one page, as TSV rows: `COMMENT_ID`,
+			`VERSION_AUTHOR_ID`, `CREATED`, `BODY`, `PAGE_ID`, `STATUS`,
+			`RESOLUTION_STATUS`, `PARENT_COMMENT_ID`.
+
+			Without `--inline`, the page's footer comments.
+			`--inline` adds its inline comments, which are the ones attached
+			to a span of the body. A reply to either kind is read under its
+			parent, so a reply is a row carrying its parent's id: a caller
+			that wants only comments to act on skips the rows whose
+			`PARENT_COMMENT_ID` is not empty.
+
+			`--since` bounds the read by the comment's own
+			`version.createdAt`, so a scan of a page files nothing twice. It
+			takes `2026-11-20` or `2026-11-20T09:00:00.000Z`, both read as
+			UTC, and any other form is refused before anything is sent.
+
+			No completeness signal: stderr always states `more: unknown`.
 
 		--confluence-comment-add <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
 			Adds one comment to that page, as an answer where a parent comment is named.
+			A reply takes its parent's own leg: a footer comment is answered at
+			`/wiki/api/v2/footer-comments`, and an inline comment at
+			`/wiki/api/v2/inline-comments` with its parent named. The parent is read
+			on the footer leg first and the inline leg second, so an id on neither
+			is refused and nothing is posted.
 
 		--confluence-space-create --key <space-key> --name <text> [--description <text>]
 			Creates one space on this organisation's own site, and prints its row:

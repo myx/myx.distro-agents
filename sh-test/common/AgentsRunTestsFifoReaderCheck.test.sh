@@ -15,8 +15,10 @@
 ##      the right rule and not a naming convention.
 ## The live fault this pins: two readers, pids 54299 and 61567, opened at 2026-11-23 04:20 +0200 by
 ## AgentsRunTestsIdentityCheck's RigLeak fixture, were still running 30 hours later, reparented to pid 1,
-## their rig folder long gone, each holding one of the suite's three lanes. Nothing in their own check ended
-## them, because the check was ended at its time bound before the line that ends its strays.
+## their rig folder long gone, each holding one of the suite's three lanes. Why they outlived their run is
+## UNMEASURED, and no cause is claimed here: the runner's bound path ends the ended test's whole process
+## group and its process tree (runner-slot-keeper.py end_group, end_tree), and a reader of this shape is
+## ended by that signal, so the bound cut is not shown to be the cause.
 ## Offline: every tree is the rig's own, and every process this check starts is ended by it.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"

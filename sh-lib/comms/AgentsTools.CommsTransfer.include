@@ -22,7 +22,7 @@
 ##                  whose text carries `<@<the reader's Slack id>>`. An `edit` of a message already handed over is no second
 ##                  delivery, because the item's name is the message's own id.
 ##   The item       note-<the message's own minute>-slack-<the message's own id>.md, `communication-channel-id`
-##                  slack:<channel>:<ts>. The name is the dedup, as mail's -email-u<uid> and Trello's -trello-<id> are.
+##                  slack:<channel>:<thread root ts>, the message's own ts for a top-level one. The name is the dedup, as mail's -email-u<uid> and Trello's -trello-<id> are.
 ##
 ## Sourced, never run: functions only. Which events a reader is handed is AgentsCommsTransferEvents.awk's.
 ##
@@ -110,7 +110,7 @@ AgentsCommsTransferCursorSet(){ ## the source key, the id
 ## read or an item could not be written, and then the pointer is where it was.
 AgentsCommsTransferSlack(){ ## member
 	local passMember="${1:-}" passDir passList passPointer passMark="" passId="" passStore passLine passKey
-	local passSource passPath passMoved="false" passFile passMonth passRows passKind passEvent passMessage passChannel passStamp passText
+	local passSource passPath passMoved="false" passFile passMonth passRows passKind passEvent passMessage passChannel passStamp passRoot passAuthor passText
 	local passName passWork passItemRc=0 passSeed passCursor passAt passMax passLines
 	case "$passMember" in ''|-*|*[!A-Za-z0-9._-]*) echo "⛔ ERROR: the transfer takes one member name, got: $passMember" >&2 ; set +e ; return 1 ;; esac
 	[ -n "${MMDAPP:-}" ] || { echo "⛔ ERROR: the transfer needs a workspace" >&2 ; set +e ; return 1 ; }
@@ -173,7 +173,7 @@ AgentsCommsTransferSlack(){ ## member
 				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsCommsTransferEvents.awk" "$passFile" 2> /dev/null )" \
 				|| { echo "⛔ ERROR: the transfer could not read $passFile" >&2 ; set +e ; return 1 ; }
 			[ -n "$passRows" ] || continue
-			while IFS="$( printf '\t' )" read -r passKind passEvent passMessage passChannel passStamp passText ; do
+			while IFS=$'\t' read -r passKind passEvent passMessage passChannel passStamp passRoot passAuthor passText ; do
 				case "$passKind" in
 					MSG)
 						passName="note-$passStamp-slack-$passMessage.md"
@@ -186,14 +186,17 @@ AgentsCommsTransferSlack(){ ## member
 						passWork="$( mktemp "$MMDAPP/.local/temp/mdat-transfer.XXXXXX" 2> /dev/null )" || { echo "⛔ ERROR: the transfer could not make a working file" >&2 ; set +e ; return 1 ; }
 						{
 							printf '## slack-message %s:%s\n' "$passChannel" "$passMessage"
-							printf 'source: slack\nchannel: %s\nts: %s\n\n' "$passChannel" "$passMessage"
+							printf 'source: slack\nchannel: %s\nts: %s\n' "$passChannel" "$passMessage"
+							[ "$passAuthor" = "-" ] || printf 'author: %s\n' "$passAuthor"
+							printf '\n'
 							printf '%s\n' "$passText" | LC_ALL=C awk '{ gsub(/\\037/, "\n") ; gsub(/\\036/, "\t") ; print ; }'
 						} > "$passWork" 2> /dev/null || { rm -f "$passWork" ; echo "⛔ ERROR: the transfer could not write its working file" >&2 ; set +e ; return 1 ; }
 						type AgentsToolsCollectItemWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.Collect.include"
 						## THE WRITE'S OWN TOOL, in this shell: the collect item write sources it inside its pipeline's left side,
 						## where it can serve no caller. A transfer stands outside the dispatcher, so it brings the tool here.
 						type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-						AgentsToolsCollectItemWrite "$passMember" "$passName" "slack:$passChannel:$passMessage" "$passWork" || passItemRc=$?
+						[ "$passRoot" != "-" ] || passRoot="$passMessage"
+						AgentsToolsCollectItemWrite "$passMember" "$passName" "slack:$passChannel:$passRoot" "$passWork" || passItemRc=$?
 						rm -f "$passWork"
 						[ "$passItemRc" -eq 0 ] || { echo "⛔ ERROR: the transfer could not write $passName" >&2 ; set +e ; return 1 ; }
 					;;

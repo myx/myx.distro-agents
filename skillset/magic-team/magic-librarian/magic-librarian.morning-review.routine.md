@@ -105,7 +105,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 ## Tooling operations
 
 - `DistroAgentsSession.fn.sh --update-routine-state [--team-member <team-member>] [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--edit-patch-from-stdin|--from-file <path>]`
-- `DistroAgentsItems.fn.sh --upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]`
+- `DistroAgentsItems.fn.sh --upsert-inbox-inquiry <target-member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--from-comment <service>:<page-or-file>:<comment-id>] [--reply] [--from-file <path>|--upsert-from-slots]`
 - `AgentLibrarianTools.fn.sh --skillset-upsert [--team-member <team-member>] <pathname> (--from-stdin|--from-file <path>)`
 - `AgentLibrarianTools.fn.sh --queue-list`
 - `AgentLibrarianTools.fn.sh --queue-take`

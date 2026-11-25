@@ -715,6 +715,13 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## The scan of the page comments still open (the reflection pass's gathering half): its pages are the ones the
+		## definition line names, else the workspace's own CONFLUENCE_PAGE_CHECK_PAGES.
+		--intern-op-doc-comments-input-scan)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpDocCommentsInputScan.include"
+			return $?
+		;;
+
 		--intern-cleanup-sweep)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.OpInternCleanupSweep.include"
 			return $?

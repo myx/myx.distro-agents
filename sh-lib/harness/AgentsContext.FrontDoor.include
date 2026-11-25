@@ -35,6 +35,22 @@ if [ "${1:-}" = "--mdat-output-format" ] ; then
 	esac
 fi
 
+## THE TEAM MEMBER OPTION STANDS ANYWHERE AFTER THE NAME: put after the operation's own words, it is taken as if it stood first. Words after `--` stay as given.
+case " ${*:3} " in
+	*" --team-member "*)
+		local hoistOperation="$1" hoistMember="" hoistRest=()
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--team-member) hoistMember="${2:-}" ; shift ; [ $# -eq 0 ] || shift ;;
+				--) hoistRest+=( "$@" ) ; break ;;
+				*) hoistRest+=( "$1" ) ; shift ;;
+			esac
+		done
+		set -- "$hoistOperation" --team-member "$hoistMember" ${hoistRest[@]+"${hoistRest[@]}"}
+	;;
+esac
+
 ## The common option set (F2.2): a run of options after the name is taken here, and the call is made again under what they resolve; where the name takes the member
 ## first and none is given, the implied one is placed (sh-lib/common/AgentsTools.CommonOptions.include). Rc 9 is "nothing to do": the call goes on as it is.
 if [ -z "${agentsCommonFronted:-}" ] && { [ -z "${2:-}" ] || case "$2" in -*) true ;; *) false ;; esac ; } ; then

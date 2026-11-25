@@ -8,7 +8,7 @@ case "$1" in
 		## --intern-op-comms-confluence-* implementation below directly. A member's operation reaches
 		## our own organisation (MDAT_COMMS_SIDE, AgentsTools.CommsSide.include), for a client-*
 		## member too: what such a member holds for this system is the other organisation's.
-		--confluence-space-list|--confluence-page-read)
+		--confluence-space-list|--confluence-page-read|--confluence-page-check|--confluence-page-render)
 			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
 			type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
@@ -51,8 +51,30 @@ case "$1" in
 			return 0
 		;;
 
+		--intern-op-comms-confluence-page-check)
+			shift
+			local checkMember="${1:-}"
+			[ -n "$checkMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --confluence-page-check: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			shift
+			type AgentsToolsAtlassianConfluencePageCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.ConfluencePageCheck.include"
+			local checkRc=0
+			AgentsToolsAtlassianConfluencePageCheck --member "$checkMember" --context confluence-page-check "$@" || checkRc=$?
+			set +e ; return "$checkRc"
+		;;
+
+		--intern-op-comms-confluence-page-render)
+			shift
+			local rendMember="${1:-}"
+			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --confluence-page-render: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			[ -n "$rendMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --confluence-page-render: <team-member> missing" >&2 ; set +e ; return 1 ; }
+			type AgentsToolsAtlassianConfluencePageRender > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.ConfluencePageRender.include"
+			local rendRc=0
+			AgentsToolsAtlassianConfluencePageRender --member "$rendMember" --context confluence-page-render "$@" || rendRc=$?
+			set +e ; return "$rendRc"
+		;;
+
 		*)
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD: unknown --confluence-* operation: $1 -- the supported operations are --confluence-space-list and --confluence-page-read" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD: unknown --confluence-* operation: $1 -- the supported operations are --confluence-space-list, --confluence-page-read, --confluence-page-check and --confluence-page-render" >&2
 			set +e ; return 1
 		;;
 

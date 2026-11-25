@@ -98,7 +98,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 ## Tooling operations
 
 - `--upsert-inbox-note <team-member> <item-filename>` (`DistroAgentsItems`)
-- `--upsert-inbox-inquiry <member> <item-filename>` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <target-member> <item-filename>` (`DistroAgentsItems`)
 - `--grooming-create-backlog <item-filename> --owner-header-value <value>` (`DistroAgentsItems`)
 - `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
 - `--routine-run-inline <routine>` (`ThisSession`)

@@ -320,7 +320,7 @@ Every `magic-tooling` operation this member's own procedures and rules use. Beha
 - `--advance-to-running <item-filename> --from-state:<state> [--header:...]...` (`DistroAgentsItems`)
 - `--spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--spawn-settings-workspace <name>] [--spawn-cli-service <name>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [<team-member>...]` (`DistroAgentsDispatcher`)
 - `--upsert-inbox-note <team-member> <item-filename>` (`DistroAgentsItems`)
-- `--upsert-inbox-inquiry <member> <item-filename>` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <target-member> <item-filename>` (`DistroAgentsItems`)
 - `--get-roster` (`DistroAgentsKnowledge`)
 - `--roster-upsert` (`AgentDispatcherTools`)
 - `--answer-escalation <request-id> <verdict> [text]` (`DistroAgentsQuestions`)

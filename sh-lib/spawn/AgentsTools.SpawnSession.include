@@ -28,6 +28,8 @@ case "$1" in
 		local partitionWorkers=""
 		## The scopes the run is partitioned by: one child per member and scope, each once (routine × member × scope).
 		local partitionScopes=()
+		## The thread of the person's message this session is for, `<channel>:<thread ts>`, passed to every spawn of the call.
+		local sessionConversations=() sessionConversationOne=""
 		type AgentsToolsSpawnSessionRecordNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSessionParent.include" || { set +e ; return 1 ; }
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -92,6 +94,15 @@ case "$1" in
 						;;
 					esac
 					shift
+				;;
+				--conversation)
+					type AgentsToolsSpawnConversationThreadValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxInput.include" || { echo "$MDSC_CMD: spawn-session: ⛔ ERROR: AgentsTools.SpawnSandboxInput.include did not load, so nothing was started" >&2 ; set +e ; return 1 ; }
+					if ! AgentsToolsSpawnConversationThreadValid "${2:-}" ; then
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --conversation requires <channel>:<thread-ts>, got: ${2:-} -- nothing was started" >&2
+						set +e ; return 1
+					fi
+					sessionConversations+=( "$2" )
+					shift 2
 				;;
 				--session-name-or-comment)
 					if [ -z "${2:-}" ] ; then
@@ -201,7 +212,7 @@ case "$1" in
 					shift 2
 				;;
 				--*)
-					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]" >&2
+					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--conversation <channel>:<thread-ts>]... [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]" >&2
 					set +e ; return 1
 				;;
 				*)
@@ -392,14 +403,20 @@ case "$1" in
 		## coworking session of all of them, as it always was.
 		local partitionRoster="$callerWild" execEntry
 		if [ "$rosterExpanded" = "true" ] ; then
-			for execEntry in ${routineExecutorsLine//,/ } ; do
+			type AgentsToolsRoutineExecutorsMemberList > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.RoutineExecutors.include"
+			while IFS= read -r execEntry ; do
 				case "$execEntry" in *-'*') partitionRoster="true" ;; esac
-			done
-		elif [ ${#spawnMembers[@]} -ge 2 ] && [ "$participantsGiven" != "true" ] && ! AgentsToolsSpawnRoutineIsCoworking "$resolvedRoutineFile" ; then
-			## Two or more members of a routine that is not coworking, with no --participants, partition the run, one session each.
-			## A COWORKING ROUTINE, OR --participants, MAKES THE CALL ONE COWORKING SESSION: the first member starts it and every
-			## further one joins it, as the comment below the limit says and as the owner rules (a coworking session is one thread).
+			done <<< "$( AgentsToolsRoutineExecutorsMemberList "$routineExecutorsLine" | LC_ALL=C tr ' ' '\n' )"
+		elif [ ${#spawnMembers[@]} -ge 2 ] && [ "$participantsGiven" != "true" ] ; then
+			## Two or more members with no --participants partition the run, one session each. WITH --participants THE CALL IS ONE
+			## COWORKING SESSION: the first member starts it and every further one joins it, as the comment below the limit says and
+			## as the owner rules (a coworking session is one thread). Partitioning it gave two sessions, two threads and two
+			## session headers for one task (mgpu preset reach, 2026-11-09).
 			partitionRoster="true"
+			## A COWORKING ROUTINE PARTITIONED IS SAID, never silent: the caller meant one session and got one each.
+			if AgentsToolsSpawnRoutineIsCoworking "$resolvedRoutineFile" ; then
+				echo "$MDSC_CMD: spawn-session: ⚠️ WARNING: ${#spawnMembers[@]} members of a coworking routine and no --participants start ${#spawnMembers[@]} sessions, one each. For ONE coworking session name the executor alone and give --participants <member>,<member>." >&2
+			fi
 		fi
 		[ ${#partitionScopes[@]} -eq 0 ] || partitionRoster="true"
 		if [ -n "$partitionWorkers" ] && [ "$partitionRoster" != "true" ] ; then
@@ -538,6 +555,7 @@ case "$1" in
 			[ -z "$sessionCliService" ] || partitionArgs+=( --spawn-cli-service "$sessionCliService" )
 			[ -z "$sessionSettingsWorkspace" ] || partitionArgs+=( --spawn-settings-workspace "$sessionSettingsWorkspace" )
 			[ -z "${sessionParentMember:-}" ] || partitionArgs+=( --parent-member "$sessionParentMember" )
+			for sessionConversationOne in ${sessionConversations[@]+"${sessionConversations[@]}"} ; do partitionArgs+=( --conversation "$sessionConversationOne" ) ; done
 			{ printf '%s\0' ${partitionArgs[@]+"${partitionArgs[@]}"} > "$partitionArgsFile" \
 				&& printf '%s\n' "$spawnTaskText" > "$partitionTaskFile" \
 				&& printf '%s\n' "$partitionLabel" > "$partitionIdentifyFile" \
@@ -560,6 +578,7 @@ case "$1" in
 			[ -z "${sessionTrackedItem:-}" ] || spawnArgs+=( --tracked-item "$sessionTrackedItem" )
 			[ -z "$sessionSettingsWorkspace" ] || spawnArgs+=( --spawn-settings-workspace "$sessionSettingsWorkspace" )
 			[ -z "${sessionParentMember:-}" ] || spawnArgs+=( --parent-member "$sessionParentMember" )
+			for sessionConversationOne in ${sessionConversations[@]+"${sessionConversations[@]}"} ; do spawnArgs+=( --conversation "$sessionConversationOne" ) ; done
 			if [ "$partitionRoster" = "true" ] ; then
 				## A partitioned run is started from its queue, below.
 				break

@@ -225,7 +225,7 @@ Every `magic-tooling` operation this team-member uses. Behaviour is read with `-
 - `--librarian-list-team-files-dates [<path>...]`
 - `--librarian-inbox-to-processed <team-member> <item-filename> [--include-processed]`
 - `--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member> [--exclude-incoming]`
-- `--upsert-inbox-inquiry <team-member> <item-filename>` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <target-member> <item-filename>` (`DistroAgentsItems`)
 - `--knowledge-store-spread <path> [--keep <glob>]...`
 - `--knowledge-store-retire <path> --section <glob>...`
 - `--get-path-history [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>...` (`DistroAgentsKnowledge`)

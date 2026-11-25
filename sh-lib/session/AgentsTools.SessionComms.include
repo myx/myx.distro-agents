@@ -319,7 +319,7 @@ AgentsToolsSessionCommsLockGive(){
 ## it in the process list. Its own process group, a hangup ignored, the descriptors 3 to 63 closed, its input /dev/null, its output
 ## and its errors appended to comms/log. The names that carry a member's session are taken out of its environment. One line of the
 ## log is this function's: the start it made, with the process and when it began.
-AgentsToolsSessionCommsStart(){
+AgentsToolsSessionCommsStart(){ ## what (optional: `restart` for the reader replacing its own ended process, which the start gap lets through)
 	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	local startDir startLive startTool startMonitor startPid="" startBegan startDrop
 	if [ "${MDAT_COMMS_READER:-}" = "off" ] ; then
@@ -332,6 +332,9 @@ AgentsToolsSessionCommsStart(){
 	## ONE START A GAP, NOT ONE AT A TIME: `.starting` records the moment of the last start, and is left in place. A caller within
 	## `agentsSessionCommsStartGap` of it is told `recent`, and starts nothing: a reader that died on its first pass is otherwise
 	## replaced by a new process on every call after it, and a hundred callers make a hundred readers. A live lock still answers first.
+	## THE GAP IS A FAILURE'S, NEVER A CODE CHANGE'S: a reader ending on its own changed code calls with `restart`, and gets its
+	## replacement at once, or the queued posts it was carrying wait for whatever asks next.
+	[ "${1:-}" != "restart" ] || rmdir "$startDir/.starting" 2> /dev/null || :
 	if ! mkdir "$startDir/.starting" 2> /dev/null ; then
 		local startMarkAt startMarkNow
 		startMarkAt="$( stat -f '%m' "$startDir/.starting" 2> /dev/null || stat -c '%Y' "$startDir/.starting" 2> /dev/null )" || startMarkAt=""

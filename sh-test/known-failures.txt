@@ -25,10 +25,10 @@ AgentsDetachedProcessWaitCheck	magic-developer	the wait resolves the handle with
 AgentsDutyKeptSessionCheck	magic-developer	5 of 9: a restart inside a foreign session starts no new duty and marks nothing detached, so it waits for the duty restart rule to be settled
 AgentsDutyKeptStaleCheck	magic-developer	2 of 6: the rig cannot call AgentsToolsDutyKeptStale, so the check waits to load the function from the file that defines it now
 AgentsEmailEnvTokenCheck	magic-developer	2 of 5: the member's own scope EMAIL_IMAP_HOST and EMAIL_USER are not used, got 0 want 1
+AgentsEpicWaveAcceptanceOnBoardCheck	magic-librarian	7 of 15: S6.2's routine text is not in the tree, so its four statements read absent on live, and the row goes in the landing that writes that text
 AgentsGrantsIndexCheck	magic-tester	re-measured by magic-coordinator at 04:01: the index carries a magic-developer member the check does not expect and one coordinator row is missing, with magic-developer on the index build
 AgentsHandbackNextCheck	magic-developer	no start was made from the served call, got 0 want 1
 AgentsHarnessAccessRootsCheck	magic-developer	refuses to report a result: the model rig-main is of no family this service's legs know
-AgentsHarnessAskCheck	magic-developer	ended at its 900s limit: the result opens with an AskQuestion error that the question was posted and recorded as pending, where RECEIVED is wanted
 AgentsHarnessAskForgedMarkCheck	magic-tester	ended at its 900s limit with no failing assertion before it, so the check or its rig stands still
 AgentsHarnessAskFormsCheck	magic-developer	ended at its 900s limit: the same AskQuestion error stands where the result must open with RECEIVED
 AgentsHarnessAskMemberSenderCheck	magic-developer	a decision's reply is not read as its answer, got no:none want no:VERDICT: beta
@@ -89,7 +89,7 @@ AgentsNeedsReplyMarkerCheck	magic-developer	2 of 23: the NEEDS REPLY marker in a
 AgentsOriginPathsExistCheck	magic-developer	1 of 10: three includes spell a package path in another form, root-session-end.sh:35 and :40 and AgentsHarnessBatch.include:58
 AgentsPackageConventionsCheck	magic-developer	two unguarded uses of a GNU-only flag, got 2 want 0
 AgentsParkHandbackCheck	magic-developer	the handback is not posted, got 0 want 1, so the model is asked more than once
-AgentsPermissionHoldsCheck	magic-tester	ended at its 900s limit after the escalation-answer rule, so the check or its rig stands still
+AgentsPermissionHoldsCheck	magic-tester	its whole run takes 1745 s outside the runner, and the runner cut it at its 900 s default, so it waits for its cost to fall or its bound to rise
 AgentsPermissionPostLeadCheck	magic-developer	refuses to report a result: the permission that is to be asked again was never recorded
 AgentsPermissionSetRecordCheck	magic-tester	left 11 processes running at its end, so it fails on its own teardown rather than on an assertion
 AgentsPlacesRegistryCheck	magic-tester	refuses to report a result: its rig member lost-rig sits in the members index but in no tracked workspace, so no row below is measured

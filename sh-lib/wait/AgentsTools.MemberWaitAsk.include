@@ -83,7 +83,7 @@ AgentsWaitProbeAsk(){
 	local probeMember="$1" probeTarget="$2" probeOut="$4" probeRecord probeLine
 	local probeStatus="" probeChannel="" probeTs="" probeThreadTs="" probeAddressees="" probeFollow=""
 	local probeAsking="" probeRevision="" probeKind="" probeSelect="" probeIdentity=""
-	local probeBySession="" probeByOperation="" probeUnread=""
+	local probeBySession="" probeByOperation="" probeUnread="" probeContactMember="" probeReadMember=""
 	probeRecord="$( AgentsWaitAskRecord "$probeTarget" )"
 	[ -f "$probeRecord" ] || return 2
 	while IFS= read -r probeLine ; do
@@ -99,10 +99,17 @@ AgentsWaitProbeAsk(){
 			'kind: '*) probeKind="${probeLine#kind: }" ;;
 			'select: '*) probeSelect="${probeLine#select: }" ;;
 			'ask-identity: '*) probeIdentity="${probeLine#ask-identity: }" ;;
+			'contact-member: '*) probeContactMember="${probeLine#contact-member: }" ;;
 			'answered-session: '*) probeBySession="${probeLine#answered-session: }" ;;
 			'# '*) break ;;
 		esac
 	done < "$probeRecord"
+	## The member that reached a contact is kept beside the post, among its fields, as its own record's slots are.
+	[ -n "$probeContactMember" ] || probeContactMember="$( LC_ALL=C awk -F'\t' '$1 == "contact-member" { print $2 ; exit ; }' "${probeRecord%.md}.fields" 2> /dev/null )" || probeContactMember=""
+	[ -n "$probeContactMember" ] || probeContactMember=""
+	## A CONTACT'S ASK IS READ AS THE CLIENT-* MEMBER THAT REACHED IT (Q970): that side's thread is nobody else's to read, and
+	## the send went out as that member. Every other ask is read as the asking member, as before.
+	probeReadMember="${probeContactMember:-$probeMember}"
 	## An ask that offers answers of its own is read by the form its options give it, which its
 	## `select` field alone does not say (AgentsTools.PendingReplyOptionAsk.include).
 	type AgentsToolsPendingReplyAnswerForm > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyOptionAsk.include"
@@ -123,11 +130,11 @@ AgentsWaitProbeAsk(){
 		## A proposal is answered on its root alone: the clicks under its root, never those under
 		## the proposal reply, and the replies after that reply (AgentsSlackThreadAnswersSince.awk).
 		if [ "$probeKind" = "proposal" ] && [ -n "$probeRevision" ] && [ -z "$probeFollow" ] ; then
-			AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "$probeTs" "$probeOut.root" "$probeAddressees" "false" "$probeAsking" "" "$( [ "$probeIdentity" = "bot" ] && printf 'true' || printf 'false' )" || probeUnread=1
+			AgentsWaitProbeSlack "$probeReadMember" "$probeChannel:$probeThreadTs" "$probeTs" "$probeOut.root" "$probeAddressees" "false" "$probeAsking" "" "$( [ "$probeIdentity" = "bot" ] && printf 'true' || printf 'false' )" || probeUnread=1
 			[ -n "$probeUnread" ] || LC_ALL=C awk -v sinceTs="$probeRevision" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsSlackThreadAnswersSince.awk" \
 				< "$probeOut.root" > "$probeOut" 2>/dev/null || probeUnread=1
 		else
-			AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "${probeFollow:-${probeRevision:-$probeTs}}" "$probeOut" "$probeAddressees" "false" "$probeAsking" "$probeAlso" "$( [ "$probeIdentity" = "bot" ] && printf 'true' || printf 'false' )" || probeUnread=1
+			AgentsWaitProbeSlack "$probeReadMember" "$probeChannel:$probeThreadTs" "${probeFollow:-${probeRevision:-$probeTs}}" "$probeOut" "$probeAddressees" "false" "$probeAsking" "$probeAlso" "$( [ "$probeIdentity" = "bot" ] && printf 'true' || printf 'false' )" || probeUnread=1
 		fi
 		## A thread that cannot be read is an unreadable source, except where the record itself
 		## holds the answer: what the team operation answered is said from the record alone.

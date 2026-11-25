@@ -115,6 +115,7 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 	local routeGiven="$1" routeWhere="" routeKind="" routeOwn=""
 	## A REPORT NEVER GOES INTO A DIRECT CONVERSATION (the human-owner's rule): a duty's thread opens in his conversation with the bot,
 	## and every post there reaches him. The run's own session thread, where it is a channel's, takes a report instead, addressed.
+	## A report may enter the direct conversation of the message its run was started for, where its person may read it.
 	routeOwn="${MDAT_SESSION_THREAD:-}"
 	if [ -z "$routeOwn" ] ; then
 		## The one finder of a session's own thread: the session the run joined, its spawn record, else the session's recorded thread.
@@ -132,7 +133,15 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 		routePublic=1 ; routeTo="" ; routeAddress=""
 		return 1
 	fi
-	case "$routeOwn" in [CG][A-Z0-9]*:[0-9]*.[0-9]*) ;; *) routeOwn="" ;; esac
+	local routeRequest=""
+	type AgentsToolsRequestThreadInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include" || echo "⛔ ERROR: AgentsTools.SessionThreads.include did not load, so the thread this run was started for is not looked up" >&2
+	AgentsToolsRequestThreadInto routeRequest || routeRequest=""
+	[ -z "$routeRequest" ] || [ "$routeOwn" != "$routeRequest" ] || AgentsHarnessRequestThreadTakes "$routeRequest" || routeOwn=""
+	case "$routeOwn" in
+		[CG][A-Z0-9]*:[0-9]*.[0-9]*) ;;
+		D[A-Z0-9]*:[0-9]*.[0-9]*) [ -n "$routeRequest" ] && [ "$routeOwn" = "$routeRequest" ] || routeOwn="" ;;
+		*) routeOwn="" ;;
+	esac
 	routeTo="$routeGiven" ; routeAddress="${2:-}"
 	type AgentsToolsRunRouteKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 	routeWhere="$( AgentsHarnessReportsTo )" && [ -n "$routeWhere" ] || return 1
@@ -170,6 +179,8 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 				case "$routeThread" in [CG][A-Z0-9]*:[0-9]*.[0-9]*) routeTo="$routeThread" ;; *) routeTo="magic-coordinator" ;; esac
 				## A duty thread in a direct conversation is his: the run's own channel thread takes the report, addressed to the coordinator.
 				case "$routeTo" in [CG][A-Z0-9]*:*) ;; *) [ -z "$routeOwn" ] || routeTo="$harnessCurrentName" ;; esac
+				## A run started for a person's message reports in that message's thread, where its own thread is that one.
+				[ -z "$routeRequest" ] || [ "$routeOwn" != "$routeRequest" ] || routeTo="$harnessCurrentName"
 				## Addressed to the coordinator, whatever address the run gave: the addressee is the tooling's, never the run's.
 				routeAddress="magic-coordinator"
 			fi
@@ -185,6 +196,39 @@ AgentsHarnessReportRoute(){ ## the to the run gave, the address_to it gave
 	esac
 	[ -z "$routeGiven" ] || [ "$routeGiven" = "$routeTo" ] || [ "$routeGiven" = "$harnessParentName" ] || printf 'NOTE: to %s was not used: a handback or a report goes where this run reports to, %s, set by the tooling.\n' "$routeGiven" "$routeTo"
 	return 0
+}
+
+## Whether the person whose message started this run may read its reports and questions. rc 0 for the human-owner or a contact at tier-client or above.
+## It costs one conversations.replies read per run and request address, and it fails closed where no human-owner account is known for the workspace.
+AgentsHarnessRequestThreadTakes(){ ## the request address, <channel>:<ts>
+	[ "${agentsRequestTakesKey:-}" != "$1" ] || return "${agentsRequestTakesRc:-1}"
+	local takesIdentity takesResp="" takesAuthor="" takesOwner="" takesId="" takesWhy="could not be read"
+	agentsRequestTakesKey="$1" ; agentsRequestTakesRc=1
+	for takesIdentity in "" bot ; do
+		takesResp="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-slack-call "${harnessAgent:-magic-coordinator}" --api conversations.replies --form "channel=${1%%:*}" --form "ts=${1#*:}" --form limit=1 ${takesIdentity:+--identity "$takesIdentity"} --context "--request-thread" 2> /dev/null )" || takesResp=""
+		takesAuthor="$( printf '%s\n' "$takesResp" | LC_ALL=C awk -v path=messages.0.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || takesAuthor=""
+		[ -z "$takesAuthor" ] || break
+	done
+	if [ -n "$takesAuthor" ] ; then
+		type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include" || echo "⛔ ERROR: AgentsTools.SlackIdentities.include did not load, so the human-owner account is not looked up" >&2
+		takesOwner="$( AgentsSlackIdentityId human-owner )" || takesOwner=""
+		if [ "$takesAuthor" = "$takesOwner" ] ; then
+			agentsRequestTakesRc=0 ; agentsRequestTakesAuthor="human-owner"
+		else
+			takesWhy="is not the human-owner or a client contact"
+			type AgentsToolsContactsPersonRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsRecord.include" || echo "⛔ ERROR: AgentsTools.ContactsRecord.include did not load, so no contact is looked up" >&2
+			type AgentsToolsContactsIndex > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsQuery.include" || echo "⛔ ERROR: AgentsTools.ContactsQuery.include did not load, so no contact is looked up" >&2
+			type AgentsToolsContactsTierFor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.ContactsTiers.include" || echo "⛔ ERROR: AgentsTools.ContactsTiers.include did not load, so no contact is looked up" >&2
+			if [ -n "${MDAT_DATA_ROOT:-}" ] && AgentsToolsContactsStore request-thread 2> /dev/null ; then
+				takesId="$( AgentsToolsContactsIndex find "$takesAuthor" "" "" "" 2> /dev/null | LC_ALL=C awk -F '\t' '{ id = $2 ; n++ ; } END { if ( n == 1 ) print id ; }' )" || takesId=""
+			fi
+			if [ -n "$takesId" ] && AgentsToolsContactsPersonRead "$contactsPersons/$takesId.md" ; then
+				case "$crOwner:$( AgentsToolsContactsTierFor "" )" in yes:*|*:tier-client|*:tier-admin|*:tier-owner) agentsRequestTakesRc=0 ; agentsRequestTakesAuthor="$takesAuthor" ;; esac
+			fi
+		fi
+	fi
+	[ "$agentsRequestTakesRc" = 0 ] || printf 'NOTE: the author of the thread %s %s, so reports and questions keep their usual place.\n' "$1" "$takesWhy"
+	return "$agentsRequestTakesRc"
 }
 
 ## Whether this run reports to no one, as its own spawn record says it (`none` is only ever written

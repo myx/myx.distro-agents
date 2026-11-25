@@ -230,18 +230,22 @@ AgentsToolsSessionLivePrune(){
 }
 
 AgentsSpawnedRetentionPrune(){ ## days, at most -- stdin: the rows of the spawned-sessions registry
-	local pruneDays="${1:-14}" pruneMost="${2:-20}" pruneRun pruneFolder pruneAged pruneHold pruneDone=0
+	local pruneDays="${1:-30}" pruneMost="${2:-20}" pruneRun pruneFolder pruneFresh pruneHold pruneDone=0
+	local pruneRecord pruneField pruneItem pruneResolved pruneOpen
 	case "$pruneDays" in ''|*[!0123456789]*) return 0 ;; esac
 	case "$pruneMost" in ''|*[!0123456789]*|0) pruneMost=20 ;; esac
 	[ "$pruneDays" -gt 0 ] || return 0
 	[ -d "${MMDAPP:-/nonexistent}/.local/agents/spawned" ] || return 0
+	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	while IFS= read -r pruneRun ; do
 		[ "$pruneDone" -lt "$pruneMost" ] || break
 		case "$pruneRun" in ''|*/*|'.'|'..') continue ;; esac
 		pruneFolder="${MMDAPP:-/nonexistent}/.local/agents/spawned/$pruneRun"
 		[ -d "$pruneFolder" ] || continue
-		pruneAged="$( find "$pruneFolder" -maxdepth 0 -mtime +"$pruneDays" 2> /dev/null )" || pruneAged=""
-		[ -n "$pruneAged" ] || continue
+		## THE LAST WRITE IS THE NEWEST ONE AT OR BENEATH THE FOLDER, never the folder's own time: that time moves only when an
+		## entry is added to or removed from its top level, so a folder whose output is still written reads as untouched.
+		pruneFresh="$( find "$pruneFolder" -mtime -"$pruneDays" -print -quit 2> /dev/null )" || pruneFresh=""
+		[ -z "$pruneFresh" ] || continue
 		## A FOLDER A PROMISE OF UNDO HOLDS IS NEVER PRUNED (S13.19), whatever its age: the marker is the cleaner's own, and
 		## what it protects is the record it names. A marker naming no open record keeps the folder too, and says which it wanted.
 		type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoHold.include"
@@ -257,10 +261,73 @@ AgentsSpawnedRetentionPrune(){ ## days, at most -- stdin: the rows of the spawne
 				continue
 			;;
 		esac
+		## A RUN'S FOLDER IS THE RECORD OF ITS WORK: a board item its record links to, still open, keeps it. An item the board no
+		## longer holds stands open nowhere, so it keeps nothing: a dispatch trashed or archived out of every state is a decision
+		## already taken. Only a held item with no resolved-at is one somebody is still working.
+		pruneOpen=""
+		for pruneRecord in "$pruneFolder"/*.spawn.md ; do
+			[ -f "$pruneRecord" ] || continue
+			for pruneField in spawns spawned-by ; do
+				pruneItem="$( AgentsToolsFrontmatterKey "$pruneRecord" "$pruneField" )" || pruneItem=""
+				[ -n "$pruneItem" ] || continue
+				type AgentsToolsBoardItemHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+				pruneResolved="-"
+				AgentsToolsBoardItemHeadersInto "${pruneItem%.md}.md" pruneState pruneResolved=resolved-at || continue
+				[ -n "$pruneResolved" ] || { pruneOpen=1 ; break ; }
+			done
+			[ -z "$pruneOpen" ] || break
+		done
+		[ -z "$pruneOpen" ] || continue
 		AgentsSpawnRecordRemove "$pruneRun" 2> /dev/null || continue
 		pruneDone=$(( pruneDone + 1 ))
-	done <<< "$( LC_ALL=C awk 'NF >= 13 && $6 != "spawn-started" && $1 != "" { print $1 ; }' | LC_ALL=C sort -u )"
+	done <<< "$( LC_ALL=C awk '
+		## A FOLDER GOES ONLY WHERE EVERY ROW NAMING IT SETTLES: the render carries the folder in its first word and the derived
+		## state in its thirteenth. One unsettled row anywhere keeps the folder.
+		NF >= 13 && $1 != "" {
+			if ( $13 == "finished" || $13 == "failed" ) settled[$1] = 1 ;
+			else unsettled[$1] = 1 ;
+		}
+		END { for ( gone in settled ) if ( ! ( gone in unsettled ) ) print gone ; }
+	' | LC_ALL=C sort -u )"
 	[ "$pruneDone" -eq 0 ] || printf '%s\n' "$pruneDone"
+	return 0
+}
+
+## THE STORE'S OWN DAY: both prunes, once a day at most, by a stamp written before the pass, so a pass that fails is tried again
+## tomorrow and never on every pass. The cut-off is the sweep's own record retention, this class being the same records.
+## Prints one line a prune that removed something; rc 0 always.
+AgentsToolsSpawnedRetentionRun(){
+	local retainStamp="${MMDAPP:-.}/.local/agents/spawned-retention.stamp" retainLast="" retainNow retainDays retainOut
+	retainNow="$( date +%s )" || return 0
+	{ IFS= read -r retainLast < "$retainStamp" ; } 2> /dev/null || retainLast=""
+	case "$retainLast" in ''|*[!0123456789]*) retainLast=0 ;; esac
+	[ $(( retainNow - retainLast )) -ge 86400 ] || return 0
+	retainDays="${MDAT_CLEANUP_RETENTION_DAYS:-30}"
+	case "$retainDays" in ''|*[!0123456789]*) retainDays=30 ;; esac
+	mkdir -p "${retainStamp%/*}" 2> /dev/null && printf '%s\n' "$retainNow" > "$retainStamp" 2> /dev/null || :
+	retainOut="$( AgentsToolsSessionStorePrune "$retainDays" 20 2> /dev/null )" || retainOut=""
+	[ -z "$retainOut" ] || printf 'spawned-retention: removed %s dead session folder(s)\n' "$retainOut"
+	type AgentsToolsRegistryRenderSpawnedSessionsKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
+	retainOut="$( AgentsToolsRegistryRenderSpawnedSessionsKept agents "" "" "" live 2> /dev/null | AgentsSpawnedRetentionPrune "$retainDays" 20 2> /dev/null )" || retainOut=""
+	[ -z "$retainOut" ] || printf 'spawned-retention: removed %s dead run folder(s)\n' "$retainOut"
+	return 0
+}
+
+## The same pass in a process of its own, asked for at most once an hour: it reads the store's record folders, so the pass that asks
+## for it never pays for that read. The day's own bound is the pass's stamp, so a run that finds nothing due ends at once.
+AgentsToolsSpawnedRetentionRunDetached(){
+	local detachAsked="${MMDAPP:-.}/.local/agents/spawned-retention.asked" detachNow detachWas=""
+	detachNow="$( date +%s )" || return 0
+	{ IFS= read -r detachWas < "$detachAsked" ; } 2> /dev/null || detachWas=""
+	case "$detachWas" in ''|*[!0123456789]*) detachWas=0 ;; esac
+	[ $(( detachNow - detachWas )) -ge 3600 ] || return 0
+	mkdir -p "${detachAsked%/*}" 2> /dev/null && printf '%s\n' "$detachNow" > "$detachAsked" 2> /dev/null || return 0
+	(
+		trap '' HUP
+		set +e
+		AgentsToolsSpawnedRetentionRun
+	) < /dev/null > /dev/null 2>&1 &
+	disown "$!" 2> /dev/null || :
 	return 0
 }
 

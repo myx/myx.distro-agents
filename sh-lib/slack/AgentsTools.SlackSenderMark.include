@@ -32,14 +32,15 @@ AgentsToolsMemberSlackSenderMark(){
 	local markStore="${MDAT_DATA_ROOT:-${MMDAPP%/}/.local/agents/team-data-root}/contacts/persons" markKnown="" markNew=""
 	markLoad(){
 		[ -d "$markStore" ] || return 0
-		LC_ALL=C awk 'FNR == 1 { if ( n ) emit() ; n = 1 ; id = "" ; nm = "" ; org = "" ; lang = "" ; ids = "" ; hdr = 0 ; }
+		LC_ALL=C awk 'FNR == 1 { if ( n ) emit() ; n = 1 ; id = "" ; nm = "" ; org = "" ; lang = "" ; tier = "" ; ids = "" ; hdr = 0 ; }
 			/^---$/ { hdr++ ; next ; }
 			hdr == 1 && /^contact-id: / { id = substr( $0, 13 ) ; }
 			hdr == 1 && /^display-name: / { nm = substr( $0, 15 ) ; }
 			hdr == 1 && /^organisation: / { org = substr( $0, 15 ) ; }
 			hdr == 1 && /^language: / { lang = substr( $0, 11 ) ; }
+			hdr == 1 && /^tier: / { tier = substr( $0, 7 ) ; }
 			hdr == 1 && /^slack-id: / { ids = ids " " substr( $0, 11 ) ; }
-			function emit(   k, m, parts, v ) { m = split( ids, parts, /[ ,]+/ ) ; for ( k = 1 ; k <= m ; k++ ) { v = parts[k] ; sub( /^[^:]*:/, "", v ) ; if ( v ~ /^U[A-Z0-9]+$/ ) printf "%s\t%s, %s, contact %s%s\n", v, ( nm != "" ? nm : id ), ( org != "" ? org : "no organisation" ), id, ( lang != "" && lang != "-" ? ", writes in " lang : "" ) ; } ; }
+			function emit(   k, m, parts, v ) { m = split( ids, parts, /[ ,]+/ ) ; for ( k = 1 ; k <= m ; k++ ) { v = parts[k] ; sub( /^[^:]*:/, "", v ) ; if ( v ~ /^U[A-Z0-9]+$/ ) printf "%s\t%s, %s, contact %s%s%s\n", v, ( nm != "" ? nm : id ), ( org != "" ? org : "no organisation" ), id, ( tier != "" ? ", " tier : "" ), ( lang != "" && lang != "-" ? ", writes in " lang : "" ) ; } ; }
 			END { if ( n ) emit() ; }' "$markStore"/*.md 2> /dev/null || :
 	}
 	markKnown="$( markLoad )"

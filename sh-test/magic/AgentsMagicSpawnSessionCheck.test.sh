@@ -329,14 +329,13 @@ rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console
 rm -f "$rigTmp/brief.rig-member-a" "$rigTmp/brief.rig-member-b"
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 
-echo "-- a coworking routine with two members and no --participants: one session, never one session each --"
-printf -- '---\nexecutors: magic-coordinator\nmaintainers: rig-member-a\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' > "$rigSkills/rig-member-a/rig-member-a.cowork.routine.md"
-mkdir -p "$rigSkills/magic-coordinator" && printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
-rigOut="$( rigRun "RIG-TASK-TEXT" --routine cowork rig-member-a rig-member-b )"
-rigAssert "one session, no children, the coordinator seated first" "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ):$( printf '%s\n' "$rigOut" | grep -c '^CHILDREN=' ):$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=magic-coordinator rig-member-a rig-member-b' )" "1:0:1"
+echo "-- a coworking routine with two members and no --participants: one session each, and the call says how to get one --"
+printf -- '---\nexecutors: rig-member-a\nmaintainers: rig-member-a\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' > "$rigSkills/rig-member-a/rig-member-a.warnfix.routine.md"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine warnfix rig-member-a rig-member-b )"
+rigAssert "two members partition, and the call says so and how to make one session" "$( printf '%s\n' "$rigOut" | grep -c '^CHILDREN=' ):$( printf '%s\n' "$rigOut" | grep -c -F 'WARNING: 2 members of a coworking routine and no --participants start 2 sessions' ):$( printf '%s\n' "$rigOut" | grep -c -F 'give --participants' )" "1:1:1"
 rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console never received a context: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
-rm -f "$rigTmp/brief.rig-member-a" "$rigTmp/brief.rig-member-b" "$rigTmp/brief.magic-coordinator"
-rm -rf "$rigSkills/magic-coordinator" "$rigSkills/rig-member-a/rig-member-a.cowork.routine.md"
+rm -f "$rigTmp/brief.rig-member-a" "$rigTmp/brief.rig-member-b"
+rm -rf "$rigSkills/rig-member-a/rig-member-a.warnfix.routine.md"
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 
 echo "-- executors is the \"any member\" shorthand: refused, nothing spawned --"
@@ -445,16 +444,22 @@ rigAssert "both names keep their form, and end with the first part of the spawn'
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 
 echo "-- participants and likely needs: checked before anything starts, recorded, never started here --"
+## A coworking session always holds a magic-coordinator instance as its executor, seated first (AgentsMagicSpawnSessionCoordinatorCheck).
+## Every call below names one member of the coworking default routine, so the rig seats the coordinator as a real skillset has it.
+mkdir -p "$rigSkills/magic-coordinator"
+printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
+printf '# rig armed\n' > "$rigSkills/magic-coordinator/magic-coordinator.armed.md"
 rm -f "$rigTmp"/brief.*
 rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --participants 'rig-member-b, rig-*' --likely-permission 'Edit:/rig/proj/**' --likely-permission 'WebFetch:https://rig.example/*' --likely-tool Edit rig-member-a )"
 rigPartSession="$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^SESSION_ID=//p' | head -1 )"
-rigAssert "the session starts with the executor; the participants are printed, each once, in the order given" \
-	"$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ):$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=rig-member-a' ):$( printf '%s\n' "$rigOut" | grep -c -x -F 'PARTICIPANTS=rig-member-b rig-member-a' )" "1:1:1"
+rigAssert "the session starts with the coordinator seated first and the executor; the participants are printed, each once, in the order given" \
+	"$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ):$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=magic-coordinator rig-member-a' ):$( printf '%s\n' "$rigOut" | grep -c -x -F 'PARTICIPANTS=rig-member-b rig-member-a' )" "1:1:1"
 rigAssert "the session's record carries the participants and the likely permissions and tools" \
 	"$( rigRecordValues participants ) | $( rigRecordValues likely-permissions ) | $( rigRecordValues likely-tools )" "rig-member-b rig-member-a | Edit:/rig/proj/**, WebFetch:https://rig.example/* | Edit"
 rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context"
+rigWaitFor "$rigTmp/brief.magic-coordinator" || rigRefuse "magic-coordinator's own console never received a context"
 sleep 2
-rigAssert "a participant is not started by the spawner: only the executor's console ran" "$( ls "$rigTmp" | grep -c '^brief\.' )" 1
+rigAssert "a participant is not started by the spawner: only the coordinator's and the executor's consoles ran" "$( ls "$rigTmp" | grep '^brief\.' | tr '\n' ' ' )" "brief.magic-coordinator brief.rig-member-a "
 ## The executor's invitation: the session's own read gives who is left, and the Agent call's spawn starts the one invited.
 rigInSession(){ ## stdin content, member, session id, script, its arguments... -- a call made from inside that member's run of the session
 	local inStdin="$1" inMember="$2" inSession="$3" ; shift 3
@@ -462,7 +467,7 @@ rigInSession(){ ## stdin content, member, session id, script, its arguments... -
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" \
 		bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; cd "$MMDAPP" && exec bash "$@"' rig-in-session "$@" <<< "$inStdin" 2>&1
 }
-rigSessionScript="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsSession.fn.sh"
+rigSessionScript="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/AgentExecutorTools.fn.sh"
 rigUninvited="$( rigInSession "" rig-member-a "$rigPartSession" "$rigSessionScript" --get-uninvited-participants )"
 rigAssert "the executor's read: the participants with no run yet, the executor itself not among them" "$( printf '%s\n' "$rigUninvited" | grep -v -e '^SystemContext' -e '^#' )" "rig-member-b"
 rigInvite="$( rigInSession "RIG-INVITE-TEXT" rig-member-a "$rigPartSession" "$rigTool" --intern-op-agent-spawn-proxy rig-member-b --from-stdin --dispatch-doc:create --context Agent --calling-member rig-member-a )"

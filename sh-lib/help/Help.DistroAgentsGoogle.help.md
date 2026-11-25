@@ -1,6 +1,7 @@
 📘 syntax: DistroAgentsGoogle.fn.sh --google-file-find [--team-member <team-member>] (<search-term> [--full-text] [--include-trashed]|<drive-query> --raw-query) [--limit <n>]
 📘 syntax: DistroAgentsGoogle.fn.sh --google-comment-post [--team-member <team-member>] <file-id> (<text...>|--from-stdin|--from-file <path>)
 📘 syntax: DistroAgentsGoogle.fn.sh --google-comment-read [--team-member <team-member>] <file-id>
+📘 syntax: DistroAgentsGoogle.fn.sh --google-doc-replace [--team-member <team-member>] <doc-id> (--from-stdin|--from-file <path>)
 📘 syntax: DistroAgentsGoogle.fn.sh --google-doc-read [--team-member <team-member>] <doc-id>
 📘 syntax: DistroAgentsGoogle.fn.sh --google-doc-write [--team-member <team-member>] <doc-id> (<text...>|--from-stdin|--from-file <path>)
 📘 syntax: DistroAgentsGoogle.fn.sh --google-sheet-clear [--team-member <team-member>] <sheet-id> <a1-range>
@@ -30,6 +31,12 @@
 
 		--google-doc-write <doc-id> (<text...>|--from-stdin|--from-file <path>)
 			Writes the text given into that document.
+
+		--google-doc-replace <doc-id> (--from-stdin|--from-file <path>)
+			Replaces the whole body of that document with the text given. The document is read
+			first and written against the revision it answered, so one that moved in between is
+			refused rather than overwritten. This is what regenerating a document needs, since
+			`--google-doc-write` only appends.
 
 		--google-comment-read <file-id>
 			Prints the comments on that file.

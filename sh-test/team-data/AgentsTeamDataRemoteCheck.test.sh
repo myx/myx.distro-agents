@@ -68,6 +68,17 @@ rigLocalItem(){ ## selector (`board running note-x.md`, `inbox magic-tester note
 		> /dev/null || rigRefuse "could not write $1 through its store's own write"
 }
 rigBodyCount=0
+## An item's body alone: the text its writer was given. The frontmatter and the one blank line the writer
+## puts under it are left out; a file that carries no frontmatter is the body as it stands. A row that
+## compares a stored item against a hand-written body reads it through this, never the whole file.
+rigBody(){ ## item file
+	LC_ALL=C awk '
+		NR == 1 && $0 != "---" { body = 1 }
+		! body && $0 == "---" { fence++ ; next }
+		! body && fence >= 2 { body = 1 ; if ( $0 == "" ) next }
+		body { print }
+	' "$1"
+}
 ## A remote's own next commit, made from a clone of the rig's own.
 rigRemoteAdvance(){ ## remote name, file name
 	rm -rf "$rigTmp/adv" ; git clone -q "$rigTmp/$1.git" "$rigTmp/adv" 2> /dev/null || rigRefuse "could not clone $1 to advance it"
@@ -181,7 +192,7 @@ rigLocalItem "board running note-20261014T0101Z-local.md" "local item"
 rigLocalItem "inbox magic-tester note-rig.md" "local note"
 rigSetup "$rigDir/a"
 rigAssert "the folder is a clone of the remote now"              "$( git -C "$rigStore" rev-parse HEAD 2> /dev/null ):$( git -C "$rigStore" remote get-url origin 2> /dev/null )" "$( rigRemoteHead filled ):$rigTmp/filled.git"
-rigAssert "no file of it was changed"                            "$( cat "$rigStore/README.md" "$rigStore/board/running/note-20261014T0101Z-local.md" "$rigStore/inboxes/magic-tester/incoming/note-rig.md" 2> /dev/null | LC_ALL=C tr '\n' '/' )" "local readme/local item/local note/"
+rigAssert "no file of it was changed"                            "$( { cat "$rigStore/README.md" ; rigBody "$rigStore/board/running/note-20261014T0101Z-local.md" ; rigBody "$rigStore/inboxes/magic-tester/incoming/note-rig.md" ; } 2> /dev/null | LC_ALL=C tr '\n' '/' )" "local readme/local item/local note/"
 rigAssert "one line says git/cloneSync made it a clone"          "$( rigCount "$rigDir/a.err" "git/cloneSync made $rigStore a clone of TEAM_DATA_GIT_REMOTE" )" 1
 
 echo "-- a folder with content and an empty remote: handed to git/cloneSync, which adopts it --"
@@ -192,7 +203,7 @@ rigScenario unborn "$rigTmp/unborn.git"
 rigStore="$rigDir/ws/.local/agents/team-data-root"
 rigLocalItem "board running note-20261014T0101Z-local.md" "local item"
 rigSetup "$rigDir/a"
-rigAssert "git/cloneSync adopted it: a clone of the remote, its file stands and is in the remote" "$( [ -e "$rigStore/.git" ] && printf repo || printf folder ):$( cat "$rigStore/board/running/note-20261014T0101Z-local.md" 2> /dev/null ):$( git -C "$rigStore" remote get-url origin 2> /dev/null ):$( git --git-dir="$rigTmp/unborn.git" log --all --format= --name-only 2> /dev/null | LC_ALL=C grep -c -x -F 'board/running/note-20261014T0101Z-local.md' )" "repo:local item:$rigTmp/unborn.git:1"
+rigAssert "git/cloneSync adopted it: a clone of the remote, its file stands and is in the remote" "$( [ -e "$rigStore/.git" ] && printf repo || printf folder ):$( rigBody "$rigStore/board/running/note-20261014T0101Z-local.md" 2> /dev/null ):$( git -C "$rigStore" remote get-url origin 2> /dev/null ):$( git --git-dir="$rigTmp/unborn.git" log --all --format= --name-only 2> /dev/null | LC_ALL=C grep -c -x -F 'board/running/note-20261014T0101Z-local.md' )" "repo:local item:$rigTmp/unborn.git:1"
 rigAssert "and the step says git/cloneSync made it a clone"      "$( rigCount "$rigDir/a.err" "git/cloneSync made $rigStore a clone of TEAM_DATA_GIT_REMOTE" ):$( rigCount "$rigDir/a.err" "is not a clone of TEAM_DATA_GIT_REMOTE yet" ):$( rigCount "$rigDir/a.err" "fatal: not a git repository" )" "1:0:0"
 
 echo "-- a folder with content whose remote cannot be reached is left as it was --"
@@ -200,7 +211,7 @@ rigScenario unreach "$rigTmp/missing.git"
 rigStore="$rigDir/ws/.local/agents/team-data-root"
 rigLocalItem "board running note-20261014T0101Z-local.md" "local item"
 rigSetup "$rigDir/a"
-rigAssert "it is no repository, and its file stands"             "$( [ -e "$rigStore/.git" ] && printf repo || printf plain ):$( cat "$rigStore/board/running/note-20261014T0101Z-local.md" )" "plain:local item"
+rigAssert "it is no repository, and its file stands"             "$( [ -e "$rigStore/.git" ] && printf repo || printf plain ):$( rigBody "$rigStore/board/running/note-20261014T0101Z-local.md" )" "plain:local item"
 rigAssert "one warning says it is no clone of the remote yet"    "$( rigCount "$rigDir/a.err" "is not a clone of TEAM_DATA_GIT_REMOTE yet" )" 1
 
 echo "-- a clone whose origin is another address than the setting --"
@@ -225,7 +236,7 @@ echo "-- both sides moved from one commit: git/cloneSync integrates, both kept, 
 rigRemoteAdvance pushed elsewhere-2.md
 rigLocalItem "board running note-20261014T0102Z-local.md" "local two"
 rigRun "$rigDir/m" 'AgentsToolsTeamDataCommitPaths "rig write" "$MDAT_DATA_ROOT/board/running/note-20261014T0102Z-local.md" ; AgentsToolsTeamDataPushIfAhead "rig close"'
-rigAssert "both sides' files are in the store and on the remote" "$( cat "$rigStore/elsewhere-2.md" "$rigStore/board/running/note-20261014T0102Z-local.md" 2> /dev/null | LC_ALL=C tr '\n' '/' ):$( [ "$( rigRemoteHead pushed )" = "$( git -C "$rigStore" rev-parse HEAD )" ] && printf pushed || printf not )" "from elsewhere/local two/:pushed"
+rigAssert "both sides' files are in the store and on the remote" "$( { cat "$rigStore/elsewhere-2.md" ; rigBody "$rigStore/board/running/note-20261014T0102Z-local.md" ; } 2> /dev/null | LC_ALL=C tr '\n' '/' ):$( [ "$( rigRemoteHead pushed )" = "$( git -C "$rigStore" rev-parse HEAD )" ] && printf pushed || printf not )" "from elsewhere/local two/:pushed"
 
 echo "-- two clones claim one lock: the second sees the first's claim on the remote and does not take it --"
 rigRemote claims

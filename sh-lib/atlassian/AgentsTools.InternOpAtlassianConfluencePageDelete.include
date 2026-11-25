@@ -34,6 +34,19 @@
 		AgentsToolsAtlassianAssertNumber "$confPDPageId" "<page-id>" "$confPDContext" || { set +e ; return 1 ; }
 		local confPDRc=0
 		AgentsToolsAtlassianCall "$confPDMember" confluence DELETE "/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confPDPageId" )" "$confPDContext" "" || confPDRc=$?
+		if [ "$confPDRc" -eq 8 ] ; then
+			## A 404 covers a page that is not there AND one this identity may not delete. The page's
+			## own answer separates them, so it is read back once and its status alone is read.
+			type AgentsToolsAtlassianConfluencePageRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.ConfluenceReads.include"
+			local confPDReadRc=0
+			AgentsToolsAtlassianConfluencePageRead --member "$confPDMember" --page-id "$confPDPageId" --context "$confPDContext" > /dev/null 2>&1 || confPDReadRc=$?
+			case "$confPDReadRc" in
+				0) printf '%s\n' "🙋 WARNING: $MDSC_CMD --$confPDContext: page $confPDPageId reads back, so this identity may not delete it -- the delete was refused and the page exists" >&2 ;;
+				8) printf '%s\n' "🙋 WARNING: $MDSC_CMD --$confPDContext: page $confPDPageId does not read back either, so it is gone or invisible to this identity -- whether another identity still holds it is UNKNOWN" >&2 ;;
+				*) printf '%s\n' "🙋 WARNING: $MDSC_CMD --$confPDContext: the delete answered 404 and the read-back failed with $confPDReadRc, so whether page $confPDPageId exists is UNKNOWN" >&2 ;;
+			esac
+			set +e ; return "$confPDRc"
+		fi
 		if [ "$confPDRc" -ne 0 ] ; then
 			set +e ; return "$confPDRc"
 		fi

@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ConfluencePageCheck.include -- `--confluence-page-check`: magic-librarian's mechanical
+## page rules over a named set of pages, one row per failing page and rule, and a non-zero exit where
+## any row printed. Read-only: it reads pages, and writes none.
+##
+## The rules are the mechanical ones of the documentation convention, stated one by one with their
+## tests in the `confluence-page` contract now proposed to `magic-librarian`. The rules needing the
+## page inventory or a live read (R6, R7, R12, R14) are not here, and R15 is decided only once
+## this check is wired to the render.
+##
+## A page the check cannot read is a failing row, never a skip. A 404 is a missing page and an
+## invisible one alike, and the row says both rather than picking one.
+##
+## The rows come from `AgentsConfluencePageCheck.py` in one process over one buffered stream, because
+## the rules capture groups out of link attributes and the ordered header fields, which the fleet's
+## awk cannot do. The buffer is the earned file of shell.md's second case: a whole document buffered
+## before any of it is emitted, so a run that fails partway leaves no rows that read as a result.
+##
+
+AgentsToolsAtlassianConfluencePageCheck(){ ## --member <team-member> [--context <caller>] [<page-id>...]
+	(
+	local checkMember="" checkContext="confluence-page-check" checkGivenIds=""
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--member|--context)
+				if [ -z "${2:-}" ] ; then
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$checkContext: $1 value missing" >&2
+					return 1
+				fi
+				case "$1" in
+					--member)  checkMember="$2" ;;
+					--context) checkContext="$2" ;;
+				esac
+				shift 2
+			;;
+			-*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$checkContext: invalid option: $1" >&2
+				return 1
+			;;
+			*)
+				case "$1" in
+					''|*[!0123456789]*)
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$checkContext: <page-id> not a number: $1" >&2
+						return 1
+					;;
+				esac
+				checkGivenIds="$checkGivenIds $1"
+				shift
+			;;
+		esac
+	done
+	if [ -z "$checkMember" ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$checkContext: syntax is --confluence-page-check [--team-member <team-member>] [<page-id>...] -- with no page id it checks the ids the workspace setting CONFLUENCE_PAGE_CHECK_PAGES names" >&2
+		return 1
+	fi
+	type AgentsToolsAtlassianConfluencePageRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.ConfluenceReads.include"
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+
+	## With no page id the set is the workspace's own: an estate's page ids belong to its settings,
+	## never to this package, and a second install names its own.
+	if [ -z "$checkGivenIds" ] ; then
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+		local checkSetting=""
+		checkSetting="$( AgentsToolsConfigOption magic-team --select CONFLUENCE_PAGE_CHECK_PAGES 2> /dev/null )" || checkSetting=""
+		local checkOne=""
+		for checkOne in $( printf '%s' "$checkSetting" | LC_ALL=C tr ',' ' ' ) ; do
+			case "$checkOne" in
+				''|*[!0123456789]*) ;;
+				*) checkGivenIds="$checkGivenIds $checkOne" ;;
+			esac
+		done
+		if [ -z "$checkGivenIds" ] ; then
+			printf '%s\n' "🙋 WARNING: $MDSC_CMD --$checkContext: CONFLUENCE_PAGE_CHECK_PAGES holds no page id in this workspace, so there is no default set to check -- name the page ids, or set it to the ids this workspace's pages have" >&2
+			return 6
+		fi
+	fi
+
+	mkdir -p "$MMDAPP/.local/temp" || return 3
+	local checkWork=""
+	local checkWork=""
+	checkWork="$( mktemp -d "$MMDAPP/.local/temp/agents-confluence-page-check.XXXXXX" )" || return 3
+	## The path is baked in at trap-set time: a subshell's trap drops the function's locals on an early exit.
+	trap "rm -rf -- $( printf '%q' "$checkWork" )" EXIT
+	local checkStream="$checkWork/stream" checkVersions="$checkWork/versions" checkHeaderFile="$checkWork/header"
+	: > "$checkStream" ; : > "$checkVersions" ; : > "$checkHeaderFile"
+
+	## Each page is read once. Its read answers with a header line carrying title, version and space,
+	## and the body; the header line is what the rules and R9's map are built from.
+	local checkId checkBody="" checkHeader="" checkReadRc=0 checkSpaceIds=""
+	for checkId in $checkGivenIds ; do
+		checkReadRc=0 checkBody=""
+		: > "$checkHeaderFile"
+		checkBody="$( AgentsToolsAtlassianConfluencePageRead --member "$checkMember" --context "$checkContext" --page-id "$checkId" --format storage 2> "$checkHeaderFile" )" || checkReadRc=$?
+		checkHeader="$( < "$checkHeaderFile" )"
+		checkHeader="${checkHeader//$'\n'/ }"
+		printf '\036%s\t%s\t%s\n%s\n' "$checkId" "$checkReadRc" "$checkHeader" "$checkBody" >> "$checkStream"
+		[ "$checkReadRc" -ne 0 ] || checkSpaceIds="$checkSpaceIds $( printf '%s' "$checkHeader" | LC_ALL=C sed -n 's/.* spaceId=\([0123456789][0123456789]*\) .*/\1/p' )"
+	done
+
+	## R9 compares a pin against its target's current version, and a target may sit outside the checked
+	## set, so each space the set lives in is listed once: that answers every title in it. A listing
+	## that stopped short says so, rather than leaving a target silently uncompared.
+	local checkSpaceId="" checkListing="" checkListingRc=0 checkFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk"
+	for checkSpaceId in $checkSpaceIds ; do
+		checkListing="" checkListingRc=0
+		checkListing="$( AgentsToolsAtlassianCall "$checkMember" confluence GET "/wiki/api/v2/pages?space-id=$checkSpaceId&limit=250" "$checkContext" "" )" || checkListingRc=$?
+		if [ "$checkListingRc" -eq 0 ] ; then
+			printf '%s\n' "$checkListing" | LC_ALL=C awk -v array=results -v want='title,version.number' -v mode=records -v dialect=atlassian -f "$checkFieldAwk" >> "$checkVersions"
+			case "$checkListing" in
+				*'"next"'*) printf '%s\n' "# $MDSC_CMD --$checkContext: space $checkSpaceId listing: more: yes, so a target beyond the first 250 pages was not compared" >&2 ;;
+				*) printf '%s\n' "# $MDSC_CMD --$checkContext: space $checkSpaceId listing: more: no" >&2 ;;
+			esac
+		else
+			printf '%s\n' "# $MDSC_CMD --$checkContext: space $checkSpaceId was not listed, so a link to a page outside the checked set was not compared" >&2
+		fi
+	done
+
+	local checkRows=""
+	if ! checkRows="$( cat "$checkVersions" "$checkStream" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsConfluencePageCheck.py" )" ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$checkContext: the rule engine could not read the pages it was given" >&2
+		return 3
+	fi
+	[ -z "$checkRows" ] || printf '%s\n' "$checkRows"
+	[ -z "$checkRows" ] || return 1
+	return 0
+	)
+}

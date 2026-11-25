@@ -12,6 +12,8 @@
 ##   2c. input-scan-def: one repeatable line for each scan, `<scan> [--option value ...]`, or `none` alone; a line naming no scan,
 ##       an option with no value, a macro of no common option, none beside a scan, or the old operation form is refused
 ##   2d. runs-at: `<days> <HH:MM>` or `none`, runs-after: one routine; others refused
+##   2f. a runs-at: other than none beside executors magic-team, * or no executor at all is refused, both keys and
+##       the reason named; one named executor beside the same runs-at passes
 ##   3. --from-stdin gives the same verdicts for the same text
 ##   4. magic-tester's session may call it, as the console may
 ##   5. it is read-only: the routine file is unchanged
@@ -176,6 +178,39 @@ rigAssert "cache-prefix: always: refused, named"                "$( rigVerdict c
 rigWithRun cache-extended 'cache-prefix: armed-extended'
 rigAssert "cache-prefix: armed-extended: refused, the retired marker"  "$( rigVerdict cache-prefix 'is not armed, routine or extended' )" "refused cache-prefix is not armed, routine or extended"
 rigAssert "a routine that leaves it out passes (armed)"         "$( rigRun "$( rigFile complete )" ; printf '%s' "$rigRc" )" "0"
+
+echo "-- 2f. runs-at: beside an executors the autorun skips --"
+## The autorun starts no routine whose executors are magic-team, * or empty: it cannot choose which member starts a
+## multi-member routine (AgentsToolsScheduleAutorun). The pairing is refused by the validator, so the author is told.
+## One named executor beside the same runs-at is the control: the same routine shape, and the rule turns the rest away.
+rigAutorun(){ ## name, executors (empty leaves the key out), runs-at, [no-kind] -- the complete routine, those keys
+	LC_ALL=C awk -v ex="$2" -v at="$3" -v noKind="${4:-}" '
+		$0 == "executors: magic-tester" { if ( ex != "" ) { print "executors: " ex ; } ; next }
+		$0 == "runs-at: none" { print "runs-at: " at ; next }
+		noKind != "" && $0 == "requires-session-kind: coworking" { next }
+		{ print }
+	' "$( rigFile complete )" > "$rigTmp/routines/magic-tester.$1.routine.md"
+}
+rigAtRow(){ ## -- the runs-at: rows the last call said, the reason cut, then its rc
+	printf '%s rc=%s' "$( LC_ALL=C grep -E '^[^ ]+:[0-9]+: runs-at: ' "$rigTmp/said" | LC_ALL=C sed 's/^[^ ]*:[0-9]*: runs-at: //' | LC_ALL=C sed 's/ starts nothing:.*//' )" "$rigRc"
+}
+rigAutorun one-executor magic-tester 'workdays 09:30'
+rigRun "$( rigFile one-executor )"
+rigAssert "one named executor beside runs-at: no row, rc 0"      "$( rigAtRow )" " rc=0"
+rigAutorun team-executor magic-team 'workdays 09:30'
+rigRun "$( rigFile team-executor )"
+rigAssert "executors: magic-team beside runs-at: refused, both keys named" \
+	"$( rigAtRow )" "runs-at: workdays 09:30 beside executors: magic-team rc=1"
+rigAssert "...and the row says what to write instead"              "$( LC_ALL=C grep -c -F 'name the one member that starts it, or write runs-at: none' "$rigTmp/said" )" "1"
+rigAutorun star-executor '*' 'workdays 09:30'
+rigRun "$( rigFile star-executor )"
+rigAssert "executors: * beside runs-at: refused, both keys named" "$( rigAtRow )" "runs-at: workdays 09:30 beside executors: * rc=1"
+rigAutorun no-executor '' 'workdays 09:30' no-kind
+rigRun "$( rigFile no-executor )"
+rigAssert "no executors beside runs-at: refused, both keys named" "$( rigAtRow )" "runs-at: workdays 09:30 beside executors: empty rc=1"
+rigAutorun team-none magic-team 'none'
+rigRun "$( rigFile team-none )"
+rigAssert "executors: magic-team with runs-at: none passes"     "$( rigAtRow )" " rc=0"
 
 echo "-- 3. --from-stdin gives the same verdicts --"
 rigStdin="$( rigFile complete )" rigRun --from-stdin

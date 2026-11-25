@@ -111,7 +111,7 @@ case "$1" in
 		## --intern-op-comms-google-* implementation below directly. A member's operation reaches
 		## our own organisation (MDAT_COMMS_SIDE, AgentsTools.CommsSide.include), for a client-*
 		## member too: what such a member holds for this system is the other organisation's.
-		--google-whoami|--google-file-find|--google-sheet-read|--google-sheet-info|--google-sheet-write|--google-sheet-clear|--google-doc-read|--google-doc-write|--google-comment-read|--google-comment-post)
+		--google-whoami|--google-file-find|--google-sheet-read|--google-sheet-info|--google-sheet-write|--google-sheet-clear|--google-doc-read|--google-doc-write|--google-doc-replace|--google-comment-read|--google-comment-post)
 			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
 			type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
@@ -125,7 +125,7 @@ case "$1" in
 		## client-* member alone, under the settings that member itself holds for it. The side is
 		## set, and who may call is asked, where a --client-* operation is dispatched: the client's
 		## own session alone (AgentsToolsClientCallerCheck).
-		--client-comms-google-whoami|--client-comms-google-file-find|--client-comms-google-sheet-read|--client-comms-google-sheet-info|--client-comms-google-sheet-write|--client-comms-google-sheet-clear|--client-comms-google-doc-read|--client-comms-google-doc-write|--client-comms-google-comment-read|--client-comms-google-comment-post)
+		--client-comms-google-whoami|--client-comms-google-file-find|--client-comms-google-sheet-read|--client-comms-google-sheet-info|--client-comms-google-sheet-write|--client-comms-google-sheet-clear|--client-comms-google-doc-read|--client-comms-google-doc-write|--client-comms-google-doc-replace|--client-comms-google-comment-read|--client-comms-google-comment-post)
 			case "${2:-}" in
 				client-*) ;;
 				*)
@@ -454,6 +454,50 @@ case "$1" in
 			return 0
 		;;
 
+		--intern-op-comms-google-doc-replace)
+			shift
+			local memberName="$1"
+			shift || true
+			local googleDocId="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$googleDocId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --google-doc-replace: syntax is <team-member> <doc-id> (--from-stdin|--from-file <path>) -- the acting member and the document are both required, and the body comes from a file or a pipe, never from words on a command line" >&2
+				set +e ; return 1
+			fi
+			local googleFromFile="" googleFromStdin=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--from-stdin) googleFromStdin="true" ; shift ;;
+					--from-file)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --google-doc-replace: --from-file requires a path" >&2
+							set +e ; return 1
+						fi
+						googleFromFile="$1" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --google-doc-replace: invalid option: $1 -- the body is passed on stdin or in a file, never as trailing words, since a whole document is too large and too structured for a command line" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			AgentsToolsGoogleAssertOneContentSource google-doc-replace "" "$googleFromStdin" "$googleFromFile" || { set +e ; return 1 ; }
+			local googleClientId googleClientSecret googleRefreshToken
+			AgentsToolsGoogleResolveMember google-doc-replace "$memberName" || { set +e ; return 1 ; }
+			local googleRc=0
+			if [ -n "$googleFromFile" ] ; then
+				AgentsToolsGoogleCall doc-replace < "$googleFromFile" || googleRc=$?
+			else
+				AgentsToolsGoogleCall doc-replace || googleRc=$?
+			fi
+			if [ "$googleRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --google-doc-replace: COULD NOT REPLACE the body of document $googleDocId as $memberName (worker rc=$googleRc) -- the document's content is UNKNOWN, and must NOT be assumed unchanged; the worker's own diagnostic is above" >&2
+				set +e ; return "$googleRc"
+			fi
+			return 0
+		;;
+
 		--intern-op-comms-google-comment-read)
 			shift
 			local memberName="$1"
@@ -530,7 +574,7 @@ case "$1" in
 		;;
 
 		--google-*|--client-comms-google-*|--intern-op-comms-google-*)
-			echo "⛔ ERROR: $MDSC_CMD: unknown --google-* operation: $1 -- the supported operations are --google-whoami, --google-file-find, --google-sheet-read, --google-sheet-info, --google-sheet-write, --google-sheet-clear, --google-doc-read, --google-doc-write, --google-comment-read and --google-comment-post" >&2
+			echo "⛔ ERROR: $MDSC_CMD: unknown --google-* operation: $1 -- the supported operations are --google-whoami, --google-file-find, --google-sheet-read, --google-sheet-info, --google-sheet-write, --google-sheet-clear, --google-doc-read, --google-doc-write, --google-doc-replace, --google-comment-read and --google-comment-post" >&2
 			set +e ; return 1
 		;;
 

@@ -39,7 +39,7 @@ A question or hand-off that needs an answer. The one member-to-member document.
 | `owner` | required | either | `member` | The member whose inbox receives the inquiry, the addressee. |
 | `from-workspace` | optional | tooling | `text` | The own name of the workspace the writer ran in. Stamped by the inbox write at creation, so a stray item names its rig. |
 | `from-session` | optional | tooling | `text` | The writer's session id. Stamped by the inbox write at creation where the call has one. |
-| `communication-channel-id` | optional | member | `channel-id` | The one external message the item traces to. |
+| `communication-channel-id` | optional | either | `channel-id` | The one external message the item traces to. A Slack message is `slack:<channel>:<thread root ts>`. `slack:<channel>` names a place and no thread. The tooling writes it at ingest, and a promoted item carries it unchanged. |
 | `references` | optional | member | `item-names` | Items this one cites. An inbox item may cite vault and audit items. |
 | `status` | optional | member | `text` | A state label in free text; dropped when stale. |
 | `mark` | optional | member | `enum important, urgent, emergency` | Marks the item for the main loop (T3): an `important` or `urgent` item is spawned for, an `emergency` one is confirmed with the owner and sets the emergency flag. |

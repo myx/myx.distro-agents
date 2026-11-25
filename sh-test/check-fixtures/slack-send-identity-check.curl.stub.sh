@@ -4,10 +4,12 @@
 ## check's offline guarantee. A --data-binary body is appended to $RIG_SCENARIO/bodies.
 set -u
 rigHeader="$( cat )"
-rigMethod="" rigPrevArg=""
+rigMethod="" rigPrevArg="" rigReplyTs=""
 for rigArg in "$@" ; do
 	case "$rigArg" in
 		https://slack.com/api/*) rigMethod="${rigArg#https://slack.com/api/}" ;;
+		ts=*) rigReplyTs="${rigArg#ts=}" ;;
+		ts@*) rigReplyTs="$( cat "${rigArg#ts@}" 2> /dev/null )" ;;
 	esac
 	[ "$rigPrevArg" != "--data-binary" ] || { cat "${rigArg#@}" ; echo ; } >> "$RIG_SCENARIO/bodies"
 	rigPrevArg="$rigArg"
@@ -42,5 +44,7 @@ case "$rigMethod" in
 	chat.postMessage) printf '{"ok":true,"channel":"DRIG00001","ts":"1.000001","message":{"ts":"1.000001","user":"%s"}}\n' "$rigUser" ;;
 	## The one direct conversation of this rig is the human-owner's (SLACK_CHANNEL_HUMAN_OWNER=URIGOWNER), so a send into it is no reply to a person outside the team.
 	conversations.info) printf '{"ok":true,"channel":{"id":"DRIG00001","is_im":true,"is_mpim":false,"user":"URIGOWNER"}}\n' ;;
+	## A thread parent is seen by every token when the scenario holds replies-visible, and by none otherwise.
+	conversations.replies) if [ -f "$RIG_SCENARIO/replies-visible" ] ; then printf '{"ok":true,"messages":[{"ts":"%s"}]}\n' "$rigReplyTs" ; else printf '{"ok":false,"error":"channel_not_found"}\n' ; fi ;;
 	*) printf '{"ok":false,"error":"channel_not_found"}\n' ;;
 esac

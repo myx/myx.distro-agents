@@ -5,8 +5,13 @@
 ## as it stands at the origin, with three tiny tests and the test runner in place of the package's tests, and beside
 ## it a scratch copy with two. Held: queueing returns at once with an id and waits for no test; a drain takes
 ## everything that waits as one batch and runs each test once however many requests named it, so two requests naming
-## one test give one run and two results; a test that fails fails every request that named it; a request that comes in
-## while a batch runs is in the next batch, and a second drain is refused meanwhile; a request is about one copy, the
+## one test give one run and two results; a test that fails fails every request that named it; a second drain is refused
+## while one runs; a request that comes in while a batch runs ends that batch at its next test boundary where it names
+## fewer tests than that batch's request has left to run, and is run in that same batch; a request naming no test is the
+## widest, and any request naming tests ends it so; a drain ended by a signal leaves no runner of its batch alive, or the
+## next drain ends the orphan before it starts; a wide request stopped at a boundary answers YIELDED, naming a new request that
+## carries who asked, why, about which copy, where that copy and the workspace are, and returned-from naming the first;
+## a run the drain did not start is no batch and stops at no boundary; a request is about one copy, the
 ## live tree or a scratch folder, and each copy's tests are run by that copy's own runner; a changed file that is a
 ## test is taken as that test, and any other file as every test that has not passed on the state the copy is in; with
 ## nothing waiting, --rest runs only what has not passed on that state; a request left by a drain that no longer
@@ -131,6 +136,25 @@ rigStands(){ ## request id -- where the result operation says that request stand
 rigFresh(){ ## -- an empty queue, no pass on record, an empty log, nothing held or failing
 	rm -rf "$rigHome/.agents" ; : > "$rigTmp/log" ; rm -f "$rigTmp"/hold.* "$rigTmp"/let.* "$rigTmp"/fail.* ; rigAs="" rigLane=""
 }
+rigRunners(){ ## -- how many test runners of this rig are alive now: those whose command line names this rig's own tree, so no other run's is counted, and never this probe itself
+	ps -A -o args= 2> /dev/null | LC_ALL=C grep -F -- "$rigLive/myx/myx.distro-agents/sh-test" | LC_ALL=C grep -c -E '[A]gentsRun(Tests|Execute)\.sh' || :
+}
+rigRunnerPids(){ ## -- the pids of those runners now, to note before ending them
+	ps -A -o pid=,args= 2> /dev/null | LC_ALL=C grep -F -- "$rigLive/myx/myx.distro-agents/sh-test" | LC_ALL=C grep -E '[A]gentsRun(Tests|Execute)\.sh' | LC_ALL=C awk '{ print $1 }'
+}
+rigRunFolder(){ ## result prefix -- the run folder the drain named for its batch, once its runner has started
+	LC_ALL=C sed -n 's/^# AgentsRunTests\.sh: .* run folder: //p' "$1.err" 2> /dev/null | LC_ALL=C tail -n 1
+}
+rigBatchOrder(){ ## result prefix -- the tests of that batch, in the order the batch will run them, on one line
+	LC_ALL=C awk '{ print $1 }' "$( rigRunFolder "$1" )/tests.list" 2> /dev/null | LC_ALL=C tr '\n' ' '
+}
+rigRunnersClear(){ ## -- ends every runner of this rig a bespoke section left behind, so the count a section reads is its own; every one is noted before it is signalled
+	local clearPids clearLeft=20
+	clearPids="$( rigRunnerPids )"
+	[ -z "$clearPids" ] || rigProcNote $clearPids
+	[ -z "$clearPids" ] || rigProcSignal TERM $clearPids
+	while [ "$clearLeft" -gt 0 ] && [ "$( rigRunners )" -gt 0 ] ; do sleep 1 ; clearLeft=$(( clearLeft - 1 )) ; done
+}
 rigAs="" rigLane=""
 
 echo "-- 1. queueing returns at once with an id, and waits for no test --"
@@ -183,22 +207,47 @@ rigAssert "accepted sibling: the one that did not name it passes" "$( rigLine "$
 rigOp "$rigTmp/r3" --retest-result "$rigIdA"
 rigAssert "the outcome names the failed test with its rc and its log, and the log is there" "$( LC_ALL=C sed -n 's/^  failed \(RigOne rc=1\) log: .*/\1/p' "$rigTmp/r3.out" ) $( [ -f "$( LC_ALL=C sed -n 's/^  failed RigOne rc=1 log: //p' "$rigTmp/r3.out" )" ] && printf log-there || printf no-log )" "RigOne rc=1 log-there"
 
-echo "-- 4. a request that comes in while a batch runs is in the next batch --"
+echo "-- 4. a request that comes in while a batch runs ends it at its next test boundary, and is run in that same batch --"
+## REWRITTEN, with its reason: this section held that such a request is in the next batch, and that is the behaviour the
+## yield changes. The ruled behaviour is that a batch ends at its next test boundary once a request names fewer tests than
+## that batch's request has left to run, and that the waiting request is run in that same batch. So the narrow one never
+## waits longer than one test of the wide one. The batch is read from the log and from the queue folders only, never from
+## how a drain signals the runner it started.
 rigFresh
-: > "$rigTmp/hold.RigOne"
-rigAsk "$rigTmp/q4a" --by rig-first --why 'in the first batch' RigOne ; rigIdA="$rigId"
+: > "$rigTmp/hold.RigOne" ; : > "$rigTmp/hold.RigTwo" ; : > "$rigTmp/hold.RigThree"
+rigAsk "$rigTmp/q4a" --by rig-first --why 'in the first batch' RigOne RigTwo RigThree ; rigIdA="$rigId"
 rigCall "$rigTmp/d4" --retest-drain ; rigPidD=$rigLast
-rigUntil 'BEGIN live RigOne' "$rigTmp/log" || rigRefuse "the batch's test never began, so nothing below would be measured"
-rigAsk "$rigTmp/q4b" --by rig-second --why 'asked while the batch ran' RigOne ; rigIdB="$rigId"
+rigUntil 'BEGIN live ' "$rigTmp/log" || rigRefuse "the batch's test never began, so nothing below would be measured"
+rigBatch="$( rigBatchOrder "$rigTmp/d4" )"
+[ -n "$rigBatch" ] || rigRefuse "the batch named no test list, so nothing below would be measured"
+rigFirst="$( printf '%s' "$rigBatch" | LC_ALL=C awk '{ print $1 }' )"
+## The narrow request names the test this batch would run LAST, so that a batch which went on would run another test before it.
+rigNarrow="$( printf '%s' "$rigBatch" | LC_ALL=C awk '{ print $NF }' )"
+[ "$rigNarrow" != "$rigFirst" ] || rigRefuse "the batch names one test alone, so a narrow request could not be told from it"
+rigAsk "$rigTmp/q4b" --by rig-second --why 'asked while the batch ran, and narrower' "$rigNarrow" ; rigIdB="$rigId"
 rigAssert "queueing waits for no test: the request is taken while the batch's test is still running" "$rigRc $( printf '%s' "$rigIdB" | LC_ALL=C grep -c '^retest-' ) $( LC_ALL=C grep -c '^END ' "$rigTmp/log" )" "0 1 0"
 rigAssert "the first is said to be in the batch being run, the second to wait" "$( rigStands "$rigIdA" ) $( rigStands "$rigIdB" )" "RUNNING WAITING"
 rigOp "$rigTmp/d4x" --retest-drain
-rigAssert "a second drain is refused while one runs, saying so, and takes nothing" "$rigRc $( LC_ALL=C grep -c -F -- 'a batch is being run already' "$rigTmp/d4x.err" ) $( rigHolds waiting ) $( rigBegins RigOne )" "1 1 1 1"
-: > "$rigTmp/let.RigOne" ; rigEnd "$rigPidD"
-rigAssert "the batch ends with the first request alone, and the second still waits: it was run for nobody yet" "$rigRc $( LC_ALL=C grep -c '^RETEST ' "$rigTmp/d4.out" ) $( rigLine "$rigTmp/d4" "$rigIdA" | LC_ALL=C cut -d' ' -f1-3 ) $( rigStands "$rigIdB" ) $( rigBegins RigOne )" "0 1 RETEST <id> PASS WAITING 1"
+rigAssert "a second drain is refused while one runs, saying so, and takes nothing" "$rigRc $( LC_ALL=C grep -c -F -- 'a batch is being run already' "$rigTmp/d4x.err" ) $( rigBegins "$rigFirst" )" "1 1 1"
+## The boundary: every test is held, so the second test to begin stands where it is and the log says which one it is,
+## however busy the host is; then everything is let end, so that the drain can finish.
+: > "$rigTmp/let.$rigFirst"
+rigSecond=""
+for rigWaitLeft in $( seq 1 120 ) ; do
+	rigSecond="$( LC_ALL=C sed -n 's/^BEGIN live //p' "$rigTmp/log" | LC_ALL=C sed -n 2p )"
+	[ -z "$rigSecond" ] || break
+	sleep 0.5
+done
 rm -f "$rigTmp"/hold.* "$rigTmp"/let.*
-rigOp "$rigTmp/d4b" --retest-drain
-rigAssert "the next drain is its batch: the test is run for it, once" "$rigRc $( rigLine "$rigTmp/d4b" "$rigIdB" | LC_ALL=C cut -d' ' -f1-3 ) $( rigBegins RigOne ) $( rigHolds waiting ) $( rigHolds done )" "0 RETEST <id> PASS 2 0 2"
+for rigWaitLeft in $( seq 1 300 ) ; do
+	kill -0 "$rigPidD" 2> /dev/null || break
+	sleep 1
+done
+rigEnd "$rigPidD"
+rigAssert "the batch ends at that boundary and takes the waiting request in: the test that runs next is the narrow request's, and that request is answered by the batch that was already running" \
+	"$( printf '%s' "$rigSecond" )|$( rigLine "$rigTmp/d4" "$rigIdB" | LC_ALL=C cut -d' ' -f1-3 )" \
+	"$rigNarrow|RETEST <id> PASS"
+rm -f "$rigTmp"/hold.* "$rigTmp"/let.*
 
 echo "-- 5. a request is about one copy, and each copy's tests are run by that copy's own runner --"
 rigFresh
@@ -329,6 +378,155 @@ rigAsk "$rigTmp/q11b" --by rig-second --why 'a caller wants a short wait' RigOne
 rigOp "$rigTmp/d11b" --retest-drain
 rigAssert "a caller's own shorter wait is the one the test is handed" "$( LC_ALL=C sed -n '$p' "$rigTmp/limits.log" )" "1234"
 rigLane=""
+rigFresh
+
+echo "-- 12. a request naming no test is the widest, and any request naming tests ends it at the next test boundary --"
+## A request naming no test asks for every test of its copy, which is the widest there is. With one test of it begun and
+## still held, a request naming one test is narrower than the tests left to run, so that batch must stop at the boundary
+## and run the narrow one's test, within one test of the widest. The narrow request names the test the widest would run LAST,
+## so a widest that went on would run another test before it.
+rigFresh
+: > "$rigTmp/hold.RigOne" ; : > "$rigTmp/hold.RigTwo" ; : > "$rigTmp/hold.RigThree"
+rigAsk "$rigTmp/q12a" --by rig-first --why 'every test of the copy, which is the widest request there is' --file sh-lib/wait/AgentsTools.MemberWait.include ; rigIdA="$rigId"
+rigCall "$rigTmp/d12" --retest-drain ; rigPidD=$rigLast
+rigUntil 'BEGIN live ' "$rigTmp/log" || rigRefuse "the widest request's first test never began, so nothing below would be measured"
+rigBatch="$( rigBatchOrder "$rigTmp/d12" )"
+[ -n "$rigBatch" ] || rigRefuse "the widest request named no test list, so nothing below would be measured"
+rigFirst="$( printf '%s' "$rigBatch" | LC_ALL=C awk '{ print $1 }' )"
+rigNarrow="$( printf '%s' "$rigBatch" | LC_ALL=C awk '{ print $NF }' )"
+[ "$rigNarrow" != "$rigFirst" ] || rigRefuse "the widest request names one test alone, so a narrow request could not be told from it"
+rigAsk "$rigTmp/q12b" --by rig-second --why 'one test, asked while the widest ran' "$rigNarrow" ; rigIdB="$rigId"
+: > "$rigTmp/let.$rigFirst"
+rigSecond=""
+for rigWaitLeft in $( seq 1 120 ) ; do
+	rigSecond="$( LC_ALL=C sed -n 's/^BEGIN live //p' "$rigTmp/log" | LC_ALL=C sed -n 2p )"
+	[ -z "$rigSecond" ] || break
+	sleep 0.5
+done
+rm -f "$rigTmp"/hold.* "$rigTmp"/let.*
+for rigWaitLeft in $( seq 1 300 ) ; do
+	kill -0 "$rigPidD" 2> /dev/null || break
+	sleep 1
+done
+rigEnd "$rigPidD"
+rigAssert "any request naming tests ends the widest at the boundary, and is run in that same batch: the test that runs next is the narrow request's, whose request is answered by the batch already running" \
+	"$rigRc $( printf '%s' "$rigIdB" | LC_ALL=C grep -c '^retest-' ) $( printf '%s' "$rigSecond" )|$( rigLine "$rigTmp/d12" "$rigIdB" | LC_ALL=C cut -d' ' -f1-3 )" \
+	"0 1 $rigNarrow|RETEST <id> PASS"
+rm -f "$rigTmp"/hold.* "$rigTmp"/let.*
+
+echo "-- 13. a drain that dies leaves no runner of its batch alive, or the next drain ends the orphan before it starts --"
+## What is read is the runner itself: how many of this rig's test runners are alive. A test of the batch is held, so a runner
+## that nothing ends stands there for as long as the rig holds it. The control proves the probe can see a runner at all. Then
+## a drain is ended by TERM while its test is held, its request is taken out of the queue by hand so that no later run of that
+## test can be counted, the next drain takes the queue over, and the probe is read again. Every runner an earlier section
+## left behind is ended first, so the count read here is this section's own.
+rigFresh
+rigRunnersClear
+: > "$rigTmp/hold.RigThree"
+rigAsk "$rigTmp/q13a" --by rig-first --why 'the control: a batch nobody ends, its test held' RigThree
+rigCall "$rigTmp/d13a" --retest-drain ; rigPidC=$rigLast
+rigUntil 'BEGIN live RigThree' "$rigTmp/log" || rigRefuse "the control batch's test never began, so nothing below would be measured"
+rigSeen="$( rigRunners )"
+rigControl="$( if [ "$rigSeen" -ge 1 ] ; then printf seen ; else printf blind ; fi )"
+rm -f "$rigTmp"/let.* ; : > "$rigTmp/let.RigThree" ; rigEnd "$rigPidC"
+rigCNote="$( rigRunnerPids )" ; [ -z "$rigCNote" ] || rigProcNote $rigCNote
+rm -f "$rigTmp"/hold.* "$rigTmp"/let.*
+rigFresh
+rigRunnersClear
+: > "$rigTmp/hold.RigOne"
+rigAsk "$rigTmp/q13b" --by rig-second --why 'a drain ended by a signal while its test ran' RigOne
+rigCall "$rigTmp/d13b" --retest-drain ; rigPidD=$rigLast
+rigUntil 'BEGIN live RigOne' "$rigTmp/log" || rigRefuse "the drain's test never began, so nothing below would be measured"
+rigDrainPid="$( LC_ALL=C sed -n 's/^pid: //p' "$rigQueue/drain.lock/holder" 2> /dev/null | LC_ALL=C sed -n 1p )"
+[ -n "$rigDrainPid" ] || rigRefuse "the queue names no drain to end, so nothing below would be measured"
+rigProcNote "$rigDrainPid" ; rigProcSignal TERM "$rigDrainPid" ; rigEnd "$rigPidD"
+rm -f "$rigQueue/running"/*.request
+rigOp "$rigTmp/d13c" --retest-drain ; rigNextRc=$rigRc
+## A runner that has been told to end is given until it has: what is left after that is left behind.
+for rigWaitLeft in $( seq 1 20 ) ; do
+	[ "$( rigRunners )" -gt 0 ] || break
+	sleep 1
+done
+rigLeft="$( rigRunners )"
+rigNote="$( rigRunnerPids )" ; [ -z "$rigNote" ] || rigProcNote $rigNote
+rigAssert "a drain ended by a signal leaves no runner of its batch alive, or the next drain ends the orphan before it starts: the probe sees a runner while one is held, and no runner of this rig is left once the next drain has taken the queue over" \
+	"control:$( printf '%s' "$rigControl" ) left:$( printf '%s' "$rigLeft" ) next-drain:$( printf '%s' "$rigNextRc" )" \
+	"control:seen left:0 next-drain:0"
+[ -z "$rigNote" ] || rigProcSignal TERM $rigNote
+[ -z "$rigCNote" ] || rigProcSignal TERM $rigCNote
+rm -f "$rigTmp"/hold.* "$rigTmp"/let.*
+rigFresh
+
+echo "-- 14. a wide request stopped at a boundary answers YIELDED, naming a new request that carries what it was asked --"
+## What a request was asked with is read from the request file the new id names, by the fields' own names, never by the
+## order of a line. The id itself is read as any request id in the answer other than the one asked about, since where in
+## that line a drain says it is not the rig's to choose.
+rigFresh
+: > "$rigTmp/hold.RigOne" ; : > "$rigTmp/hold.RigTwo" ; : > "$rigTmp/hold.RigThree"
+rigAsk "$rigTmp/q14a" --by rig-first --why 'the wide one, which the narrow one stops' RigOne RigTwo RigThree ; rigIdA="$rigId"
+rigCall "$rigTmp/d14" --retest-drain ; rigPidD=$rigLast
+rigUntil 'BEGIN live ' "$rigTmp/log" || rigRefuse "the wide request's first test never began, so nothing below would be measured"
+rigBatch="$( rigBatchOrder "$rigTmp/d14" )"
+[ -n "$rigBatch" ] || rigRefuse "the wide request named no test list, so nothing below would be measured"
+rigFirst="$( printf '%s' "$rigBatch" | LC_ALL=C awk '{ print $1 }' )"
+rigNarrow="$( printf '%s' "$rigBatch" | LC_ALL=C awk '{ print $NF }' )"
+[ "$rigNarrow" != "$rigFirst" ] || rigRefuse "the wide request names one test alone, so a narrow request could not be told from it"
+rigAsk "$rigTmp/q14b" --by rig-second --why 'the narrow one' "$rigNarrow" ; rigIdB="$rigId"
+: > "$rigTmp/let.$rigFirst"
+rm -f "$rigTmp"/hold.* "$rigTmp"/let.*
+for rigWaitLeft in $( seq 1 300 ) ; do
+	kill -0 "$rigPidD" 2> /dev/null || break
+	sleep 1
+done
+rigEnd "$rigPidD"
+rigYRaw="$( LC_ALL=C grep -F -- "RETEST $rigIdA " "$rigTmp/d14.out" 2> /dev/null | LC_ALL=C sed -n 1p )"
+## The words are the ruling's; where in the line a drain puts them is not the rig's to choose.
+rigYVerdict="$( printf '%s' "$rigYRaw" | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- YIELDED )"
+rigYNew="$( printf '%s' "$rigYRaw" | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -E '^retest-[0-9]{8}T[0-9]{6}Z-' | LC_ALL=C grep -v -x -F -- "$rigIdA" | LC_ALL=C sed -n 1p )"
+## The new request may still wait, or may have run already; a finished one keeps the request it was made from in its result.
+rigYFile=""
+[ -z "$rigYNew" ] || rigYFile="$( LC_ALL=C grep -l -x -F -- "id: $rigYNew" "$rigQueue"/*/*.request "$rigQueue"/*/*.result 2> /dev/null | LC_ALL=C sed -n 1p )"
+rigYFields="$( [ -z "$rigYFile" ] || LC_ALL=C grep -c -e '^by: ' -e '^why: ' -e '^about: ' -e '^origin: ' -e '^workspace: ' "$rigYFile" )"
+rigYFrom="$( [ -z "$rigYFile" ] || LC_ALL=C sed -n 's/^returned-from: //p' "$rigYFile" | LC_ALL=C sed -n 1p )"
+rigYAbout="$( [ -z "$rigYFile" ] || LC_ALL=C sed -n 's/^about: //p' "$rigYFile" | LC_ALL=C sed -n 1p )"
+rigYOrigin="$( [ -z "$rigYFile" ] || LC_ALL=C sed -n 's/^origin: //p' "$rigYFile" | LC_ALL=C sed -n 1p )"
+rigAssert "a wide request stopped at a boundary answers YIELDED, naming a new request that carries who asked, why, about which copy, where that copy and the workspace are, and returned-from naming the first" \
+	"yielded:$( printf '%s' "$rigYVerdict" )|$( printf '%s' "$rigYFields" )|$( [ "$rigYFrom" = "$rigIdA" ] && printf returned-from-ok || printf returned-from-wrong )|$( printf '%s' "$rigYAbout" )|$( [ "$rigYOrigin" = "$rigLive" ] && printf origin-ok || printf origin-wrong )" \
+	"yielded:1|5|returned-from-ok|live|origin-ok"
+rm -f "$rigTmp"/hold.* "$rigTmp"/let.*
+
+echo "-- 15. the boundary covers only a run a drain starts: a plain run of the runner keeps today's behaviour --"
+## A narrow request waits in the queue and no drain is started, so it stays waiting. The rig's own runner is then called as a
+## person calls it, with one worker, so that its next test is the very same worker's next check, and its first test is held.
+## That run must go on, since no drain started it and no boundary is due; it answers no request. This one holds today and
+## after the change: it is the control of the boundary.
+rigFresh
+rigRunnersClear
+: > "$rigTmp/hold.RigOne" ; : > "$rigTmp/hold.RigTwo"
+rigAsk "$rigTmp/q15a" --by rig-first --why 'waits while a plain run goes on' RigThree
+( cd "$rigLive/myx/myx.distro-agents" && exec env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigLive" MDLT_OPTION="--run-from-path $rigLive" RIG_SHARED="$rigTmp" bash sh-test/AgentsRunTests.sh --wait -w 1 RigOne RigTwo ) > "$rigTmp/p15.out" 2> "$rigTmp/p15.err" < /dev/null &
+rigPidP=$!
+rigStarted="$rigStarted $rigPidP" ; rigProcNote "$rigPidP"
+rigUntil 'BEGIN live ' "$rigTmp/log" || rigRefuse "the plain run's first test never began, so nothing below would be measured"
+rigBatch="$( rigBatchOrder "$rigTmp/p15" )"
+[ -n "$rigBatch" ] || rigRefuse "the plain run named no test list, so nothing below would be measured"
+rigFirst="$( printf '%s' "$rigBatch" | LC_ALL=C awk '{ print $1 }' )"
+rigSecond="$( printf '%s' "$rigBatch" | LC_ALL=C awk '{ print $2 }' )"
+rigRunFolderPlain="$( rigRunFolder "$rigTmp/p15" )"
+[ -n "$rigRunFolderPlain" ] || rigRefuse "the plain run named no run folder, so nothing below would be measured"
+: > "$rigTmp/let.$rigFirst"
+## Read from the plain run's own run folder, never from the shared log: another run of this rig also writes there.
+rigPlainAfter=""
+for rigWaitLeft in $( seq 1 120 ) ; do
+	[ ! -f "$rigRunFolderPlain/$rigSecond.begin" ] || { rigPlainAfter="began" ; break ; }
+	sleep 0.5
+done
+rigPlainWaiting="$( rigHolds waiting )"
+rm -f "$rigTmp"/hold.* "$rigTmp"/let.*
+rigEnd "$rigPidP"
+rigAssert "the boundary covers only a run a drain starts: with a narrow request waiting and no drain started, a plain run of the runner goes on to its next test, and that request still waits" \
+	"$( printf '%s' "${rigPlainAfter:-not-begun}" )|$( printf '%s' "$rigPlainWaiting" )|$( LC_ALL=C grep -c '^RETEST ' "$rigTmp/p15.out" )" \
+	"began|1|0"
 rigFresh
 
 if [ "$rigFails" -ne 0 ] ; then

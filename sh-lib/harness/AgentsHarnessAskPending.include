@@ -116,7 +116,7 @@ AgentsHarnessEscalationRead(){ ## pending reply id
 	[ -n "$1" ] && [ -n "$harnessAgent" ] || return 0
 	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-escalation-read "$harnessAgent" "$1" \
 		> "$harnessScratch/escalation-read.out" 2> /dev/null || :
-	LC_ALL=C grep -E '^(ESCALATION|VERDICT|VERDICT-TEXT|VERDICT-REASON|ANSWERED-BY|GRANT|CHANGE|WAITING-ON|UNREADABLE-REASON): ' "$harnessScratch/escalation-read.out" 2>/dev/null || :
+	LC_ALL=C grep -E '^(ESCALATION|VERDICT|VERDICT-TEXT|VERDICT-REASON|ANSWERED-BY|ANSWER-TS|GRANT|CHANGE|WAITING-ON|UNREADABLE-REASON): ' "$harnessScratch/escalation-read.out" 2>/dev/null || :
 }
 
 ## The answers a wait returned on a question, without the wait's own lines: the section

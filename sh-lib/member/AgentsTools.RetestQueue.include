@@ -13,6 +13,12 @@ retestStore="${HOME:-}/.agents/magic-team/retest-queue"
 AgentsToolsRetestOneLine(){ ## text -- the text on one line
 	printf '%s' "$1" | LC_ALL=C tr '\n\r\t' '   '
 }
+## A request id: this moment in UTC, and eight letters of a uuid, or this shell's own pid and a random number where the machine has no uuidgen.
+AgentsToolsRetestId(){ ## -- an id no request of this machine has
+	local idSuffix
+	idSuffix="$( uuidgen 2> /dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' | LC_ALL=C cut -c1-8 )"
+	printf 'retest-%s-%s\n' "$( date -u +%Y%m%dT%H%M%SZ )" "${idSuffix:-$$-$RANDOM}"
+}
 AgentsToolsRetestCopyName(){ ## source root -- what a request calls that copy: `live`, or the folder under the workspace's temp that a scratch copy is in
 	local nameTemp
 	nameTemp="$( cd "${MMDAPP%/}/.local/temp" 2> /dev/null && pwd -P )"
@@ -48,10 +54,12 @@ AgentsToolsRetestRunner(){ ## source root of a copy, runner arguments... -- that
 	## A DRAIN WAITS ITS TURN, however long the machine's line is: the runner's own 900s bound would answer every request
 	## `NOT RUN` on a busy machine, which is a queue drained in name only. A run whose caller wants a shorter wait sets
 	## MDAT_RETEST_LANE_WAIT, and a check of this does.
+	## A DRAIN'S OWN RUN IS TOLD WHERE THE QUEUE'S WAITING FOLDER IS, so that it can stop at a check boundary for a narrower
+	## request. A run started by anything else names no folder and reads none.
 	if [ "$runnerRoot" = "$( cd "$MDLT_ORIGIN" 2> /dev/null && pwd -P )" ] ; then
-		( cd "$runnerRoot/myx/myx.distro-agents" && exec env MDAT_SUITE_QUEUE_LIMIT="${MDAT_RETEST_LANE_WAIT:-86400}" "$BASH" sh-test/AgentsRunTests.sh --wait "$@" )
+		( cd "$runnerRoot/myx/myx.distro-agents" && exec env MDAT_RETEST_YIELD_DIR="$retestStore/waiting" MDAT_SUITE_QUEUE_LIMIT="${MDAT_RETEST_LANE_WAIT:-86400}" "$BASH" sh-test/AgentsRunTests.sh --wait "$@" )
 	else
-		( cd "$runnerRoot/myx/myx.distro-agents" && exec env MDLT_ORIGIN="$runnerRoot" MDLT_OPTION="--run-from-path $runnerRoot" MDAT_SUITE_QUEUE_LIMIT="${MDAT_RETEST_LANE_WAIT:-86400}" "$BASH" sh-test/AgentsRunTests.sh --wait "$@" )
+		( cd "$runnerRoot/myx/myx.distro-agents" && exec env MDLT_ORIGIN="$runnerRoot" MDLT_OPTION="--run-from-path $runnerRoot" MDAT_RETEST_YIELD_DIR="$retestStore/waiting" MDAT_SUITE_QUEUE_LIMIT="${MDAT_RETEST_LANE_WAIT:-86400}" "$BASH" sh-test/AgentsRunTests.sh --wait "$@" )
 	fi
 }
 AgentsToolsRetestProcess(){ ## pid -- when that process was started, as the system tells it: empty where no such process is
@@ -127,8 +135,7 @@ AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the
 	mkdir -p "$retestStore/waiting" 2> /dev/null && [ -w "$retestStore/waiting" ] || {
 		echo "⛔ ERROR: $MDSC_CMD $queueOp: cannot use the machine's retest queue: $retestStore -- nothing was queued" >&2 ; return 1
 	}
-	queueId="$( uuidgen 2> /dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' | LC_ALL=C cut -c1-8 )"
-	queueId="retest-$( date -u +%Y%m%dT%H%M%SZ )-${queueId:-$$-$RANDOM}"
+	queueId="$( AgentsToolsRetestId )"
 	{
 		printf 'id: %s\nasked: %s\npriority: %s\nby: %s\nwhy: %s\nabout: %s\norigin: %s\nworkspace: %s\n' "$queueId" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$queueWait" "$queueBy" "$queueWhy" "$( AgentsToolsRetestCopyName "$queueRoot" )" "$queueRoot" "${MMDAPP%/}"
 		[ -z "$queueTests" ] || printf '%s' "$queueTests" | LC_ALL=C sed 's/^/test: /'
@@ -158,8 +165,8 @@ AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the
 	return 0
 }
 
-AgentsToolsRetestFinish(){ ## batch folder, request file, batch id -- that request's result into `done`, from what the batch found for its copy; then out of `running`, and its line on stdout
-	local finishWork="$1" finishRequest="$2" finishBatch="$3" finishId finishCopy finishTest finishHow finishAll="" finishLine
+AgentsToolsRetestFinish(){ ## batch folder, request file, batch id, and the id a wider request yielded its remainder to or nothing -- that request's result into `done`, from what the batch found for its copy; then out of `running`, and its line on stdout
+	local finishWork="$1" finishRequest="$2" finishBatch="$3" finishYield="${4:-}" finishId finishCopy finishTest finishHow finishAll="" finishLine
 	local finishPassed=0 finishBefore=0 finishFailed="" finishNot="" finishVerdict=PASS
 	finishId="$( LC_ALL=C sed -n "s/^id: //p" "$finishRequest" 2> /dev/null | LC_ALL=C sed -n 1p )"
 	finishCopy="$( LC_ALL=C grep -n -x -F -- "$( LC_ALL=C sed -n "s/^origin: //p" "$finishRequest" 2> /dev/null | LC_ALL=C sed -n 1p )" "$finishWork/copies" | LC_ALL=C sed -n '1s/:.*//p' )"
@@ -184,11 +191,14 @@ AgentsToolsRetestFinish(){ ## batch folder, request file, batch id -- that reque
 			finishNot=" (every test: the copy it was asked about gave none to run)" ; printf 'not-run: * the copy it was asked about gave no test to run\n'
 		fi
 		[ -z "$finishFailed$finishNot" ] || finishVerdict=FAIL
+		[ -z "$finishYield" ] || finishVerdict=YIELDED
 		finishLine="RETEST $finishId $finishVerdict -- asked by $( LC_ALL=C sed -n "s/^by: //p" "$finishRequest" 2> /dev/null | LC_ALL=C sed -n 1p ) about $( LC_ALL=C sed -n "s/^about: //p" "$finishRequest" 2> /dev/null | LC_ALL=C sed -n 1p ): $finishPassed passed"
 		[ "$finishBefore" = 0 ] || finishLine="$finishLine, $finishBefore passed on this very state before and not run again"
 		[ -z "$finishFailed" ] || finishLine="$finishLine, FAILED:$finishFailed"
 		[ -z "$finishNot" ] || finishLine="$finishLine, NOT RUN:$finishNot"
+		[ -z "$finishYield" ] || finishLine="$finishLine, its unrun tests returned to $finishYield"
 		printf 'verdict: %s\nline: %s\n' "$finishVerdict" "$finishLine -- $( LC_ALL=C sed -n "s/^why: //p" "$finishRequest" 2> /dev/null | LC_ALL=C sed -n 1p )"
+		[ -z "$finishYield" ] || printf 'yielded-to: %s\n' "$finishYield"
 	} > "$retestStore/done/.$finishId.result" 2> /dev/null && mv -f "$retestStore/done/.$finishId.result" "$retestStore/done/$finishId.result" 2> /dev/null || {
 		rm -f "$retestStore/done/.$finishId.result" 2> /dev/null
 		echo "⛔ ERROR: $MDSC_CMD: the result of $finishId could not be written into $retestStore/done -- the request is left in the batch, and the next drain runs it again" >&2 ; return 1
@@ -210,27 +220,44 @@ AgentsToolsRetestLists(){ ## batch folder, number of the copy, its source root -
 	printf 'listed\n' > "$listsWork/$listsNo.listed"
 	return 0
 }
-AgentsToolsRetestRunTests(){ ## batch folder, number of the copy, its source root, the tests file -- runs them on that copy's own runner, each once, and appends what each did to <number>.outcome
-	local runWork="$1" runNo="$2" runRoot="$3" runFile="$4" runDir runTest runRc runFolder runCount runEvery
+AgentsToolsRetestRunTests(){ ## batch folder, number of the copy, its source root, the tests file -- runs them on that copy's own runner, each once, appends what each did to <number>.outcome and what it ran to <number>.ran, and leaves the tests a stopped run did not reach in <number>.stopped
+	local runWork="$1" runNo="$2" runRoot="$3" runFile="$4" runDir runTest runRc runFolder runCount runEvery runStopped runGroup
 	runDir="$runRoot/myx/myx.distro-agents/sh-test"
 	runCount="$( LC_ALL=C grep -c . "$runFile" )"
 	runEvery="$( cd "$runDir" 2> /dev/null && ls *.test.sh */*.test.sh 2> /dev/null | LC_ALL=C grep -c . )"
 	echo "# retest: about $( AgentsToolsRetestCopyName "$runRoot" ) ($runRoot): $runCount test(s), each once" >&2
 	## Every test of the copy is its whole suite, and is run as one, so it waits its turn in the machine's line for those.
+	## THE RUN STANDS IN A PROCESS GROUP OF ITS OWN: a drain that is ended ends its whole runner tree with it, and a drain that
+	## finds a dead batch's lock ends the runner that batch left before it starts its own. The group's pid and when it began go
+	## into the drain's lock, so the next drain can tell that same process from a number another process has taken over.
+	set -m
 	if [ "$runCount" = "$runEvery" ] ; then
-		AgentsToolsRetestRunner "$runRoot" 2>&1 | tee -a "$runWork/$runNo.out" >&2
+		AgentsToolsRetestRunner "$runRoot" 2>&1 | tee -a "$runWork/$runNo.out" >&2 &
 	else
-		AgentsToolsRetestRunner "$runRoot" $( cat "$runFile" ) 2>&1 | tee -a "$runWork/$runNo.out" >&2
+		AgentsToolsRetestRunner "$runRoot" $( cat "$runFile" ) 2>&1 | tee -a "$runWork/$runNo.out" >&2 &
 	fi
+	runGroup=$!
+	set +m
+	printf 'pid: %s\nstarted: %s\n' "$runGroup" "$( AgentsToolsRetestProcess "$runGroup" )" > "$retestStore/drain.lock/run" 2> /dev/null || :
+	wait "$runGroup" || :
+	rm -f "$retestStore/drain.lock/run" 2> /dev/null || :
 	runFolder="$( LC_ALL=C sed -n 's/^# AgentsRunTests\.sh: .* run folder: //p' "$runWork/$runNo.out" | LC_ALL=C tail -n 1 )"
 	printf '%s\n' "$runFolder" > "$runWork/$runNo.folder"
+	## A RUN THE DRAIN STOPPED AT ITS BOUNDARY reached only the tests before the boundary: the rest come back to the queue
+	## with their request, and are counted as run for nobody.
+	runStopped=""
+	[ -z "$runFolder" ] || [ ! -f "$runFolder/retest-yield.txt" ] || runStopped=1
+	: > "$runWork/$runNo.stopped"
+	[ -z "$runStopped" ] || echo "# retest: about $( AgentsToolsRetestCopyName "$runRoot" ): the runner stopped at a check boundary, for a narrower request that waits, and what it did not reach goes back to the queue" >&2
 	while IFS= read -r runTest ; do
 		[ -n "$runTest" ] || continue
 		runRc="$( LC_ALL=C sed -n 's/^rc=//p' "$runFolder/$runTest.receipt" 2> /dev/null | LC_ALL=C sed -n 1p )"
+		## A test with no receipt after a stop was never handed out: it goes back to the queue, not to a failure.
+		if [ -n "$runStopped" ] && [ -z "$runRc" ] ; then printf '%s\n' "$runTest" >> "$runWork/$runNo.stopped" ; continue ; fi
 		case "${runFolder:+$runRc}" in
-			0) printf '%s passed\n' "$runTest" ;;
+			0) printf '%s passed\n' "$runTest" ; printf '%s\n' "$runTest" >> "$runWork/$runNo.ran" ;;
 			'') printf '%s the runner gave no result for it: %s\n' "$runTest" "$( LC_ALL=C grep . "$runWork/$runNo.out" | LC_ALL=C tail -n 1 | LC_ALL=C cut -c1-200 )" ;;
-			*) printf '%s failed rc=%s log: %s\n' "$runTest" "$runRc" "$runFolder/$runTest.log" ;;
+			*) printf '%s failed rc=%s log: %s\n' "$runTest" "$runRc" "$runFolder/$runTest.log" ; printf '%s\n' "$runTest" >> "$runWork/$runNo.ran" ;;
 		esac
 	done < "$runFile" >> "$runWork/$runNo.outcome"
 }
@@ -264,6 +291,22 @@ AgentsToolsRetestCopy(){ ## batch folder, number of the copy, its source root, 1
 	fi
 	AgentsToolsRetestRunTests "$copyWork" "$copyNo" "$copyRoot" "$copyWork/$copyNo.run"
 }
+## A DRAIN'S OWN RUN STANDS IN THE LOCK, as a process group, with when it began: ending the drain ends the whole runner tree it
+## started, and so does a drain that finds this record left by one that no longer exists. The signal goes out only while the
+## system still knows that pid as that very process, so a number another process has taken is never signalled.
+AgentsToolsRetestDrainEnd(){ ## -- the runner tree this lock's drain started, ended; the record and the lock given back
+	local endRunPid="" endRunThen=""
+	if [ -f "$retestStore/drain.lock/run" ] ; then
+		endRunPid="$( LC_ALL=C sed -n "s/^pid: //p" "$retestStore/drain.lock/run" 2> /dev/null | LC_ALL=C sed -n 1p )"
+		endRunThen="$( LC_ALL=C sed -n "s/^started: //p" "$retestStore/drain.lock/run" 2> /dev/null | LC_ALL=C sed -n 1p )"
+	fi
+	if [ -n "$endRunPid" ] && [ "$( AgentsToolsRetestProcess "$endRunPid" )" = "$endRunThen" ] ; then
+		kill -TERM -- "-$endRunPid" 2> /dev/null || kill -TERM "$endRunPid" 2> /dev/null || :
+	fi
+	rm -f "$retestStore/drain.lock/run" "$retestStore/drain.lock/holder" 2> /dev/null
+	rmdir "$retestStore/drain.lock" 2> /dev/null
+}
+
 AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that waits, as one batch; a line on stdout for each request it finishes
 	local drainOp="$1" ; shift
 	local drainSyntax="⛔ ERROR: $MDSC_CMD $drainOp: syntax is [--rest [--about <scratch-folder>]]"
@@ -296,15 +339,19 @@ AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that wait
 		## a holder not written yet is a drain that is taking the lock this very moment
 		drainTries=$(( drainTries + 1 ))
 		if [ -z "$drainHolder" ] && [ "$drainTries" -lt 10 ] ; then sleep 0.2 ; continue ; fi
-		rm -f "$drainLock/holder" 2> /dev/null ; rmdir "$drainLock" 2> /dev/null
+		## A LOCK A DRAIN NO LONGER EXISTS LEFT: its runner tree is ended before this drain starts one of its own, so the
+		## machine is never holding two runner trees from one queue.
+		AgentsToolsRetestDrainEnd
 		[ "$drainTries" -lt 20 ] || { echo "⛔ ERROR: $MDSC_CMD $drainOp: cannot take $drainLock -- nothing was run" >&2 ; return 1 ; }
 	done
 	printf 'pid: %s\n' "$drainPid" > "$drainLock/holder"
-	## Given back however this shell ends by itself; one that is killed leaves it, and is known by its process to be gone.
-	trap 'rm -f "$retestStore/drain.lock/holder" 2> /dev/null ; rmdir "$retestStore/drain.lock" 2> /dev/null' EXIT
+	## Given back however this drain ends, by itself or ended, and its runner tree with it.
+	trap AgentsToolsRetestDrainEnd EXIT
+	trap 'exit 143' TERM INT HUP
 	printf 'since: %s\nstarted: %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$( AgentsToolsRetestProcess "$drainPid" )" >> "$drainLock/holder"
 
 	local drainWork="$retestStore/running/.batch" drainBatch drainRequest drainRoot drainDir drainNo drainAsks drainName drainTest drainWhen drainCount=0 drainLeft drainFails=0
+	local drainWait drainRound drainStopped drainNewId drainCap=""
 	drainBatch="batch-$( date -u +%Y%m%dT%H%M%SZ )-$drainPid"
 	rm -rf "$drainWork" ; mkdir -p "$drainWork" || { echo "⛔ ERROR: $MDSC_CMD $drainOp: cannot write under $retestStore/running -- nothing was run" >&2 ; return 1 ; }
 	: > "$drainWork/copies"
@@ -335,6 +382,10 @@ AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that wait
 			drainNo=$(( drainNo + 1 ))
 			drainDir="$drainRoot/myx/myx.distro-agents/sh-test"
 			: > "$drainWork/$drainNo.outcome" ; : > "$drainWork/$drainNo.out" ; : > "$drainWork/$drainNo.ran" ; : > "$drainWork/$drainNo.order"
+			## ONE PASS OF THIS COPY, AND ANOTHER WHEN A RUN STOPPED FOR A NARROWER REQUEST: what then waited is this batch's too.
+			for drainRound in 1 2 3 4 5 6 7 8 9 10 ; do
+			drainStopped=""
+			: > "$drainWork/$drainNo.order"
 			## THE SHORTEST REQUEST FIRST, so a gate proof never waits on a long request beside it; one that names no test is the widest, and last
 			for drainRequest in "$retestStore/running"/*.request ; do
 				[ -f "$drainRequest" ] || continue
@@ -380,16 +431,57 @@ AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that wait
 				done < "$drainWork/$drainNo.want"
 				if [ -s "$drainWork/$drainNo.run" ] ; then
 					AgentsToolsRetestRunTests "$drainWork" "$drainNo" "$drainRoot" "$drainWork/$drainNo.run"
-					cat "$drainWork/$drainNo.run" >> "$drainWork/$drainNo.ran"
 				fi
 				## each test of the copy runs once, and each request is answered as soon as its own tests have run
-				AgentsToolsRetestFinish "$drainWork" "$drainRequest" "$drainBatch" || drainFails=$(( drainFails + 1 ))
+				if [ ! -s "$drainWork/$drainNo.stopped" ] ; then
+					AgentsToolsRetestFinish "$drainWork" "$drainRequest" "$drainBatch" || drainFails=$(( drainFails + 1 ))
+					continue
+				fi
+				## THE RUN STOPPED AT A CHECK BOUNDARY FOR A NARROWER REQUEST. What it did not reach returns as a request of its
+				## own, carrying this one's fields and the id it came from, and this one answers YIELDED naming it. What waits for
+				## this copy is then folded into this same batch, so the narrow request runs before the batch ends.
+				drainNewId="$( AgentsToolsRetestId )"
+				{
+					printf 'id: %s\nasked: %s\npriority: no-wait\n' "$drainNewId" "$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+					LC_ALL=C grep -E '^(by|why|about|origin|workspace): ' "$drainRequest" 2> /dev/null
+					printf 'returned-from: %s\n' "${drainName%.request}"
+					LC_ALL=C sed 's/^/test: /' "$drainWork/$drainNo.stopped"
+				} > "$retestStore/waiting/.$drainNewId.request" 2> /dev/null && mv -f "$retestStore/waiting/.$drainNewId.request" "$retestStore/waiting/$drainNewId.request" 2> /dev/null || drainNewId=""
+				AgentsToolsRetestFinish "$drainWork" "$drainRequest" "$drainBatch" "$drainNewId" || drainFails=$(( drainFails + 1 ))
+				: > "$drainWork/$drainNo.stopped"
+				## WHAT WAITS FOR THIS COPY IS FOLDED IN, while another round is there to run it: at the cap it stays waiting, and
+				## the next drain answers it, so no request is ever dropped to save a round.
+				if [ "$drainRound" -lt 10 ] ; then
+					for drainWait in "$retestStore/waiting"/*.request ; do
+						[ -f "$drainWait" ] || continue
+						[ -z "$( LC_ALL=C sed -n 's/^returned-from: //p' "$drainWait" 2> /dev/null | LC_ALL=C sed -n 1p )" ] || continue
+						[ "$( LC_ALL=C sed -n 's/^origin: //p' "$drainWait" 2> /dev/null | LC_ALL=C sed -n 1p )" = "$drainRoot" ] || continue
+						mv -f "$drainWait" "$retestStore/running/" 2> /dev/null || :
+						drainStopped=1
+					done
+				else
+					drainCap=1
+				fi
+				## NOTHING AFTER IT IN THIS ROUND RUNS BEFORE THE NARROW REQUEST.
+				break
 			done < "$drainWork/$drainNo.sorted"
+			[ -z "$drainStopped" ] || continue
+			break
+			done
 		done < "$drainWork/copies"
 		for drainRequest in "$retestStore/running"/*.request ; do
 			[ -f "$drainRequest" ] || continue
 			AgentsToolsRetestFinish "$drainWork" "$drainRequest" "$drainBatch" || drainFails=$(( drainFails + 1 ))
 		done
+	fi
+	## A BATCH THAT STOPPED TEN TIMES RUNS NO MORE OF THIS ONE: what it never reached goes back to wait, so the next drain
+	## answers it with its own tests, never as a request failed for work nobody gave it.
+	if [ -n "$drainCap" ] ; then
+		for drainRequest in "$retestStore/running"/*.request ; do
+			[ -f "$drainRequest" ] || continue
+			mv -f "$drainRequest" "$retestStore/waiting/" 2> /dev/null || :
+		done
+		echo "# retest: $drainBatch: stopped ten times for narrower requests, so what it never reached waits for the next batch" >&2
 	fi
 	## With nothing waiting, what is left: every test of the one copy that has not passed on the state it is in.
 	if [ -n "$drainRest" ] ; then

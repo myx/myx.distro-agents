@@ -4,6 +4,9 @@
 ## greeting excepted; an account id written plain is said as the person the contact store names. The rig holds the person as a contact
 ## in its own data root, a machine-wide members registry in its own home, and a fake curl answering conversations.info,
 ## conversations.replies (from a file the row writes) and chat.postMessage. Nothing leaves the machine.
+## Section 1e holds the thread rule of a top-level post: the newest reply owed in that conversation and not stale, else the thread the run
+## was started for, and neither with --told or --update-ts. Section 1f holds the same for a send to the human-owner by name: a fresh reply
+## he is owed goes first, a stale one or --told is left alone, and the request thread is no part of that step.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
@@ -40,6 +43,7 @@ case "$m" in
 		esac
 	;;
 	conversations.replies|conversations.history) cat "$RIG_SCENARIO/replies.json" ;;
+	conversations.open) printf '{"ok":true,"channel":{"id":"DRIGOWNER1"}}\n' ;;
 	chat.postMessage) { for a in "$@" ; do case "$a" in *@/*) cat "${a#*@}" 2> /dev/null ; echo ;; esac ; done ; printf '%s\n' "$in" ; } >> "$RIG_SCENARIO/posts.log" ; printf '{"ok":true,"channel":"DRIGJULIA1","ts":"1.000001","message":{"ts":"1.000001","user":"URIGBOT01"}}\n' ;;
 	*) printf '{"ok":true}\n' ;;
 esac
@@ -62,7 +66,7 @@ rigSend(){ ## result file, target, body, [extra options...]
 	local rigOut="$1" rigTarget="$2" rigBody="$3"
 	shift 3
 	printf '%s' "$rigBody" | ( cd "$rigWs" && env -i MDAT_SEND_FLOOR="hold" HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" RIG_SCENARIO="$rigTmp/scenario" ${RIG_DUTY:+MDAT_SPAWN_SESSION_ID=rig-duty MDAT_SPAWN_SANDBOX_ROOT="$rigTmp/spawn"} \
+		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" RIG_SCENARIO="$rigTmp/scenario" ${RIG_CONV:+MDAT_CONVERSATION_THREADS="$RIG_CONV" MDAT_SESSION_THREAD="$RIG_CONV"} ${RIG_DUTY:+MDAT_SPAWN_SESSION_ID=rig-duty MDAT_SPAWN_SANDBOX_ROOT="$rigTmp/spawn"} \
 		bash "$rigFn" --slack-send-message --team-member magic-team "$rigTarget" --identity-bot "$@" --from-stdin ) > "$rigOut" 2>&1
 	printf '%s' "$?" > "$rigOut.rc"
 }
@@ -126,6 +130,119 @@ rigSend "$rigTmp/q" CRIGCHAN01:1700000000.999999 "Ответ."
 rigAssert "a reply whose thread is not in this conversation: refused, nothing posted" \
 	"$( cat "$rigTmp/q.rc" ) $( LC_ALL=C grep -c 'is no thread of this conversation' "$rigTmp/q" ) $( rigPosts )" "1 1 $rigPostsSoFar"
 mv -f "$rigTmp/scenario/replies.kept" "$rigTmp/scenario/replies.json"
+
+echo "-- 1e. a top-level post goes into the thread where a reply is owed, else the thread the run was started for --"
+rigOwedFile="$rigWs/.local/agents/schedule/owed/magic-team"
+rigOwedLine(){ ## age in seconds, address, text, account (the person's, URIGJULIA1 where none): one line of the owed store
+	printf '%s\t%s\t%s\t%s\n' "$(( $( date +%s ) - $1 ))" "$2" "${4:-URIGJULIA1}" "$3" >> "$rigOwedFile"
+}
+rigThreadPosts(){ ## ts: the posts whose payload names that thread
+	LC_ALL=C grep -c "\"thread_ts\":\"$1\"" "$rigTmp/scenario/posts.log" 2> /dev/null || :
+}
+rigAnyThread(){ LC_ALL=C grep -c '"thread_ts"' "$rigTmp/scenario/posts.log" 2> /dev/null || : ; }
+rigUpdates(){ LC_ALL=C grep -c '^chat.update$' "$rigTmp/scenario/calls.log" 2> /dev/null || : ; }
+rigSaid(){ ## result file, text
+	LC_ALL=C grep -c -F -- "$2" "$1" 2> /dev/null || :
+}
+rm -f "$rigOwedFile" ; : > "$rigTmp/scenario/posts.log"
+rigOwedLine 60 slack:CRIGCHAN01:1700000000.000001 "a question"
+rigSend "$rigTmp/r1" CRIGCHAN01 "An answer to the channel."
+rigPostsSoFar=$(( rigPostsSoFar + 1 ))
+rigAssert "control: a reply owed in a channel, fresh: the post goes into that thread, and the send says so" \
+	"$( cat "$rigTmp/r1.rc" ) $( rigSaid "$rigTmp/r1" 'asked in the thread slack:CRIGCHAN01:1700000000.000001' ) $( rigThreadPosts 1700000000.000001 ) $( rigPosts )" "0 1 1 $rigPostsSoFar"
+
+rm -f "$rigOwedFile" ; : > "$rigTmp/scenario/posts.log"
+rigOwedLine 60 slack:CRIGCHAN01:1700000000.000001 "a question"
+rigSend "$rigTmp/r2" CRIGCHAN01 "An announcement for the channel." --told
+rigPostsSoFar=$(( rigPostsSoFar + 1 ))
+rigAssert "--told posts at the top: the owed thread is not used, and the send says nothing of it" \
+	"$( cat "$rigTmp/r2.rc" ) $( rigSaid "$rigTmp/r2" 'asked in the thread' ) $( rigAnyThread ) $( rigPosts )" "0 0 0 $rigPostsSoFar"
+
+rm -f "$rigOwedFile" ; : > "$rigTmp/scenario/posts.log"
+rigOwedLine 60 slack:CRIGCHAN01:1700000000.000001 "a question"
+rigUpdatesSoFar="$( rigUpdates )"
+rigSend "$rigTmp/r3" CRIGCHAN01 "The edited text." --update-ts 1700000000.000900
+rigAssert "--update-ts edits in place: the owed thread is not used, one chat.update is sent, and no post is made" \
+	"$( rigSaid "$rigTmp/r3" 'asked in the thread' ) $(( $( rigUpdates ) - rigUpdatesSoFar )) $( rigAnyThread ) $( rigPosts )" "0 1 0 $rigPostsSoFar"
+
+rm -f "$rigOwedFile" ; : > "$rigTmp/scenario/posts.log"
+rigOwedLine 60 slack:CRIGOTHER9:1700000000.000001 "a question in another channel"
+rigSend "$rigTmp/r4" CRIGCHAN01 "A post to the channel."
+rigPostsSoFar=$(( rigPostsSoFar + 1 ))
+rigAssert "an owed line of another channel is left alone: the post is top-level, and the send says nothing of it" \
+	"$( cat "$rigTmp/r4.rc" ) $( rigSaid "$rigTmp/r4" 'asked in the thread' ) $( rigAnyThread ) $( rigPosts )" "0 0 0 $rigPostsSoFar"
+
+rm -f "$rigOwedFile" ; : > "$rigTmp/scenario/posts.log"
+rigOwedLine 90000 slack:CRIGCHAN01:1700000000.000001 "a question from a day ago"
+rigSend "$rigTmp/r5" CRIGCHAN01 "A post to the channel."
+rigPostsSoFar=$(( rigPostsSoFar + 1 ))
+rigAssert "a stale owed line (older than three times MDAT_OWED_REPLY_SECONDS) is ignored: the post is top-level" \
+	"$( cat "$rigTmp/r5.rc" ) $( rigSaid "$rigTmp/r5" 'asked in the thread' ) $( rigAnyThread ) $( rigPosts )" "0 0 0 $rigPostsSoFar"
+
+rm -f "$rigOwedFile" ; : > "$rigTmp/scenario/posts.log"
+RIG_CONV="CRIGOTHER9:1700000000.000001" rigSend "$rigTmp/r6" CRIGCHAN01 "A post to the channel."
+rigPostsSoFar=$(( rigPostsSoFar + 1 ))
+rigAssert "a request thread of another channel is ignored: the post is top-level, and the send says nothing of it" \
+	"$( cat "$rigTmp/r6.rc" ) $( rigSaid "$rigTmp/r6" 'started for the message' ) $( rigAnyThread ) $( rigPosts )" "0 0 0 $rigPostsSoFar"
+
+rm -f "$rigOwedFile" ; : > "$rigTmp/scenario/posts.log"
+RIG_CONV="CRIGCHAN01:1700000000.000001" rigSend "$rigTmp/r7" CRIGCHAN01 "An answer, in the thread the run was started for."
+rigPostsSoFar=$(( rigPostsSoFar + 1 ))
+rigAssert "control: nothing owed, and the request thread in this channel: the post goes into it, and the send says so" \
+	"$( cat "$rigTmp/r7.rc" ) $( rigSaid "$rigTmp/r7" 'started for the message in the thread CRIGCHAN01:1700000000.000001' ) $( rigThreadPosts 1700000000.000001 ) $( rigPosts )" "0 1 1 $rigPostsSoFar"
+
+rm -f "$rigOwedFile" ; : > "$rigTmp/scenario/posts.log"
+rigOwedLine 60 slack:CRIGCHAN01:1700000000.000001 "a question"
+RIG_CONV="CRIGCHAN01:1700000000.000300" rigSend "$rigTmp/r8" CRIGCHAN01 "An answer."
+rigPostsSoFar=$(( rigPostsSoFar + 1 ))
+rigAssert "one order: the owed thread beats the request thread of the same channel" \
+	"$( cat "$rigTmp/r8.rc" ) $( rigSaid "$rigTmp/r8" 'asked in the thread slack:CRIGCHAN01:1700000000.000001' ) $( rigSaid "$rigTmp/r8" 'started for the message' ) $( rigThreadPosts 1700000000.000001 ) $( rigPosts )" "0 1 0 1 $rigPostsSoFar"
+
+rm -f "$rigOwedFile" ; : > "$rigTmp/scenario/posts.log"
+rigOwedLine 60 slack:CRIGCHAN01:1700000000.000001 "a question"
+rigOwedLine 30 slack:CRIGCHAN01 "an address with no ts"
+rigSend "$rigTmp/r9" CRIGCHAN01 "An answer past a malformed line."
+rigPostsSoFar=$(( rigPostsSoFar + 1 ))
+rigAssert "a malformed owed line is said once and skipped: the valid owed thread is used" \
+	"$( cat "$rigTmp/r9.rc" ) $( rigSaid "$rigTmp/r9" 'which is not slack:<channel>:<ts>' ) $( rigThreadPosts 1700000000.000001 ) $( rigPosts )" "0 1 1 $rigPostsSoFar"
+
+rm -f "$rigOwedFile" ; : > "$rigTmp/scenario/posts.log"
+cp "$rigTmp/scenario/replies.json" "$rigTmp/scenario/replies.kept"
+printf '{"ok":false,"error":"thread_not_found"}\n' > "$rigTmp/scenario/replies.json"
+RIG_CONV="CRIGCHAN01:1700000000.000001" rigSend "$rigTmp/r10" CRIGCHAN01 "An answer."
+mv -f "$rigTmp/scenario/replies.kept" "$rigTmp/scenario/replies.json"
+rigAssert "a derived thread Slack refuses: refused, nothing posted, and the send names the rule that chose it and --told" \
+	"$( cat "$rigTmp/r10.rc" ) $( rigSaid "$rigTmp/r10" 'The thread was taken because this session was started for the message' ) $( rigSaid "$rigTmp/r10" 'Pass --told to post at the top instead' ) $( rigPosts )" "1 1 1 $rigPostsSoFar"
+rm -f "$rigOwedFile"
+
+echo "-- 1f. a send to the human-owner by name answers in the thread of his open message, if it is fresh --"
+mkdir -p "$rigWs/.local/agents/cache"
+printf '1\nhuman-owner=URIGOWNER=owner=Rig Owner=Rig Owner=rig\n' > "$rigWs/.local/agents/cache/slack-identities.cache"
+rm -f "$rigOwedFile" ; : > "$rigTmp/scenario/posts.log"
+rigOwedLine 60 slack:CRIGCHAN01:1700000000.000001 "a question of his" URIGOWNER
+rigSend "$rigTmp/s1" human-owner "An answer to the owner."
+rigPostsSoFar=$(( rigPostsSoFar + 1 ))
+rigAssert "control: a fresh reply owed to him: the post goes into that thread, and the send says so" \
+	"$( cat "$rigTmp/s1.rc" ) $( rigSaid "$rigTmp/s1" 'the human-owner asked in the thread CRIGCHAN01:1700000000.000001' ) $( rigThreadPosts 1700000000.000001 ) $( rigPosts )" "0 1 1 $rigPostsSoFar"
+rm -f "$rigOwedFile" ; : > "$rigTmp/scenario/posts.log"
+rigOwedLine 90000 slack:CRIGCHAN01:1700000000.000001 "a question of his from a day ago" URIGOWNER
+rigSend "$rigTmp/s2" human-owner "A note to the owner."
+rigPostsSoFar=$(( rigPostsSoFar + 1 ))
+rigAssert "a reply owed to him for a day is stale: the post stays top-level, and the send says nothing of it" \
+	"$( cat "$rigTmp/s2.rc" ) $( rigSaid "$rigTmp/s2" 'the human-owner asked in the thread' ) $( rigAnyThread ) $( rigPosts )" "0 0 0 $rigPostsSoFar"
+rm -f "$rigOwedFile" ; : > "$rigTmp/scenario/posts.log"
+rigOwedLine 60 slack:CRIGCHAN01:1700000000.000001 "a question of his" URIGOWNER
+rigSend "$rigTmp/s3" human-owner "An announcement to the owner." --told
+rigPostsSoFar=$(( rigPostsSoFar + 1 ))
+rigAssert "--told posts at the top even with a fresh reply owed to him" \
+	"$( cat "$rigTmp/s3.rc" ) $( rigSaid "$rigTmp/s3" 'the human-owner asked in the thread' ) $( rigAnyThread ) $( rigPosts )" "0 0 0 $rigPostsSoFar"
+rm -f "$rigOwedFile" ; : > "$rigTmp/scenario/posts.log"
+rigOwedLine 60 slack:CRIGCHAN01:1700000000.000001 "a question of his" URIGOWNER
+RIG_CONV="CRIGCHAN01:1700000000.000300" rigSend "$rigTmp/s4" human-owner "An answer to the owner."
+rigPostsSoFar=$(( rigPostsSoFar + 1 ))
+rigAssert "one order: a reply owed to him beats the request thread of the same channel" \
+	"$( cat "$rigTmp/s4.rc" ) $( rigThreadPosts 1700000000.000001 ) $( rigThreadPosts 1700000000.000300 ) $( rigPosts )" "0 1 0 $rigPostsSoFar"
+rm -f "$rigOwedFile"
 
 echo "-- 2. the human-owner's conversation --"
 rigLong="$( printf 'Measured: %s. ' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 )"

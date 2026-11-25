@@ -32,11 +32,13 @@
 📘 syntax: DistroAgentsTrello.fn.sh --trello-read [--team-member <team-member>] <notification-id>
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-create [--team-member <team-member>] --key <space-key> --name <text> [--description <text>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-list [--team-member <team-member>] [--cursor <value>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-check [--team-member <team-member>] [<page-id>...]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format] [--version <n>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-render [--team-member <team-member>] --source <spec> [--page-id <page-id>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]
-📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-read [--team-member <team-member>] <page-id>
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-read [--team-member <team-member>] <page-id> [--inline] [--since <iso-utc-date>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
-📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-update [--team-member <team-member>] <page-id> (--version <n>|--if-version <n>) --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-delete [--team-member <team-member>] <page-id>
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-move [--team-member <team-member>] <page-id> --parent-id <parent-page-id>
@@ -122,7 +124,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash [--team-member <team-member>] <item-filename> --from-inbox:<member> [--exclude-incoming]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]
 📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--edit-patch-from-stdin|--from-file <path>|--upsert-from-slots]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry <target-member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--from-comment <service>:<page-or-file>:<comment-id>] [--reply] [--from-file <path>|--upsert-from-slots]
 📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--edit-patch-from-stdin|--from-file <path>|--upsert-from-slots]
 📘 syntax: DistroAgentsSession.fn.sh --append-transcript [--team-member <team-member>] [--of-session <session-id>] [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]
 📘 syntax: DistroAgentsItems.fn.sh --get-inbox-item [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
@@ -316,7 +318,7 @@
 📘 syntax: AgentDispatcherTools.fn.sh --supervise-commit-transcripts [--dry-run]
 📘 syntax: DistroAgentsTesting.fn.sh --send-report [--team-member <team-member>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]
-📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
+📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--conversation <channel>:<thread-ts>]... [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 📘 syntax: DistroAgentsTesting.fn.sh --skillset-validate-routine [--team-member <team-member>] <routine-file|--from-stdin>
 📘 syntax: DistroAgentsTesting.fn.sh --test-register [--team-member <team-member>] (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
 📘 syntax: DistroAgentsTesting.fn.sh --test-update [--team-member <team-member>] <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
@@ -538,6 +540,15 @@
 			as Slack gives both: a word that is no id, such as the
 			`slack:` a Wait source carries in front, or a ts that
 			is no ts, is refused the same way, before any call.
+
+			A TOP-LEVEL POST TO A CONVERSATION WHERE A REPLY IS OWED GOES INTO
+			THAT THREAD. The newest reply this member owes in that conversation
+			takes it, if it was noted at most three times MDAT_OWED_REPLY_SECONDS
+			ago (1800 by default). With none owed, the thread this session was
+			started for takes it, where that thread is in the same conversation.
+			One stderr line names the thread. `--told` posts at the top instead,
+			and `--update-ts` edits in place. A thread Slack refuses is named
+			with the rule that chose it.
 
 			The six built-in aliases are magic-team, human-owner,
 			event-track, event-alert, session-current and
@@ -1624,6 +1635,26 @@
 			On failure, whether anything was written is UNKNOWN and must not
 			be assumed to be nothing.
 
+		--google-doc-replace [--team-member <team-member>] <doc-id> (--from-stdin|--from-file <path>)
+			`<team-member>` is the member this write acts as, and it comes
+			first, ahead of the document: the credentials are that member's
+			own, strictly, with no fallback.
+
+			Replaces the whole body of the document with the text given, which
+			is what regenerating one needs, since `--google-doc-write` appends.
+			The body comes from `--from-stdin` or `--from-file` only: a whole
+			document is too large and too structured for a command line.
+
+			The document is read first and written against the revision it
+			answered, so one that moved in between is refused rather than
+			overwritten. The delete and the insert travel in one call, so no
+			reader sees an empty document between them. An empty body is
+			refused, since replacing a document with nothing cannot be told
+			from destroying it.
+
+			On failure, the document's content is UNKNOWN and must not be
+			assumed unchanged.
+
 		--google-comment-read [--team-member <team-member>] <file-id>
 			`<team-member>` is the member this read acts as, and it is
 			required: comments are visible only to identities the file is
@@ -1718,17 +1749,24 @@
 			This endpoint reports no completeness signal: stderr always
 			states `more: unknown`, never a confirmed-complete page.
 
-		--confluence-comment-read [--team-member <team-member>] <page-id>
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. The page's top-level footer comments only -- replies
-			are not read. TSV rows: `COMMENT_ID`, `VERSION_AUTHOR_ID`,
-			`CREATED`, `BODY`. No completeness signal: stderr always
-			states `more: unknown`.
+		--confluence-comment-read [--team-member <team-member>] <page-id> [--inline] [--since <iso-utc-date>]
+			Prints the comments of one page. TSV rows: `COMMENT_ID`,
+			`VERSION_AUTHOR_ID`, `CREATED`, `BODY`, `PAGE_ID`, `STATUS`,
+			`RESOLUTION_STATUS`, `PARENT_COMMENT_ID`.
+
+			Without `--inline`, the page's footer comments. `--inline` adds
+			its inline comments. A reply is read under its parent, so it is
+			a row carrying its parent's id, and a caller acting only on
+			comments skips the rows that carry one. `--since` bounds the
+			read by the comment's own `version.createdAt`, so a repeated
+			scan of a page files nothing twice. It takes `2026-11-20` or
+			`2026-11-20T09:00:00.000Z`, both read as UTC. No completeness
+			signal: stderr always states `more: unknown`.
 
 		--confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. The page is created under that identity, in a space
-			it can see.
+			Runs only as `magic-coordinator` or `magic-librarian`; any
+			other name is refused with 1. The page is created under that
+			identity, in a space it can see.
 
 			Exactly one of `--space <key>` or `--space-id <numeric id>`
 			is required; `--space <key>` resolves the numeric id first
@@ -1739,14 +1777,18 @@
 
 			No version gate: there is nothing yet to conflict with. The
 			created page's response (its new id included) goes to
-			stdout.
+			stdout. A 🙋 WARNING on stderr before the request says the
+			page cannot be removed afterwards unless this identity holds
+			delete there, so a page made for a measurement stays in its
+			space.
 
 		--confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
-			Runs only as `magic-coordinator`; any other name is
-			refused with 1. A page is editable only by identities it
-			is shared with. `--version <n>` is the version the page was
-			read at: the operation writes version n+1 itself, and the
-			service refuses with 409 where the page has moved past n.
+			Runs only as `magic-coordinator` or `magic-librarian`; any
+			other name is refused with 1. A page is editable only by
+			identities it is shared with. `--version <n>` is the version
+			the page was read at: the operation writes version n+1
+			itself, and the service refuses with 409 where the page has
+			moved past n.
 
 			`<n>` is the version already read, from page-read's
 			stderr diagnostic; this operation submits `<n>+1`, so a
@@ -1764,13 +1806,20 @@
 			reapply; never resubmit version+1 unchanged.
 
 		--confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. The comment is posted under that identity.
+			Runs only as `magic-coordinator` or `magic-librarian`; any
+			other name is refused with 1. The comment is posted under that
+			identity.
 
 			Body is always Confluence's storage format -- no ADF path
-			here. `--parent-comment-id` makes it a threaded reply; a
-			parent on another page refuses the reply with 1. No version
-			gate.
+			here. No version gate.
+
+			`--parent-comment-id` makes it a threaded reply, at the parent's
+			own leg. A footer comment is answered at
+			`/wiki/api/v2/footer-comments`. An inline comment is answered at
+			`/wiki/api/v2/inline-comments`, with its parent named. The parent
+			is read on the footer leg first and the inline leg second, so an
+			id on neither leg is refused with 8 and nothing is posted. A
+			parent on another page refuses the reply with 1.
 
 		--confluence-page-delete [--team-member <team-member>] <page-id>
 			Runs only as `magic-coordinator`; any other name, or a
@@ -1788,16 +1837,18 @@
 			refused -- not deleted, retrying won't help. Every other
 			status also means not deleted. A 404 (status 8) does NOT
 			establish absence -- it also covers a page this account
-			may not delete.
+			may not delete. A 404 is read back once, and the answer says
+			which of the two it met.
 
 			A failure prints one stderr line: the mark, this
 			operation's name, the status, and Confluence's body
 			verbatim.
 
 		--confluence-page-move [--team-member <team-member>] <page-id> --parent-id <parent-page-id>
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. Puts that page under that parent, so it becomes that
-			page's child. Both ids must be numeric.
+			Runs only as `magic-coordinator` or `magic-librarian`; any
+			other name is refused with 1. Puts that page under that
+			parent, so it becomes that page's child. Both ids must be
+			numeric.
 
 			Only the parent changes. The title, the body and the
 			version stay as they were, and no body is sent. Confluence's
@@ -1836,8 +1887,9 @@
 		--client-comms-confluence-comment-read [--team-member <team-member>] <page-id>
 			Runs only as a `client-*` member, under that member's own
 			credential; any other name is refused with 1. Top-level
-			footer comments only, no replies -- as
-			`--confluence-comment-read` describes.
+			footer comments only. Everything else is as
+			`--confluence-comment-read` describes, and its `--inline` and
+			`--since` are not offered here.
 
 		--client-comms-confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
 			Runs only as a `client-*` member, writing to that external
@@ -2450,7 +2502,7 @@
 			ordinary one. The rest of the content is as given; to change
 			the header alone give `--edit-patch-from-stdin` with `[]`.
 
-		--upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
+		--upsert-inbox-inquiry <target-member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--from-comment <service>:<page-or-file>:<comment-id>] [--reply] [--from-file <path>|--upsert-from-slots]
 			Passes an inquiry into a member's own inbox -- the standard
 			hand-off mechanism. Any member this machine holds a record of is
 			written to, wherever it is set up, whatever member view the caller
@@ -2470,6 +2522,17 @@
 			marked processed after the inquiry is written, in the same call
 			(`disposition: filed-as-inquiry`, `filed-as: <inquiry>`). That is
 			the reflection's exit; nothing else needs to handle it.
+			`--from-comment <service>:<page-or-file>:<comment-id>` files one page
+			comment, read through that service's own read: `confluence` today.
+			The item's title must carry the comment id, so three comments of one
+			wording stay three items. The comment's body is the inquiry's text,
+			with its author and creation named under it. A comment whose
+			`PARENT_COMMENT_ID` is not empty answers another comment, and is
+			refused: file the comment it answers. Every refusal lands before
+			anything is written. Once the inquiry is written, the comment is
+			recorded one line at a time in the filing member's
+			`note-20261008T000000Z-doc-comments-state-and-lock.md`, and a pass
+			that finds it there files nothing.
 			`--reply` sets the header `reply-requested: yes`, so marking
 			the inquiry processed sends one note with the outcome to its
 			`from:` member, as `--request-update --reply` does for a
@@ -2663,8 +2726,14 @@
 			CPU with more RAM, 3 the GPU machine, - where the name carries
 			no size), context window, output budget and the form of the
 			effort none of its family; a model of no known family has -
-			in the last three. Reads only. Prints nothing and ends 1 where
-			the local server cannot be reached. Takes no arguments.
+			in the last three. Reads only, and sends the credential the
+			`local` leg declares. Where no model is listed, the call exits
+			1 with nothing on stdout and one error line on stderr. That
+			line names the cause: a credential the server did not accept,
+			another HTTP status, or no answer in time. It also names an
+			unreachable server, an answer naming no model, and any other
+			curl failure. That last one carries curl's own rc, with 52 for
+			an answer that closed unread. Takes no arguments.
 
 		--owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]
 			Reports, and where supported carries out, setup of one
@@ -6951,7 +7020,7 @@
 			waits there and a dismissal is addressed to the member
 			it is for.
 
-		--spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
+		--spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--conversation <channel>:<thread-ts>]... [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 			Starts a coworking session and spawns its initial members
 			in one call. Task text comes from stdin. Exactly one of
 			`--routine <selector>` | `--routine-default` is required
@@ -6971,6 +7040,15 @@
 			session is for. Every spawn of the call gets it unchanged:
 			it is kept on each dispatch item and spawn record, and
 			shown on each start post in event-track.
+			`--conversation <channel>:<thread-ts>` names a thread the session
+			continues, and is given again for each further thread. Exactly one
+			thread is the request thread: the thread of the person's message the
+			session is for. The session thread then opens as a reply inside it.
+			Its posts land there, and so do its reports and questions where the
+			person is the human-owner or holds tier-client or above. Where the
+			request cannot be used, a warning says why, the brief carries
+			`request_thread_not_used:`, and the session thread opens where it
+			always did. A value in no such shape starts nothing.
 			`--spawn-cli-service <cli-name>` and
 			`--spawn-settings-workspace <workspace-name>` are the two
 			spawn settings a task may carry of its own: the agent CLI
@@ -7224,6 +7302,8 @@
 			authority rule (F6.10), with the escalation words the rule's own. Refused,
 			and nothing set, from a call of no member's session or no session, and with
 			no text.
+			A thread root the bot did not post, such as a person's message, keeps
+			its text. The output says so, and the title is set all the same.
 
 		--set-session-chapter <text> [--escalate-wait [--timeout <seconds>]|--escalate-enqueue]
 			ThisSession's operation (DistroAgentsSession.fn.sh). Sets the chapter of the
@@ -7637,7 +7717,10 @@
 			once and in that order; a `tracking-item:`, `start-context:`
 			(with a closure line for each mode it allows), `review-by:`,
 			`routine-lock-document:`, `input-scan-def:`, `runs-at:` or `runs-after:` of a wrong form is
-			refused the same way. A finding of `operations:` is a row of the
+			refused the same way, and so is a `runs-at:` other than `none` beside an
+			`executors:` of `magic-team`, `*` or nothing: the autorun starts no
+			routine whose executors is any of those, so the pair starts nothing.
+			A finding of `operations:` is a row of the
 			rule `report-operations`: it is said and refuses nothing.
 			`--from-stdin` reads the routine from standard input.
 

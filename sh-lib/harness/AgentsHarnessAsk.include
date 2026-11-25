@@ -89,7 +89,7 @@ AgentsHarnessAsk(){
 			}
 		;;
 	esac
-	local askChannel="" askTs="" askThreadTs="" askAddressees=""
+	local askChannel="" askTs="" askThreadTs="" askAddressees="" askRequestTaken=""
 	local askRounds=0
 	local askSelfIds=" " askRecordOnly="" askSessionWait="" askOthers="" askOwnRead="" askUnreadRetry=""
 	local askSession="" askRefusedTool="" askRefusedTarget="" askRefusedOwner="" askRefusedCall="" askRefusedFolder="" askRefusedProject=""
@@ -194,7 +194,21 @@ AgentsHarnessAsk(){
 			case "$( AgentsToolsRunRouteKind "$askRouteTo" 2> /dev/null )" in
 				session) toolTo="$harnessParentName" ; toolAddressTo="$( AgentsToolsRunRouteMember "$askRouteTo" 2> /dev/null )" || toolAddressTo="" ;;
 				member) toolTo="$askRouteTo" ; toolAddressTo="$askRouteTo" ;;
-				person) toolTo="human-owner" ; toolAddressTo="human-owner" ;;
+				person)
+					toolTo="human-owner" ; toolAddressTo="human-owner"
+					## A run started for a person's message asks that person in that thread, if the thread is its own and its person may read it.
+					local askRequestWhere="" askRequestOwn="${MDAT_SESSION_THREAD:-}"
+					type AgentsToolsRequestThreadInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include" || echo "⛔ ERROR: AgentsTools.SessionThreads.include did not load, so the thread this run was started for is not looked up" >&2
+					if AgentsToolsRequestThreadInto askRequestWhere ; then
+						[ -n "$askRequestOwn" ] || askRequestOwn="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || askRequestOwn=""
+						if [ "$askRequestOwn" = "$askRequestWhere" ] ; then
+							type AgentsHarnessRequestThreadTakes > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReports.include" || echo "⛔ ERROR: AgentsHarnessReports.include did not load, so the person of the request thread is not checked" >&2
+							if AgentsHarnessRequestThreadTakes "$askRequestWhere" ; then
+								toolTo="$askRequestWhere" ; toolAddressTo="$agentsRequestTakesAuthor" ; askRequestTaken="yes"
+							fi
+						fi
+					fi
+				;;
 			esac
 		fi
 	fi
@@ -286,6 +300,29 @@ AgentsHarnessAsk(){
 	if [ -n "$askRoutine" ] && [ "$toolKind" = "question" ] ; then
 		printf 'ERROR: %s: a question to a routine must be of kind readback, decision or permission, since its executors answer it with a verdict of that kind. Nothing was recorded.\n' "$harnessAskName" ; return 0
 	fi
+	## A CONTACT, `contact:<id>`, IS ASKED THROUGH THE CLIENT-* MEMBER THAT REACHES IT (Q970): that member alone holds the
+	## other organisation's credentials, and the ask posts to the contact's own conversation as that member, by the
+	## coordinator's client operation (AgentsHarnessAskContactSend). The party stays the addressee, `contact:<id>`, in the
+	## record and beside the answer; the post's own place is that side's, and the answer is read there as that member.
+	local askContactMember="" askContactTarget="" askContactAccount="" askContactLine=""
+	case "$toolTo" in
+		contact:?*)
+			type AgentsToolsCommsContactRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
+			askContactLine="$( AgentsToolsCommsContactRoute "${toolTo#contact:}" )" || {
+				[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
+				printf 'ERROR: %s: the party %s cannot be reached, so nobody was asked and no answer is pending. %s\n' "$harnessAskName" "$toolTo" "$askContactLine"
+				return 0
+			}
+			askContactMember="${askContactLine%%$'\t'*}"
+			askContactTarget="${askContactLine#*$'\t'}"
+			askContactAccount="${askContactTarget#client:}"
+			[ -z "$toolAddressTo" ] || [ "$toolAddressTo" = "$toolTo" ] || askContactAccount="$toolAddressTo"
+			toolAddressTo="$toolTo"
+			askRouteNote="${askRouteNote:+$askRouteNote$'\n'}NOTE: %s is reached through $askContactMember, which holds the other organisation's credentials: the ask is posted on that side by the coordinator's client operation, and its answer is read there as that member."
+			askRouteNote="$( printf "$askRouteNote" "$askContactMember" )"
+			toolTo="$askContactTarget"
+		;;
+	esac
 	## Whether `to` names a thread is read past a client: marker, the other organisation's side
 	## of a client-* member (AgentsTools.CommsSlack.include): here and below.
 	if [ -z "$toolAddressTo" ] ; then
@@ -347,7 +384,7 @@ AgentsHarnessAsk(){
 	## asking member's own. Never a proposal: that is the coordinator's own, under its own rules.
 	## AN ASK OF THE HUMAN-OWNER IS A NEW THREAD OF ITS OWN, never a post in a work thread he takes no part in: addressed to him,
 	## it is asked in his own conversation, whatever place the call named.
-	if [ "$toolKind" != "proposal" ] && [ "$toolAddressTo" = "human-owner" ] && [ "$toolTo" != "human-owner" ] ; then
+	if [ "$toolKind" != "proposal" ] && [ "$toolAddressTo" = "human-owner" ] && [ "$toolTo" != "human-owner" ] && [ -z "${askRequestTaken:-}" ] ; then
 		askRouteNote="${askRouteNote:+$askRouteNote$'\n'}NOTE: asked in a new thread of its own in the human-owner's conversation, not in $toolTo: an ask of him is never posted in a work thread."
 		toolTo="human-owner"
 	fi
@@ -654,6 +691,9 @@ AgentsHarnessAsk(){
 		## Added to the open prompt: nothing is posted, and where that prompt stands is read
 		## from what the operation printed, as from a send.
 		askSent="$askJoinedOut"
+	elif [ -n "$askContactMember" ] ; then
+		## A contact is reached by the coordinator's client operation, as the member that reaches it (above).
+		askSent="$( AgentsHarnessAskContactSend "$askContactMember" "$askContactTarget" "${askRootBody:-$askBody}" "$askContactAccount" "$( AgentsHarnessAskProse )" )"
 	else
 		askSent="$( harnessSendProse="$( AgentsHarnessAskProse )" AgentsHarnessToolSendMessage "$toolTo" "${askRootBody:-$askBody}" "$toolAsBot" "$toolAddressTo" "" true )"
 	fi
@@ -704,8 +744,15 @@ AgentsHarnessAsk(){
 		case "$askSelfIds" in *" $askClickId "*) ;; *) askClickers="$askClickId" ; break ;; esac
 	done
 	## The answer emoji go under the question itself, as the identity that posted it. A call
-	## added to an open prompt places none: that prompt has its own.
-	[ -n "$askRoutine" ] || [ -n "$askJoined" ] || [ -z "$askChannel" ] || [ -z "$askTs" ] || [ -z "$askClickers" ] || AgentsHarnessAskReact "$askChannel:$askTs" "$toolAsBot" add $( AgentsHarnessAskSeedNames )
+	## added to an open prompt places none: that prompt has its own. A contact's post is on the other
+	## organisation's side, so its emoji are the client-* member's, under its own credentials.
+	if [ -n "$askContactMember" ] ; then
+		[ -z "$askChannel" ] || [ -z "$askTs" ] || [ -z "$askClickers" ] || AgentsToolsAskPostReact "$askContactMember" "${askChannel#client:}:$askTs" member add $( AgentsHarnessAskSeedNames ) || :
+	elif [ -n "$askRoutine" ] || [ -n "$askJoined" ] || [ -z "$askChannel" ] || [ -z "$askTs" ] || [ -z "$askClickers" ] ; then
+		:
+	else
+		AgentsHarnessAskReact "$askChannel:$askTs" "$toolAsBot" add $( AgentsHarnessAskSeedNames )
+	fi
 	## An ask to a routine exists only as its record.
 	if [ -n "$askRoutine" ] && [ -z "$askPendingId" ] ; then
 		printf 'ERROR: %s: the question to %s could not be recorded, and nothing was posted, so THE QUESTION DOES NOT EXIST and nobody was asked. Ask it again.\n' "$harnessAskName" "$askRoutine" ; return 0

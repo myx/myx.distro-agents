@@ -124,14 +124,19 @@ AgentsHarnessToolSendMessageRun(){ ## target, message, as bot, address to, broad
 	## sends default alike. An ad-hoc/solo spawn holding no channel keeps today's explicit-target
 	## requirement exactly -- the error just below fires precisely as it always has.
 	## A SEND NAMING NO TARGET GOES WHERE THE MEMBER WAS LAST ASKED (his design, 2026-11-10): the newest reply this member owes, the one
-	## a Wait handed it from a person (schedule/owed/<member>, AgentsTools.OwedReplies.include), is the place of a plain reply; with
-	## nothing owed, the run's own session thread. A handback keeps its own route.
+	## a Wait handed it from a person (schedule/owed/<member>, AgentsTools.OwedReplies.include), is the place of a plain reply, if it is
+	## younger than three times MDAT_OWED_REPLY_SECONDS. With nothing owed, the thread this run was started for (its request thread), else the run's own session thread. A handback keeps its own route.
 	if [ -z "$toolTarget" ] && [ "$toolNext" = "reply" ] ; then
-		local owedNewest=""
-		owedNewest="$( LC_ALL=C awk -F '\t' '$2 ~ /^slack:[A-Z0-9]+:[0-9.]+$/ { last = $2 ; } END { if ( last != "" ) print substr( last, 7 ) ; }' "$MMDAPP/.local/agents/schedule/owed/$harnessAgent" 2> /dev/null )" || owedNewest=""
-		if [ -n "$owedNewest" ] ; then
-			toolTarget="$owedNewest"
-			toolShown="$owedNewest (the thread of the newest message you were asked in)"
+		local answerWhere="" answerAge="${MDAT_OWED_REPLY_SECONDS:-1800}"
+		case "$answerAge" in ''|*[!0123456789]*|0) answerAge=1800 ;; esac
+		type AgentsToolsOwedRepliesNewest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include" || echo "⛔ ERROR: AgentsTools.OwedReplies.include did not load, so the newest message you were asked in is not looked up" >&2
+		type AgentsToolsRequestThreadInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include" || echo "⛔ ERROR: AgentsTools.SessionThreads.include did not load, so the thread this session was started for is not looked up" >&2
+		if AgentsToolsOwedRepliesNewest answerWhere "$harnessAgent" "" "" "$(( 10#$answerAge * 3 ))" ; then
+			toolTarget="$answerWhere"
+			toolShown="$answerWhere (the thread of the newest message you were asked in)"
+		elif AgentsToolsRequestThreadInto answerWhere ; then
+			toolTarget="$answerWhere"
+			toolShown="$answerWhere (the thread this session was started for)"
 		fi
 	fi
 	if [ -z "$toolTarget" ] ; then

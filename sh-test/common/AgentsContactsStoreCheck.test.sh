@@ -185,6 +185,12 @@ rigRun "$rigTmp/l5" --all-organisations
 rigAssert "--all-organisations: a row each, by id, with the number of contacts" "$rigRc $( LC_ALL=C tr '\t' '|' < "$rigTmp/l5.out" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )" "0 organisation|acme|Acme||1 organisation|ndm|NDM Limited|ndm.example|1"
 rigRun "$rigTmp/r1" --contact-record alice-one
 rigAssert "--contact-record prints the file whole" "$( cmp -s "$rigTmp/r1.out" "$rigPerson/alice-one.md" && printf same )" "same"
+rigAs=keeper-x
+rigRun "$rigTmp/r1b" --contact-record alice-one --team-member keeper-x
+rigAssert "the member option after the value is taken as if it stood first: the same file whole, and no refusal of the option" "$rigRc $( cmp -s "$rigTmp/r1b.out" "$rigPerson/alice-one.md" && printf same ) $( rigHas 'unknown option' "$rigTmp/r1b.err" )" "0 same 0"
+rigRun "$rigTmp/r1c" --find-contact alice-one --team-member keeper-x
+rigAssert "--find-contact the same way: its row, and no refusal of the option" "$rigRc $( rigHas 'alice-one' "$rigTmp/r1c.out" ) $( rigHas 'unknown option' "$rigTmp/r1c.err" )" "0 1 0"
+rigAs=""
 rigRun "$rigTmp/r2" --contact-record nobody-at-all
 rigRun "$rigTmp/r3" --contact-record Bad_Id
 rigRun "$rigTmp/r4" --contact-record

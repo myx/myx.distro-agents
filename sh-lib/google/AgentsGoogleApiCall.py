@@ -658,6 +658,52 @@ def op_doc_write(access_token, args):
                         .get("requiredRevisionId", "?")))
 
 
+def op_doc_replace(access_token, args):
+    """Replace one Google Doc's whole body with the text on stdin.
+
+    THE DOCUMENT IS READ FIRST AND WRITTEN AGAINST THE REVISION IT ANSWERED, so a
+    document that moved between the two is refused rather than overwritten. The
+    delete and the insert travel in one batchUpdate, so no reader sees an empty
+    document between them. The trailing newline Drive requires is kept: a body whose
+    last character is not a newline has one appended before the insert.
+    """
+    doc_id = args.get("doc_id")
+    if not doc_id:
+        fail(1, "doc-replace requires doc_id")
+    text = read_stdin_content("document text")
+    if not text.strip():
+        fail(1, "an empty body was supplied -- nothing was written, since replacing a document "
+                "with nothing is indistinguishable from destroying it")
+    if not text.endswith("\n"):
+        text = text + "\n"
+    read_url = "https://docs.googleapis.com/v1/documents/%s" % urllib.parse.quote(doc_id, safe="")
+    before = api_get(access_token, read_url, "could not read document %s before replacing it" % doc_id)
+    body = before.get("body")
+    if body is None:
+        fail(3, "the document returned no body, so the extent to replace is UNKNOWN and nothing "
+                "was written")
+    content = body.get("content") or []
+    if not content:
+        fail(3, "the document returned an empty content list, so the extent to replace is "
+                "UNKNOWN and nothing was written")
+    bodyEnd = content[-1].get("endIndex")
+    if not isinstance(bodyEnd, int) or bodyEnd < 2:
+        fail(3, "the document's body ends at %s, which is not an index this worker can replace "
+                "down to, so nothing was written" % bodyEnd)
+    requests = []
+    if bodyEnd > 1:
+        requests.append({"deleteContentRange": {"range": {"startIndex": 1, "endIndex": bodyEnd - 1}}})
+    requests.append({"insertText": {"location": {"index": 1}, "text": text}})
+    update = {"requests": requests}
+    if before.get("revisionId"):
+        update["writeControl"] = {"requiredRevisionId": before["revisionId"]}
+    url = "https://docs.googleapis.com/v1/documents/%s:batchUpdate" % urllib.parse.quote(doc_id, safe="")
+    payload = api_send(access_token, url, update, "could not replace the body of document %s" % doc_id)
+    sys.stderr.write("# replaced the body of document %s with %d character(s) (revision %s)\n"
+                     % (doc_id, len(text), payload.get("writeControl", {})
+                        .get("requiredRevisionId", "?")))
+
+
 def op_comment_read(access_token, args):
     """Comments on one Drive file, newest API order, as TSV."""
     file_id = args.get("file_id")
@@ -864,6 +910,7 @@ OPERATIONS = {
     "sheet-clear": op_sheet_clear,
     "doc-read": op_doc_read,
     "doc-write": op_doc_write,
+    "doc-replace": op_doc_replace,
     "comment-read": op_comment_read,
     "comment-post": op_comment_post,
     "folder-find": op_folder_find,

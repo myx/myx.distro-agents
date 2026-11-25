@@ -1,5 +1,5 @@
 📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]
-📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
+📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--conversation <channel>:<thread-ts>]... [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 📘 syntax: DistroAgentsDispatcher.fn.sh --shutdown-runs [--team-member <team-member>] [--execute]
 📘 syntax: DistroAgentsDispatcher.fn.sh --all-sessions [--team-member <team-member>] [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]
 📘 syntax: DistroAgentsDispatcher.fn.sh --active-sessions [--team-member <team-member>] [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]
@@ -41,12 +41,13 @@
 			an item of the board, the inbox or the vault. `--wait` stays until the
 			run ends and brings its notice.
 
-		--spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
+		--spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--conversation <channel>:<thread-ts>]... [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [--workers <n>] [--partition-scope <text>]... [<team-member>...]
 			A session of one routine's run, started for each team member named, or
 			for the caller where none is: the work-session dispatch every routine
-			runs under. Two or more members of a routine that is not coworking
-			each get a session of their own. A coworking routine, or
-			`--participants`, makes the call one session that all the members join. The participants the executor is to invite, and what the
+			runs under. Two or more members named, with no `--participants`, each get
+			a session of their own, a coworking routine included. For ONE coworking session name
+			the executor alone and give `--participants <member>,<member>`: the executor
+			invites them into its one session thread. The participants the executor is to invite, and what the
 			work likely needs, are checked and recorded, never started here.
 			The task is read from standard input. With no task there, the whole
 			`--description` is the task. `--handed-over-by` names the run whose
@@ -55,6 +56,15 @@
 			thread only, no session thread, and no header in the team channel.
 			`--session-thread:magic-team` is the ordinary start with a session
 			thread of its own, as no option at all gives.
+			`--conversation <channel>:<thread-ts>` names a thread the session
+			continues, and is given again for each further thread. Exactly one
+			thread is the request thread: the thread of the person's message the
+			session is for. The session thread then opens as a reply inside it.
+			Its posts land there, and so do its reports and questions where the
+			person is the human-owner or holds tier-client or above. Where the
+			request cannot be used, a warning says why, the brief carries
+			`request_thread_not_used:`, and the session thread opens where it
+			always did. A value in no such shape starts nothing.
 
 		--shutdown-runs [--team-member <team-member>] [--execute]
 			Reads out every live run of the workspace that would be ended, a line each, and

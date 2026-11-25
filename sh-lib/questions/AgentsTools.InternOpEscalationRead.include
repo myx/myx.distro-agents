@@ -70,7 +70,13 @@
 		## sent up again on the next read, and never stands in front of the answer of a forward.
 		local readOut="" readRerouted=""
 		readRerouted="$( AgentsToolsEscalationField "$readFile" rerouted-from )"
-		readOut="$( AgentsToolsEscalationThreadVerdict "$readMember" "$readFile" "$readId" \
+		## A CONTACT'S ASK IS READ AS THE CLIENT-* MEMBER THAT REACHED IT (Q970): its post is on the other organisation's
+		## side, where only that member's own settings reach, and the member keeps which one on the record.
+		local readBy="$readMember" readContactMember=""
+		[ -f "${readFile%.md}.fields" ] || : > /dev/null
+		readContactMember="$( LC_ALL=C awk -F'\t' '$1 == "contact-member" { print $2 ; exit ; }' "${readFile%.md}.fields" 2> /dev/null )" || readContactMember=""
+		[ -z "$readContactMember" ] || readBy="$readContactMember"
+		readOut="$( AgentsToolsEscalationThreadVerdict "$readBy" "$readFile" "$readId" \
 			"$( AgentsToolsEscalationField "$readFile" channel )" "$( AgentsToolsEscalationField "$readFile" question-ts )" \
 			"$( AgentsToolsEscalationField "$readFile" thread-ts )" "$( AgentsToolsEscalationField "$readFile" addressees )" \
 			"$( [ "$( AgentsToolsEscalationField "$readFile" ask-identity )" != "bot" ] || printf 'true' )" "$readRerouted" )"
@@ -153,6 +159,9 @@
 		case "$readApplyRc" in
 			0)
 				printf '%s\n' "$readApplied"
+				## The reply the answer was read from, so a reader that keeps what stands under it
+				## takes THAT message, never the first one the thread listed ahead of it.
+				[ -z "$readAnswerTs" ] || printf 'ANSWER-TS: %s\n' "$readAnswerTs"
 				## An allow that went up the chain is not applied: for the asker the question is
 				## still open, said with the reason and never as a reply that named nothing.
 				case "$readApplied" in

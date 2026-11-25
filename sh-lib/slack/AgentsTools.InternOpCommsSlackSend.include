@@ -151,13 +151,22 @@ case "$1" in
 				echo "# $MDSC_CMD --slack-send-message: this session has no thread of its own, so the post goes to $runFallback, addressed to magic-coordinator." >&2
 			fi
 		fi
+		type AgentsToolsOwedRepliesNewest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include" || echo "⛔ ERROR: $MDSC_CMD --slack-send-message: AgentsTools.OwedReplies.include did not load, so no owed reply is looked up" >&2
+		type AgentsToolsRequestThreadInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SessionThreads.include" || echo "⛔ ERROR: $MDSC_CMD --slack-send-message: AgentsTools.SessionThreads.include did not load, so no request thread is looked up" >&2
 		## A POST TO THE HUMAN-OWNER ANSWERS IN THE THREAD OF HIS OPEN MESSAGE (his rule): the newest reply this member owes him
-		## (schedule/owed/<member>) is the target. A top-level post to him names the conversation id, never the alias.
+		## (schedule/owed/<member>), if younger than three owed-reply bounds, is the target. The request thread is no part of this step, as its person may not be him.
+		## With none, the step below applies where his conversation resolves to a channel id. --told and --update-ts keep the post as written.
+		## His account is magic-team's SLACK_CHANNEL_HUMAN_OWNER where that is an account id, else the mention cache. The cache is
+		## emptied at each lock cycle and refilled only by a lookup, so it cannot be the only source.
+		local outsideOwner=""
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+		outsideOwner="$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" || outsideOwner=""
+		case "$outsideOwner" in [UW][A-Z0-9]*) ;; *) outsideOwner="$( AgentsSlackIdentityId human-owner )" ;; esac
 		if [ "$target" = "human-owner" ] ; then
-			case " $* " in *" --update-ts "*) ;; *)
-				local ownerAccount="" ownerOwed=""
-				ownerAccount="$( AgentsSlackIdentityId human-owner )" || ownerAccount=""
-				[ -z "$ownerAccount" ] || ownerOwed="$( LC_ALL=C awk -F '\t' -v who="$ownerAccount" '$3 == who && $2 ~ /^slack:[A-Z0-9]+:[0-9.]+$/ { last = $2 ; } END { if ( last != "" ) print substr( last, 7 ) ; }' "$MMDAPP/.local/agents/schedule/owed/$memberName" 2> /dev/null )" || ownerOwed=""
+			case " $* " in *" --update-ts "*|*" --told "*) ;; *)
+				local ownerOwed="" ownerAge="${MDAT_OWED_REPLY_SECONDS:-1800}"
+				case "$ownerAge" in ''|*[!0123456789]*|0) ownerAge=1800 ;; esac
+				[ -z "$outsideOwner" ] || AgentsToolsOwedRepliesNewest ownerOwed "$memberName" "" "$outsideOwner" "$(( 10#$ownerAge * 3 ))" || ownerOwed=""
 				if [ -n "$ownerOwed" ] ; then
 					target="$ownerOwed"
 					echo "# $MDSC_CMD --slack-send-message: the human-owner asked in the thread $ownerOwed, so this message answers there." >&2
@@ -212,11 +221,28 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
-		local outsidePerson="false" outsideParty="" outsideOwner=""
-		## The human-owner's account: magic-team's SLACK_CHANNEL_HUMAN_OWNER where that is an account id, else the mention cache.
-		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
-		outsideOwner="$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" || outsideOwner=""
-		case "$outsideOwner" in [UW][A-Z0-9]*) ;; *) outsideOwner="$( AgentsSlackIdentityId human-owner )" ;; esac
+		## A TOP-LEVEL POST WHERE A REPLY IS OWED GOES INTO THAT THREAD. The newest fresh owed reply there takes it,
+		## else the thread this session was started for. The owed one comes first, as in SendMessage. --told and --update-ts keep the post as written.
+		local answerWhere="" answerWhy="" answerAge="${MDAT_OWED_REPLY_SECONDS:-1800}"
+		if [ -z "$threadTs" ] ; then
+			case "$channel" in [CDG][A-Z0-9]*)
+				case " $* " in *" --update-ts "*|*" --told "*) ;; *)
+					case "$answerAge" in ''|*[!0123456789]*|0) answerAge=1800 ;; esac
+					if AgentsToolsOwedRepliesNewest answerWhere "$memberName" "$channel" "" "$(( 10#$answerAge * 3 ))" ; then
+						answerWhy="the person asked in the thread slack:$answerWhere"
+					elif AgentsToolsRequestThreadInto answerWhere && [ "${answerWhere%%:*}" = "$channel" ] ; then
+						answerWhy="this session was started for the message in the thread $answerWhere"
+					else
+						answerWhere=""
+					fi
+					if [ -n "$answerWhere" ] ; then
+						threadTs="${answerWhere#*:}"
+						echo "# $MDSC_CMD --slack-send-message: $answerWhy, so this message goes there. --told posts it at the top." >&2
+					fi
+				;; esac
+			;; esac
+		fi
+		local outsidePerson="false" outsideParty=""
 		case "$channel" in D[A-Z0-9]*)
 			case "$memberName" in client-*) ;; *)
 				local outsideInfo="" outsideAuthor="" outsideRead=""
@@ -233,16 +259,6 @@ case "$1" in
 					set +e ; return 1
 				fi
 				if [ "$outsideParty" != "$outsideOwner" ] && ! AgentsSlackIdentityOwn "$outsideParty" ; then
-					if [ -z "$threadTs" ] ; then
-						case " $* " in *" --update-ts "*) ;; *)
-							local outsideOwed=""
-							outsideOwed="$( LC_ALL=C awk -F '\t' -v want="slack:$channel:" 'index( $2, want ) == 1 { last = $2 ; } END { if ( last != "" ) print last ; }' "$MMDAPP/.local/agents/schedule/owed/$memberName" 2> /dev/null )" || outsideOwed=""
-							if [ -n "$outsideOwed" ] ; then
-								threadTs="${outsideOwed##*:}"
-								echo "# $MDSC_CMD --slack-send-message: the person asked in the thread $outsideOwed, so this message goes there." >&2
-							fi
-						;; esac
-					fi
 					type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/contacts/AgentsTools.InternContact.include"
 					AgentsToolsContactAssertKnown "$memberName" --tool slack-send-message --target "$outsideParty" || { set +e ; return 1 ; }
 					outsidePerson="true"
@@ -598,7 +614,7 @@ blocks|verbatim|caller|stdin file"
 				## Refused before anything is posted. A read that failed (rc 2, no access) says nothing either way and stops nothing.
 				case "$rpErr" in *'"error":"thread_not_found"'*) rpSelectRc=1 ;; esac
 				if [ "$rpSelectRc" = 1 ] && [ -z "$updateTs" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --slack-send-message: the thread $channel:$threadTs is no thread of this conversation: Slack holds no message of that ts here, and a reply under it would be posted at the top level of $channel. Nothing was sent. NEXT: reply in the conversation the message was read from, with the <conversation>:<ts> it was read as (its Wait or read line names both); never move a ts to another conversation." >&2
+					echo "⛔ ERROR: $MDSC_CMD --slack-send-message: the thread $channel:$threadTs is no thread of this conversation: Slack holds no message of that ts here, and a reply under it would be posted at the top level of $channel. Nothing was sent. NEXT: reply in the conversation the message was read from, with the <conversation>:<ts> it was read as (its Wait or read line names both); never move a ts to another conversation.${answerWhy:+ The thread was taken because $answerWhy. Pass --told to post at the top instead.}" >&2
 					set +e ; return 1
 				fi
 				replyAuthor="$( printf '%s\n' "$rpMessage" | LC_ALL=C awk -v path=messages.0.user -v optional=1 -v dialect=slack \
@@ -1351,6 +1367,38 @@ blocks|verbatim|caller|stdin file"
 					echo "# $MDSC_CMD --slack-send-message: the acting user identity cannot reach this conversation, retrying once under bot identity -- $response" >&2
 					continue
 				fi
+			fi
+			## THE SWAP THE OTHER WAY: the bot is no member of a persona's direct message with the owner, so a post there under the bot is channel_not_found,
+			## while the member's own account stands in it. Once only, on the flag the swap above shares, so the two never trade places. Not for the client side or an external
+			## presentation, nor for a top-level message to the human-owner, which stays the bot's. A thread is entered only where the user sees its parent in this conversation.
+			if [ "$identitySwapped" = "false" ] && [ "$sendIdentity" = "bot" ] && [ -n "$memberUserToken" ] && [ "$presentExternal" = "false" ] && ! AgentsToolsCommsClientSide "$memberName" \
+				&& { [ -n "${threadTs:-}" ] || [ -z "$outsideOwner" ] || { [ "$channel" != "$outsideOwner" ] && [ "$outsideParty" != "$outsideOwner" ] ; } ; } \
+				&& printf '%s' "$response" | grep -qE '"error":"(channel_not_found|not_in_channel)"' ; then
+				identitySwapped="true"
+				local swapUserId="" swapUserAuth="" swapUserParent=""
+				if [ -n "${threadTs:-}" ] ; then
+					swapUserParent="$( curl -sS --connect-timeout 10 --max-time 60 -X POST "https://slack.com/api/conversations.replies" \
+						-H @- --data-urlencode "channel=$channel" --data-urlencode "ts=$threadTs" --data-urlencode "limit=1" <<< "Authorization: Bearer $memberUserToken" 2>&1 )"
+					if ! printf '%s' "$swapUserParent" | grep -q '"ok":true' || ! printf '%s' "$swapUserParent" | grep -q "\"ts\":\"$threadTs\"" ; then
+						echo "# $MDSC_CMD --slack-send-message: the thread $channel:$threadTs is not seen under user identity either, so it is not entered under it -- $swapUserParent" >&2
+						swapUserId="-"
+					fi
+				fi
+				if [ -z "$swapUserId" ] ; then
+					swapUserAuth="$( curl -sS --connect-timeout 10 --max-time 120 https://slack.com/api/auth.test -H @- <<< "Authorization: Bearer $memberUserToken" 2>&1 )"
+					swapUserId="$( printf '%s\n' "$swapUserAuth" | LC_ALL=C awk -v path=user_id -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || swapUserId=""
+				fi
+				case "$swapUserId" in
+					U[A-Z0-9]*)
+						botTokenSource=""
+						sendIdentity="user"
+						token="$memberUserToken"
+						authHeader="Authorization: Bearer $token"
+						authUserId="$swapUserId"
+						echo "# $MDSC_CMD --slack-send-message: the bot cannot reach this conversation, retrying once under the acting user identity -- $response" >&2
+						continue
+					;;
+				esac
 			fi
 			case "$response" in
 				*'"error":"invalid_blocks"'*)

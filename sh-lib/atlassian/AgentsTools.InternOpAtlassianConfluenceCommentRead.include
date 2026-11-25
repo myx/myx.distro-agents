@@ -4,10 +4,10 @@
 ## AgentsTools.InternOpAtlassianConfluenceCommentRead.include -- the operation `--intern-op-atlassian-confluence-comment-read`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
 	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
 		shift
-		local confCRMember="" confCRPageId="" confCRContext="intern-op-atlassian-confluence-comment-read"
+		local confCRMember="" confCRPageId="" confCRContext="intern-op-atlassian-confluence-comment-read" confCRInline="" confCRSince=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
-				--member|--page-id|--context)
+				--member|--page-id|--context|--since)
 					if [ -z "${2:-}" ] ; then
 						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: $1 value missing" >&2
 						set +e ; return 1
@@ -15,10 +15,12 @@
 					case "$1" in
 						--member)  confCRMember="$2" ;;
 						--page-id) confCRPageId="$2" ;;
+						--since)   confCRSince="$2" ;;
 						--context) confCRContext="$2" ;;
 					esac
 					shift 2
 				;;
+				--inline) confCRInline=yes ; shift ;;
 				*)
 					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: invalid option: $1" >&2
 					set +e ; return 1
@@ -26,23 +28,62 @@
 			esac
 		done
 		if [ -z "$confCRMember" ] || [ -z "$confCRPageId" ] ; then
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: syntax is --member <team-member> --page-id <page-id> [--context <caller>] -- comments are visible only to identities the page is shared with" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: syntax is --member <team-member> --page-id <page-id> [--inline] [--since <iso-utc>] [--context <caller>] -- comments are visible only to identities the page is shared with" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAtlassianAssertNumber "$confCRPageId" "<page-id>" "$confCRContext" || { set +e ; return 1 ; }
-		local confCRPath="/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confCRPageId" )/footer-comments?body-format=storage&limit=100"
-		local confCRBody confCRRc=0
-		confCRBody="$( AgentsToolsAtlassianCall "$confCRMember" confluence GET "$confCRPath" "$confCRContext" "" )" || confCRRc=$?
-		if [ "$confCRRc" -ne 0 ] ; then
-			set +e ; return "$confCRRc"
-		fi
-		local confCRRows confCRRowsRc=0
-		confCRRows="$( printf '%s\n' "$confCRBody" | LC_ALL=C awk -v array=results -v want='id,version.authorId,version.createdAt,body.storage.value' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || confCRRowsRc=$?
-		if [ "$confCRRowsRc" -ne 0 ] ; then
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: results field unreadable" >&2
-			set +e ; return 3
-		fi
-		printf 'COMMENT_ID\tVERSION_AUTHOR_ID\tCREATED\tBODY\n'
-		[ -z "$confCRRows" ] || printf '%s\n' "$confCRRows"
+		## Both legs stamp `version.createdAt` as ISO 8601 UTC, which sorts in time order as text, so the
+		## bound needs no calendar arithmetic and no zone conversion on the way in.
+		case "$confCRSince" in
+			'') ;;
+			[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-[0123456789][0123456789]) ;;
+			[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-[0123456789][0123456789]T[0123456789][0123456789]:[0123456789][0123456789]:[0123456789][0123456789]Z) ;;
+			[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-[0123456789][0123456789]T[0123456789][0123456789]:[0123456789][0123456789]:[0123456789][0123456789].[0123456789][0123456789][0123456789]Z) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: --since takes an ISO 8601 UTC date or date-time -- 2026-11-20 or 2026-11-20T09:00:00.000Z -- and is compared with the comment's own version.createdAt, so no other form bounds anything: $confCRSince" >&2
+				set +e ; return 1
+			;;
+		esac
+		## A PAGE'S LEG RETURNS ITS TOP-LEVEL COMMENTS ALONE; a reply is a child of its parent, at that
+		## parent's own leg. So the read walks the page's legs and then every child under them, one leg
+		## each, until a round brings children none. Every leg is read before a row is printed, so no
+		## caller sees one leg's rows and reads them as the page.
+		local confCRQueue=( "footer-comments:" ) confCRAt=0 confCREntry confCRLeg confCRParent confCRPath
+		local confCRBody confCRRc confCRRows confCRRowsRc confCRIds confCRId confCRSeen="" confCROut=""
+		[ -z "$confCRInline" ] || confCRQueue+=( "inline-comments:" )
+		while [ "$confCRAt" -lt "${#confCRQueue[@]}" ] ; do
+			confCREntry="${confCRQueue[$confCRAt]}" ; confCRAt=$(( confCRAt + 1 ))
+			confCRLeg="${confCREntry%%:*}" ; confCRParent="${confCREntry#*:}"
+			if [ -z "$confCRParent" ] ; then
+				confCRPath="/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confCRPageId" )/$confCRLeg?body-format=storage&limit=100"
+			else
+				confCRPath="/wiki/api/v2/$confCRLeg/$( AgentsToolsAtlassianUrlEncode "$confCRParent" )/children?body-format=storage&limit=100"
+			fi
+			confCRBody="" confCRRc=0
+			confCRBody="$( AgentsToolsAtlassianCall "$confCRMember" confluence GET "$confCRPath" "$confCRContext" "" )" || confCRRc=$?
+			if [ "$confCRRc" -ne 0 ] ; then
+				set +e ; return "$confCRRc"
+			fi
+			confCRRows="" confCRRowsRc=0
+			confCRRows="$( printf '%s\n' "$confCRBody" | LC_ALL=C awk -v array=results -v want='id,version.authorId,version.createdAt,body.storage.value,pageId,status,resolutionStatus,parentCommentId' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || confCRRowsRc=$?
+			if [ "$confCRRowsRc" -ne 0 ] ; then
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: $confCRPath field unreadable" >&2
+				set +e ; return 3
+			fi
+			## A row's children are walked whether or not the bound keeps the row itself: a reply later
+			## than the bound sits under a comment that may be older than it.
+			confCRIds="$( printf '%s\n' "$confCRRows" | LC_ALL=C awk -F'\t' '$1 != "" { print $1 ; }' )"
+			for confCRId in $confCRIds ; do
+				case " $confCRSeen " in
+					*" $confCRId "*) continue ;;
+				esac
+				confCRSeen="$confCRSeen $confCRId"
+				confCRQueue+=( "$confCRLeg:$confCRId" )
+			done
+			[ -z "$confCRRows" ] || [ -z "$confCRSince" ] || confCRRows="$( printf '%s\n' "$confCRRows" | LC_ALL=C awk -F'\t' -v since="$confCRSince" '$3 >= since' )"
+			[ -z "$confCRRows" ] || confCROut="$confCROut$confCRRows"$'\n'
+		done
+		printf 'COMMENT_ID\tVERSION_AUTHOR_ID\tCREATED\tBODY\tPAGE_ID\tSTATUS\tRESOLUTION_STATUS\tPARENT_COMMENT_ID\n'
+		[ -z "$confCROut" ] || printf '%s' "$confCROut"
 		printf '%s\n' "# $confCRContext: more: unknown -- this endpoint reports no isLast/total, so whether comments exist beyond this page cannot be determined from the response" >&2
 		return 0

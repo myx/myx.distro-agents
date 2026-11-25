@@ -71,7 +71,11 @@
 		--skillset-validate-routine <routine-file|--from-stdin>
 			Checks a routine file's front matter and required headers and reports
 			what is missing or wrong, a row each; exit non-zero where any.
-			Read-only.
+			Read-only. A `runs-at:` other than `none` beside an `executors:`
+			that is `magic-team`, `*` or nothing, its own or its kind
+			routine's, is refused by the validator. The autorun starts no
+			routine whose executors is any of those, so the pair would start
+			nothing.
 
 		--apply-tool <mark|level|plan|apply> [--repository <repository-path>] [--scratch <scratch-path>] [mark: <package>/<relative-path>...]
 			The four beats of applying a lane's work to a repository, all of it under

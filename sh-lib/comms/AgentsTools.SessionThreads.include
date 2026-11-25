@@ -132,3 +132,43 @@ AgentsToolsConversationThreadsFind(){
 	printf '%s\n' "$recordThreads"
 	return 0
 }
+
+## The request thread of this run, `<channel>:<ts>`, into the variable: the one word of its conversation threads that is also its session thread.
+## A thread joined from a brief is none. No fork, memoised per process. Returns 1 for none.
+AgentsToolsRequestThreadInto(){ ## out variable
+	local threadListText="${MDAT_CONVERSATION_THREADS:-}" threadOwnText="${MDAT_SESSION_THREAD:-}" threadRecordFile="" threadRecordLine threadFrontCount=0 threadWordChannel threadWordTs
+	if { [ -z "$threadListText" ] || [ -z "$threadOwnText" ] ; } && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
+		if [ "${agentsRequestThreadMemoKey:-}" != "$MDAT_SPAWN_SESSION_ID" ] ; then
+			agentsRequestThreadMemoList="" ; agentsRequestThreadMemoOwn=""
+			if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
+				threadRecordFile="$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.spawn.md"
+			else
+				type AgentsSpawnRecordFindInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include" || echo "⛔ ERROR: the session store could not be loaded, so the request thread of this run is not read" >&2
+				AgentsSpawnRecordFindInto threadRecordFile "${MMDAPP:-}" "$MDAT_SPAWN_SESSION_ID" 2> /dev/null || threadRecordFile=""
+			fi
+			if [ -n "$threadRecordFile" ] && [ -f "$threadRecordFile" ] ; then
+				while IFS= read -r threadRecordLine ; do
+					case "$threadRecordLine" in
+						---) threadFrontCount=$(( threadFrontCount + 1 )) ; [ "$threadFrontCount" -lt 2 ] || break ;;
+						'conversation-threads: '*) agentsRequestThreadMemoList="${threadRecordLine#conversation-threads: }" ;;
+						'session-thread: '*) agentsRequestThreadMemoOwn="${threadRecordLine#session-thread: }" ;;
+					esac
+				done < "$threadRecordFile"
+			fi
+			agentsRequestThreadMemoKey="$MDAT_SPAWN_SESSION_ID"
+		fi
+		[ -n "$threadListText" ] || threadListText="$agentsRequestThreadMemoList"
+		[ -n "$threadOwnText" ] || threadOwnText="$agentsRequestThreadMemoOwn"
+	fi
+	while [ "${threadListText% }" != "$threadListText" ] ; do threadListText="${threadListText% }" ; done
+	while [ "${threadListText# }" != "$threadListText" ] ; do threadListText="${threadListText# }" ; done
+	case "$threadListText" in ''|*[[:space:]]*) return 1 ;; esac
+	threadWordChannel="${threadListText%%:*}" ; threadWordTs="${threadListText#*:}"
+	case "$threadWordChannel:$threadWordTs" in
+		*[![:upper:][:digit:]:.]*|:*|*:|.*|*:.*|*.|*.*.*|*:*:*|*:*[[:upper:]]*) return 1 ;;
+		*.*) ;;
+		*) return 1 ;;
+	esac
+	[ "$threadListText" = "$threadOwnText" ] || return 1
+	printf -v "$1" '%s' "$threadListText"
+}

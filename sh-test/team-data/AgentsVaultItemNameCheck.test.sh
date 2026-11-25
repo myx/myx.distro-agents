@@ -44,6 +44,17 @@ rigItem(){ ## the store and its path (`vault epic-blueprint-x.md`, `board backlo
 	rigStoreItem "$rigDir" "$rigStore" "$rigDir/ws" magic-coordinator "$1" "$rigDir/body$rigBodyCount" \
 		|| rigRefuse "could not build the fixture item $1 through its store's own writer"
 }
+## An item's body alone: the text its writer was given. The frontmatter and the one blank line the writer
+## puts under it are left out; a file that carries no frontmatter is the body as it stands. A row that
+## compares a stored item against a hand-written body reads it through this, never the whole file.
+rigBody(){ ## item file
+	LC_ALL=C awk '
+		NR == 1 && $0 != "---" { body = 1 }
+		! body && $0 == "---" { fence++ ; next }
+		! body && fence >= 2 { body = 1 ; if ( $0 == "" ) next }
+		body { print }
+	' "$1"
+}
 ## One op, guarded; stdin is the caller's. The store is $rigStore.
 rigOp(){ ## result file, dispatcher, op and its arguments...
 	local rigResult="$1" rigFn="$2" ; shift 2
@@ -86,7 +97,7 @@ rigAssert "the rename succeeds and says what it did"          "$( cat "$rigDir/m
 rigAssert "the item stands under its new name only"           "$( [ -f "$rigStore/vault/epic-blueprint-20261102T0000Z-rig.md" ] && printf new ):$( [ -e "$rigStore/vault/epic-blueprint-20261102-rig.md" ] && printf old || printf gone )" "new:gone"
 rigAssert "every whole citation names the new name"           "$( LC_ALL=C grep -c 'epic-blueprint-20261102T0000Z-rig' "$rigStore/board/backlog/task-20261102T0000Z-rig.md" )" 2
 rigAssert "a longer name that starts the same is untouched"   "$( LC_ALL=C grep -c 'epic-blueprint-20261102-rig-old stays' "$rigStore/board/backlog/task-20261102T0000Z-rig.md" )" 1
-rigAssert "an item naming nothing of it is left as it was"    "$( cat "$rigStore/inboxes/magic-coordinator/incoming/note-20261102T0000Z-rig.md" )" "nothing here"
+rigAssert "an item naming nothing of it is left as it was"    "$( rigBody "$rigStore/inboxes/magic-coordinator/incoming/note-20261102T0000Z-rig.md" )" "nothing here"
 
 echo "-- the rename refuses, changing nothing --"
 rigOp "$rigDir/m2" "$rigTools" --intern-op-vault-item-rename magic-coordinator epic-blueprint-20261102T0000Z-rig epic-blueprint-20261102-again

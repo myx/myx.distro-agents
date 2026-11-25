@@ -135,7 +135,7 @@ Named procedure blocks that steps call by name. Not separate routines, and not v
 
 Any member may run it. Steps:
 1. Name the item `inquiry-<date>-<matter>.md`, `<date>` per the tooling **Rule**.
-2. Give it frontmatter `communication-channel-id` when it traces back to one external message.
+2. Give it frontmatter `communication-channel-id` when it traces back to one external message. A Slack message is `slack:<channel>:<thread root ts>`.
 3. Write it with `--upsert-inbox-inquiry <target-member> <item-filename>`. Add `--from-member` only when writing on another member's behalf.
 
 # Team-Member's (-specific) local rules
@@ -626,7 +626,7 @@ Read `reference/board-item-model.md` for the board types, the audit and vault ty
 - `type` — required. The filename's type word (`task`, `note`, …). Never a genre.
 - A whole-item write replaces the file's headers, stamped ones included. Change a body with `--edit-patch-from-stdin`, and read the header block back after any whole-item write. `magic-team.armed.md:687` states the patch rule.
 - `from`, `date`, `owner` — author, creation `date-time`, current assignee. `owner` may be a non-acting owner, such as the human-owner or an external contact. That owner's inbox content lives in `magic-coordinator`'s inbox, handled by `magic-coordinator.external-inbox-handle-loop.routine`.
-- `communication-channel-id` — the one external message the item traces to: `slack:<channel>`, `slack:<channel>:<ts>` or `email:<…>`.
+- `communication-channel-id` — the one external message the item traces to. A Slack message is `slack:<channel>:<thread root ts>`, and an email is `email:<…>`. `slack:<channel>` names a place and no thread. The tooling writes it at ingest, and a promoted item carries it unchanged.
 - `processed-at`, `resolved-at`, `started-at`, `groomed-at`, `groomed-from`, `track` — stamped by the tooling. A member never writes them.
 - `type`, `date`, `from` (and an inbox item's `owner`) — filled by inbox upsert and board create where missing. A member writes them only to set another value. `--from-member` only on another member's behalf.
 - Read `reference/board-item-model.md` for the other frontmatter fields.
@@ -787,7 +787,7 @@ Stated in full in `magic-team.basic.md`, "The addressee comes first". The tag is
 
 ## A reply threads onto the message it answers
 
-Stated in full in `magic-team.basic.md`, "Channels and threads".
+Stated in full in `magic-team.basic.md`, "Channels and threads". An answer to a person goes in the thread of that person's message. A top-level post needs the person's ask or `--told`.
 
 ## All work runs in a coworking session with the right members
 

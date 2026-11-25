@@ -12,8 +12,9 @@ set -e
 ## ONE TOOLING READ, for the console form: `AgentsLocalHarness.sh --list-models` lists the models the local server
 ## really has installed, one per line, TAB-separated: model, machine profile (1 a normal CPU with constrained or shared
 ## RAM, 2 a dedicated or bigger CPU with more RAM, 3 the GPU machine, - where the name carries no size), context window,
-## output budget, and the effort-none form of its family. A model of no known family has - in the last three. Nothing is
-## printed and rc 1 where the server cannot be reached.
+## output budget, and the effort-none form of its family. A model of no known family has - in the last three. The request
+## carries the credential the leg declares. Where no model is listed, the rc is 1 and one error line on stderr names the
+## cause, listing every one the help entry's `--local-models-list` names.
 
 HARNESS_PROVIDER_NAME="Local models"
 HARNESS_SELF_NAME="AgentsLocalHarness.sh"
@@ -46,8 +47,28 @@ HARNESS_MODEL_MAIN="${HARNESS_MODEL_MAIN:-qwen3.5-9b-q8_0}"
 HARNESS_MODEL_TABLE="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessLimits.include" && AgentsHarnessOpenModelTable )"
 
 if [ "${1:-}" = "--list-models" ] ; then
-	localIds="$( curl -fsS --max-time 3 "${HARNESS_ENDPOINT%/}/models" 2> /dev/null | tr ',{}[]' '\n\n\n\n\n' | sed -n 's/^ *"id" *: *"\([^"]*\)".*/\1/p' )" || localIds=""
-	[ -n "$localIds" ] || exit 1
+	## The credential rides curl's stdin, so it never enters argv.
+	localRc=0 localAnswer="" localStatus="" localBody=""
+	localAnswer="$( curl -fsS --max-time 3 -H @- -w '\n%{http_code}' "${HARNESS_ENDPOINT%/}/models" \
+		<<< "Authorization: Bearer $HARNESS_TOKEN_MAIN" 2> /dev/null )" || localRc=$?
+	localBody="$localAnswer"
+	case "$localAnswer" in
+		*$'\n'*) localBody="${localAnswer%$'\n'*}" localStatus="${localAnswer##*$'\n'}" ;;
+	esac
+	case "$localRc" in
+		0) ;;
+		22)
+			case "$localStatus" in
+				401|403) echo "⛔ ERROR: $HARNESS_SELF_NAME: the local server did not accept the credential -- it answered HTTP $localStatus, so no model was read" >&2 ; exit 1 ;;
+				*) echo "⛔ ERROR: $HARNESS_SELF_NAME: the local server answered HTTP ${localStatus:-no status}, so no model was read" >&2 ; exit 1 ;;
+			esac
+		;;
+		28) echo "⛔ ERROR: $HARNESS_SELF_NAME: the local server accepted the request and did not answer in time, so no model was read" >&2 ; exit 1 ;;
+		6|7) echo "⛔ ERROR: $HARNESS_SELF_NAME: the local server could not be reached (curl rc=$localRc), so no model was read" >&2 ; exit 1 ;;
+		*) echo "⛔ ERROR: $HARNESS_SELF_NAME: the request to the local server did not complete (curl rc=$localRc), so no model was read" >&2 ; exit 1 ;;
+	esac
+	localIds="$( printf '%s' "$localBody" | tr ',{}[]' '\n\n\n\n\n' | sed -n 's/^ *"id" *: *"\([^"]*\)".*/\1/p' )" || localIds=""
+	[ -n "$localIds" ] || { echo "⛔ ERROR: $HARNESS_SELF_NAME: the local server's answer named no model, so no model was read" >&2 ; exit 1 ; }
 	harnessSelfName="$HARNESS_SELF_NAME" harnessBad="" harnessOff=""
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessLimits.include"
 	while IFS= read -r localOne ; do

@@ -3,10 +3,10 @@
 # shell caller, and preloaded by the awk programs that read many routine files in one pass, so one rule
 # answers everywhere.
 # An entry is a member, then optionally one parenthetical of its own comma-separated parameters. Entries are
-# separated by a comma and by nothing else, which is the separator the spawner has always read: `the
-# coordinator and friends` is one entry naming no member, exactly as it read before this rule. Within an
-# entry, the parenthetical is the override, and the member is the text before it, its edges trimmed. A
-# parenthetical is sealed: a comma inside it separates parameters, never entries.
+# separated by a comma, which is the separator the spawner has always read, so `the coordinator and friends` is
+# one entry naming no member exactly as it read before this rule. Within an entry, the parenthetical is the
+# override, and the member is the text before it, its edges trimmed. A parenthetical is sealed: a comma inside it
+# separates parameters, never entries, wherever a space stands before it.
 
 ## A word with its edges trimmed.
 function trimmedD( text ) {
@@ -63,7 +63,8 @@ function routineExecutorsParams( value, member,   entries, count, entryAt, split
 	return ""
 }
 
-## The members a value names on one line, space-separated: the form a reader that tests one name takes.
+## The members a value names on one line, space-separated, one an entry: the form a reader that tests one entry
+## takes. An entry's own parenthetical is set aside first, so no parameter ever reaches that test.
 function routineExecutorsMemberList( value,   entries, count, entryAt, splitParts, list ) {
 	count = routineExecutorsEntries( value, entries )
 	list = ""
@@ -71,6 +72,23 @@ function routineExecutorsMemberList( value,   entries, count, entryAt, splitPart
 		split( entries[entryAt], splitParts, "\034" )
 		if ( splitParts[1] == "" ) continue
 		list = list ( list == "" ? "" : " " ) splitParts[1]
+	}
+	return list
+}
+
+## The members a value names on one line, space-separated, one a name wherever a comma or a whitespace run stands
+## outside a parenthetical: the form a reader that tests one name against a set takes, and the reading the
+## validator and the partition reader have always made of a value that separates its members by a space.
+function routineExecutorsMembers( value,   entries, count, entryAt, splitParts, list, words, wordCount, wordAt ) {
+	count = routineExecutorsEntries( value, entries )
+	list = ""
+	for ( entryAt = 1 ; entryAt <= count ; entryAt++ ) {
+		split( entries[entryAt], splitParts, "\034" )
+		wordCount = split( splitParts[1], words, /[ \t]+/ )
+		for ( wordAt = 1 ; wordAt <= wordCount ; wordAt++ ) {
+			if ( words[wordAt] == "" ) continue
+			list = list ( list == "" ? "" : " " ) words[wordAt]
+		}
 	}
 	return list
 }
@@ -87,5 +105,6 @@ BEGIN {
 		exit 0
 	}
 	else if ( mode == "params" ) { print routineExecutorsParams( ENVIRON["EXECUTORS_VALUE"], ENVIRON["EXECUTORS_MEMBER"] ) ; exit 0 ; }
+	else if ( mode == "members" ) { print routineExecutorsMembers( ENVIRON["EXECUTORS_VALUE"] ) ; exit 0 ; }
 	else { print routineExecutorsMemberList( ENVIRON["EXECUTORS_VALUE"] ) ; exit 0 ; }
 }

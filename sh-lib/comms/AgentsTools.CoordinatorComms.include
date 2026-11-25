@@ -58,10 +58,10 @@ case "$1" in
 			jira-issue-delete) fwdSecondFlag=--issue-key ; fwdSecondLabel='<issue-key>' ; fwdRestKind=none ; fwdMemberTail=' -- the client-facing write is --client-comms-jira-issue-delete' ;;
 			jira-project-delete) fwdSecondFlag=--project-key ; fwdSecondLabel='<project-key>' ; fwdRestKind=none ; fwdMemberTail=" -- a project is the site's own top-level container, so only the coordinator deletes one" ;;
 			confluence-page-search) fwdSecondFlag=--cql ; fwdSecondLabel='<cql>' ; fwdRestKind=limit ; fwdMemberTail=' -- the client-facing search is --client-comms-confluence-page-search' ;;
-			confluence-comment-read) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=none ; fwdMemberTail=' -- the client-facing read is --client-comms-confluence-comment-read' ;;
+			confluence-comment-read) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=commentReadConf ; fwdMemberTail=' -- the client-facing read is --client-comms-confluence-comment-read' ;;
 			confluence-page-create) fwdRestKind=stub ; fwdStubValues='--space --space-id --title --parent-id --body-storage --body-storage-from-file' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-page-create' ;;
 			confluence-space-create) fwdRestKind=stub ; fwdStubValues='--key --name --description' ; fwdMemberTail=" -- a space is the site's own top-level container, so only the coordinator creates one" ;;
-			confluence-page-update) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=stub ; fwdStubValues='--version --title --status --space-id --body-storage --body-storage-from-file' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-page-update' ;;
+			confluence-page-update) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=stub ; fwdStubValues='--version --if-version --title --status --space-id --body-storage --body-storage-from-file' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-page-update' ;;
 			confluence-page-move) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=stub ; fwdStubValues='--parent-id' ; fwdMemberTail=' -- a page move has no client-facing twin' ;;
 			confluence-comment-add) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=stub ; fwdStubValues='--body-storage --body-storage-from-file --parent-comment-id' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-comment-add' ;;
 			confluence-page-delete) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=none ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-page-delete' ;;
@@ -80,10 +80,17 @@ case "$1" in
 		fi
 		if [ "$fwdRestKind" = stub ] ; then
 			AgentsToolsAssertBareName "$actingMember" "<team-member>" "$fwdOp" || { set +e ; return 1 ; }
-			case "$actingMember" in
-				magic-coordinator) ;;
+			## THE DOCUMENTS ARE THE LIBRARIAN'S (the owner's ruling, and the same five names AgentsToolsMagicCallerCheck
+			## admits): the four page writes run as magic-coordinator or magic-librarian. Every other stub operation stays
+			## the coordinator's alone.
+			local fwdRuns="magic-coordinator"
+			case "$fwdOp" in
+				confluence-page-create|confluence-page-update|confluence-page-move|confluence-comment-add) fwdRuns="$fwdRuns magic-librarian" ;;
+			esac
+			case " $fwdRuns " in
+				*" $actingMember "*) ;;
 				*)
-					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: runs only as magic-coordinator, and $actingMember is not it${fwdMemberTail}" >&2
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: runs only as ${fwdRuns// / or }, and this call acts as $actingMember${fwdMemberTail}" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -118,6 +125,24 @@ case "$1" in
 						0::|2:--format:|2:--start-at:|4:--format:--start-at|4:--start-at:--format) ;;
 						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: not accepted: $actingMember $fwdSecondValue $*" >&2 ; set +e ; return 1 ;;
 					esac
+				;;
+				commentReadConf)
+					## --inline takes no value and --since takes one; a value left over, or a word that is
+					## neither, is refused here rather than reaching the operation as a stray argument.
+					local fwdArg fwdTakesValue=""
+					for fwdArg in "$@" ; do
+						if [ -n "$fwdTakesValue" ] ; then
+							fwdTakesValue=""
+							[ -n "$fwdArg" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: --since value missing" >&2 ; set +e ; return 1 ; }
+							continue
+						fi
+						case "$fwdArg" in
+							--inline) ;;
+							--since) fwdTakesValue=yes ;;
+							*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: not accepted: $actingMember $fwdSecondValue $fwdArg -- it takes --inline and --since <iso-utc-date>" >&2 ; set +e ; return 1 ;;
+						esac
+					done
+					[ -z "$fwdTakesValue" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: --since value missing" >&2 ; set +e ; return 1 ; }
 				;;
 				none)
 					case "$#:${1:-}" in

@@ -1,6 +1,7 @@
 # AgentsContactsIndex.awk -- the one reader of the contact records (F7.10), over the person files of the store given as the input
 # files. One row a record that is asked for, TAB-separated:
-#   contact <id> <display-name> <organisation> <reached-by> <matched-on> <scope-tiers>
+#   contact <id> <display-name> <organisation> <reached-by> <matched-on> <scope-tiers> <language> <tier>
+#   tier is the record's own `tier:` word, `-` with none, so a reader of a row never has to guess it.
 #   scope-tiers is the record's `scope=tier,...` list, `-` with none. -v scopefilter=<scope> or <scope>=<tier> keeps the records holding that entry.
 # The mode (-v mode=):
 #   all      every record; -v orgfilter=<slug> keeps one organisation's, -v member=<name> the ones that member holds. matched-on is `-`.
@@ -56,7 +57,7 @@ function scopeHas(list, text,    count, parts, at, entry, eq) {
 	return 0
 }
 function reset() {
-	scopeTiers = "" ; id = "" ; name = "" ; recOrg = "" ; reached = "" ; slackId = "" ; slackHandle = "" ; slackConv = "" ; email = "" ; language = ""
+	scopeTiers = "" ; recTier = "" ; id = "" ; name = "" ; recOrg = "" ; reached = "" ; slackId = "" ; slackHandle = "" ; slackConv = "" ; email = "" ; language = ""
 	front = 0 ; seen = 0
 }
 function flush(    matched) {
@@ -82,8 +83,8 @@ function flush(    matched) {
 		else if (inlist(email, want)) matched = "email"
 		if (matched == "") return
 	}
-	## The last column is the language the person prefers (- for none recorded), kept last so every reader of the columns before it is unchanged.
-	printf "contact\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, name, orgOf(), reached, matched, (scopeTiers == "" ? "-" : scopeTiers), (language == "" ? "-" : language)
+	## The language the person prefers (- for none recorded) and the tier the record holds (- for none) come last, so every reader of the columns before them is unchanged.
+	printf "contact\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, name, orgOf(), reached, matched, (scopeTiers == "" ? "-" : scopeTiers), (language == "" ? "-" : language), (recTier == "" ? "-" : recTier)
 }
 function orgOf() { return (recOrg == "none" ? "" : recOrg) ; }
 BEGIN { mode = (mode == "" ? "all" : mode) ; want = lower(want) ; reset() ; }
@@ -101,6 +102,7 @@ FNR == 1 { flush() ; reset() ; }
 		else if (key == "organisation") recOrg = value
 		else if (key == "reached-by") reached = value
 		else if (key == "scope-tiers") scopeTiers = value
+		else if (key == "tier") recTier = value
 		else if (key == "slack-id") slackId = value
 		else if (key == "slack-handle") slackHandle = value
 		else if (key == "slack-conversation") slackConv = value

@@ -2,6 +2,7 @@
 ## Behavioural check on the replies a member owes (sh-lib/member/AgentsTools.OwedReplies.include). Held:
 ##   1. A PERSON'S MESSAGE with a reply address, handed over by a Wait, is noted once, by that address; a second note of the same text adds nothing.
 ##   2. THE TOOLING'S OWN LINES are never owed: a line with [tracking:], [author-run:] or [sender:] is skipped.
+##      A MEMBER'S POST (":emoji: member @handle →" header, sent under the shared account) is never owed either.
 ##   3. THE BLOCK LISTS WHAT IS OLDER THAN THE BOUND, oldest first, and nothing younger; bound 0 lists all.
 ##   4. A SEND INTO THE THREAD CLEARS IT; a send into another thread of the channel does not.
 ##   5. A POST AT THE TOP OF A DM answers no message and clears none; a send into the thread of a DM message clears that one.
@@ -36,9 +37,12 @@ rigArrivals='# in C0RIG0001
 1794216240.000100 | UPERSON1 | [reply-to: slack:C0RIG0001:1794216240.000100] Where does the variable go?
 1794216300.000100 | U0BOT0001 | [reply-to: slack:C0RIG0001:1794216300.000100] [tracking: start] Session started by the schedule
 1794216360.000100 | UPERSON2 | [reply-to: slack:D0RIG0002:1794216360.000100] [author-run: abc] a tooling post with an author run
-1794216420.000100 | UPERSON3 | [reply-to: slack:D0RIG0002:1794216420.000100] can you look at the deploy?'
+1794216420.000100 | UPERSON3 | [reply-to: slack:D0RIG0002:1794216420.000100] can you look at the deploy?
+1794216480.000100 | UPERSON1 | [reply-to: slack:C0RIG0001:1794216480.000100] [thread-reply of 1794216240.000100] :mouse: keeper-rig @dispatchr → :mouse: keeper-rig <@UPERSON1>.  a member post sent under the shared account
+1794216490.000100 | UPERSON1 | [reply-to: slack:C0RIG0001:1794216490.000100] :dna: keeper-rig @lexr (epic-build) → :mouse: keeper-rig <@UPERSON1>.  a member post with a routine tag
+1794216495.000100 | UPERSON1 | [reply-to: slack:D0RIG0002:1794216495.000100] :dna: *_keeper-rig_* @lexr (epic-build) → :mouse: *_keeper-rig_* <@UPERSON1>. a direct-message member post in bold italic'
 printf '%s\n' "$rigArrivals" | AgentsToolsOwedRepliesNote keeper-rig 1794216500
-rigAssert "two persons' messages noted, the tooling's two lines skipped" "$( wc -l < "$rigFile" | tr -d ' ' )" "2"
+rigAssert "two persons' messages noted, the tooling's two lines and the members' two posts skipped" "$( wc -l < "$rigFile" | tr -d ' ' )" "2"
 rigAssert "the note carries the address, the user and the text" "$( LC_ALL=C grep -c $'^1794216500\tslack:C0RIG0001:1794216240.000100\tUPERSON1\tWhere does the variable go?$' "$rigFile" )" "1"
 printf '%s\n' "$rigArrivals" | AgentsToolsOwedRepliesNote keeper-rig 1794216600
 rigAssert "the same arrivals noted again add nothing" "$( wc -l < "$rigFile" | tr -d ' ' )" "2"
@@ -52,9 +56,8 @@ rigAssert "a send into another thread of the channel clears nothing" "$( wc -l <
 AgentsToolsOwedRepliesClear keeper-rig slack C0RIG0001 1794216240.000100
 rigAssert "a send into the message's thread clears it" "$( LC_ALL=C grep -c 'C0RIG0001' "$rigFile" )" "0"
 AgentsToolsOwedRepliesClear keeper-rig slack D0RIG0002 ""
-rigAssert "a post at the top of a DM clears no owed reply" "$( wc -l < "$rigFile" | tr -d ' ' )" "2"
-AgentsToolsOwedRepliesClear keeper-rig slack D0RIG0002 1794216360.000100
-rigAssert "a send into the thread of a DM message clears that one" "$( LC_ALL=C grep -c '1794216360.000100' "$rigFile" )" "0"
-rigAssert "a send into one DM thread leaves the other owed" "$( wc -l < "$rigFile" | tr -d ' ' )" "1"
+rigAssert "a post at the top of a DM clears no owed reply" "$( wc -l < "$rigFile" | tr -d ' ' )" "1"
+AgentsToolsOwedRepliesClear keeper-rig slack D0RIG0002 1794216420.000100
+rigAssert "a send into the thread of a DM message clears that one" "$( wc -l < "$rigFile" | tr -d ' ' )" "0"
 printf '%s: %s passed, %s failed\n' "${0##*/}" "$rigPassCount" "$rigFailCount"
 [ "$rigFailCount" = 0 ]

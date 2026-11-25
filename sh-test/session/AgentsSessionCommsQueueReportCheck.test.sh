@@ -278,6 +278,10 @@ rigAssert "and no second folder of that conversation was made" \
 	"$( ls "$rigDir/ws/.local/cache/comms/slack" | LC_ALL=C grep -c -- "$rigDm$" )" 1
 : > "$rigDir/dm-calls"
 rigAge
+## THE SWEEP IS KEPT OUT OF THIS MEASUREMENT: the pull runs AgentsCommsSweepPass first, and a source whose ingest is 15 s old is read again
+## there, under the bot. That read is the sweep's, not the pull's: refreshing the marker makes it not due, so the assertions below count the
+## pull's own call alone.
+: > "$rigDmDir/.ingest.txt"
 : > "$rigDmDir/.want"
 rigPull dm-2
 rigAssert "control: the second pull reaches the conversation too, and calls it as $( rigDmSeen )" \

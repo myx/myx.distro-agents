@@ -5,7 +5,9 @@
 ## Wall time is never measured.
 ## Held:
 ##   0. the screen's own declarations, and the census itself: it counts a file the check reads, and the same comparison
-##      reports a difference when it is pointed at a read that does scale
+##      reports a difference when it is pointed at a read that does scale. The cutoff's own instant is held by two files no
+##      read opens: one an hour before the access cutoff, which is not counted, and one whose content time is an hour before
+##      the content cutoff, which is. A cutoff read a few hours from the one meant turns both rows red, each the wrong way.
 ##   1. Active Sessions: three live sessions, once with no closed history and once with 1600 closed ones, open the same
 ##      number of files, and no file of a closed session is among them
 ##   2. that read opens no item of a board state, at 3 board items and at 1600
@@ -54,8 +56,19 @@ rigPid=920000
 ## of it, moves nothing, so a rewritten file is told from a read one by its content time alone.
 rigAtimeMark="200001010000"
 rigMtimeMark="201001010000"
-rigACut="2001-01-01T00:00:00"
-rigMCut="2011-01-01T00:00:00"
+## THE CUTOFFS, held as two files whose content time IS the cutoff, never as a date `find` must read for itself. `touch -t`
+## spells an instant in the machine's own zone, and `-anewer`/`-newer` compare a file's access time and content time against
+## the content time of the file they are given. So the four marks are made by one spelling, and `find` reads no date at all.
+## A date it does read costs more than a zone: a trailing letter is the military zone of that letter, so the `T` of the ISO
+## form puts the cutoff seven hours west of UTC. Measured 2026-11-25 on this host's BSD find, at a one-minute grain: the
+## `T` spelling read as a cutoff of 2000-12-31T17:00Z, and every letter `A` to `Z` moved it to its own zone.
+rigACutRef="$rigTmp/marks/access-time"
+rigMCutRef="$rigTmp/marks/content-time"
+rigACutStamp="200101010000"
+rigMCutStamp="201101010000"
+mkdir -p "$rigTmp/marks" || rigRefuse "the census's cutoff stamps could not be made"
+touch -t "$rigACutStamp" "$rigACutRef" 2> /dev/null || rigRefuse "the access cutoff stamp could not be set"
+touch -t "$rigMCutStamp" "$rigMCutRef" 2> /dev/null || rigRefuse "the content cutoff stamp could not be set"
 
 rigPass=0
 rigFail=0
@@ -186,7 +199,7 @@ rigMark(){ ## root
 ## THE FILES A READ OPENED: the access time moved, the content time stood. A folder is never counted, since `find` reads
 ## every folder it passes through, and would mark the whole fixture itself.
 rigOpened(){ ## root
-	find "$1/ws/.local" "$1/data" -type f -newerat "$rigACut" ! -newermt "$rigMCut" 2> /dev/null | LC_ALL=C sort
+	find "$1/ws/.local" "$1/data" -type f -anewer "$rigACutRef" ! -newer "$rigMCutRef" 2> /dev/null | LC_ALL=C sort
 }
 rigOpenedCount(){ ## root
 	rigOpened "$1" | LC_ALL=C awk 'END { print NR + 0 ; }'
@@ -221,7 +234,8 @@ rigWalkOpen(){ ## root
 }
 
 ## THE FIXTURES. The closed history is the one thing the first two pairs differ by, and the board the one thing the last
-## two differ by, so no other difference can account for a count that moves.
+## two differ by, so no other difference can account for a count that moves. The two cutoff stamps stand a directory above
+## them, so they are in no counted tree.
 for rigPair in active board epic ; do
 	for rigSide in few many ; do
 		case "$rigPair:$rigSide" in
@@ -249,6 +263,28 @@ rigMark "$rigTmp/active-few"
 cat "$rigTmp/active-few/data/vault/epic-blueprint-20260101T0000Z-alpha.md" > /dev/null 2>&1
 rigAssert "the census counts the one file the check itself read from the fixture" "$( rigOpenedCount "$rigTmp/active-few" )" "1"
 rigAssert "the comparison reports a difference it is given: two files then three" "$( rigVerdict 2 3 )" "differs"
+## THE CUTOFF'S OWN INSTANT, held by two files no read ever opens, in both fixtures of the pair alike. One stands a hour
+## before the access cutoff the census means and must not be counted. One carries a content time a hour before the content
+## cutoff the census means and must be counted, since a content time that early is not a rewrite. A cutoff read a few hours
+## away from the one written moves both, each the wrong way, and the two rows below turn red.
+rigBandFiles(){ ## root -- two files no read opens, one before each cutoff, times in local spelling like every mark here
+	local bandDir="$1/data/census-band"
+	mkdir -p "$bandDir" || rigRefuse "the census's band files could not be made: $1"
+	printf '# never opened\n' > "$bandDir/band-read.md"
+	printf '# never opened\n' > "$bandDir/band-content.md"
+	touch -a -t "200012312300" "$bandDir/band-read.md"
+	touch -m -t "201001010000" "$bandDir/band-read.md"
+	touch -a -t "202601010000" "$bandDir/band-content.md"
+	touch -m -t "201012312300" "$bandDir/band-content.md"
+}
+for rigBandRoot in "$rigTmp/active-few" "$rigTmp/active-many" ; do
+	rigBandFiles "$rigBandRoot"
+	rigAssert "the census leaves out a file opened by nothing, whose access time stands before the cutoff it means" \
+		"$( rigOpenedMatching "$rigBandRoot" '/census-band/band-read\.md$' )" "0"
+	rigAssert "the census counts a file whose content time stands before the cutoff it means, and whose access time moved" \
+		"$( rigOpenedMatching "$rigBandRoot" '/census-band/band-content\.md$' )" "1"
+	rigMark "$rigBandRoot"
+done
 rigMark "$rigTmp/active-few" ; rigWalkOpen "$rigTmp/active-few" ; rigWalkFew="$( rigOpenedCount "$rigTmp/active-few" )"
 rigMark "$rigTmp/active-many" ; rigWalkOpen "$rigTmp/active-many" ; rigWalkMany="$( rigOpenedCount "$rigTmp/active-many" )"
 rigAssert "the same comparison, pointed at a read that walks the store, reports a difference: the assertion can fail" \

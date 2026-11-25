@@ -1443,6 +1443,32 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   a run, so any live run of it takes the matter. `reports-to: none` is a run that reports to no one.
   It may send a handback as its final report, then it closes without waiting for dismissal. Its end
   is told to no one, and an ask of its own with no target goes where an unset `reports-to` would.
+- **The request thread** of a run is the thread of the person's Slack message it was started for. It is one address, `<channel>:<thread root ts>`.
+  The item carries it as `communication-channel-id: slack:<channel>:<thread root ts>`, written at ingest by `AgentsTools.CommsTransfer.include`. A dispatch item carries it as `request-thread`, since the sweeps read the other header as a reply-pending thread.
+  A start takes it from `--conversation`, or from the `# arrived on:` line of a relayed Wait result. A `[reply-to:]` mark or a permalink in a brief only joins a session.
+  The spawn record keeps it in `conversation-threads:`. `AgentsToolsRequestThreadInto` returns the one word of that list that is also the run's session thread.
+  A thread joined from a brief is no request thread. Several words name none.
+  The session thread opens as a reply inside it. A start that cannot use it prints a warning, sets `request_thread_not_used:` in the brief, and opens where it did before.
+  A session joined with its own thread keeps that thread. A request given to it is said on stderr and not used.
+- **Where an answer to a person goes** follows one order everywhere. First the newest reply the member owes (`schedule/owed/<member>`), then the request thread, then the session's own thread.
+  A plain `SendMessage` follows it, for an owed line younger than three times `MDAT_OWED_REPLY_SECONDS`. A top-level `--slack-send-message` to a conversation follows it too, for an owed line of that conversation noted within three times `MDAT_OWED_REPLY_SECONDS`.
+  `--told` and `--update-ts` keep a post as written. A handback and a question go into the request thread only where its person is the human-owner or holds tier-client or above (`AgentsHarnessRequestThreadTakes`). A question there is addressed to that person.
+  For any other person they keep their usual place, the coordinator duty thread for a handback. `--set-session-topic` leaves the text of a root the bot did not post, and says so.
+- **The owed replies and the request thread, in code.** `AgentsToolsOwedRepliesPathInto` sets the path of a member's owed store and makes no folder.
+  `AgentsToolsOwedRepliesNewest` sets the newest owed address that passes its channel, user and age filters. It skips a line of another driver silently and warns once for a malformed Slack line.
+  The transfer writes the thread root in the item header and a line `author: <Slack user id>` after `ts:` in the item body. A message at the top of a thread names itself as the root.
+  A Wait result prints `# reply-to: slack:<channel>:<root>` under an inbox item name. It notes an inbox arrival as owed once per Wait, and only for a name new against the baseline of the same hit.
+  With no baseline it notes only a name younger than three times `MDAT_OWED_REPLY_SECONDS`. Every other kind that carries a person's message is noted the same way.
+- **A start for a person's message, the cases.** A start from a Wait result takes the request thread from `--conversation` or the `# arrived on:` line.
+  A message of the team channel arrives as `slack:magic-team` and names no thread, so its spawner passes `--conversation`. The owed notice of that spawn names the word to pass.
+  The notice is made once per spawn, only for a spawn made by a run, and only for an owed line younger than three times `MDAT_OWED_REPLY_SECONDS`.
+  A work-duty start takes the thread of the newest person message in the member's inbox. That message must be newer than the tag pointer and no older than three owed-reply bounds.
+  Its author is not checked, so an outside person's message opens the duty thread in that message's thread. A kept duty session keeps its own thread, and the start says so and sets `request_thread_not_used:`.
+  The opening post and the status posts of a session go into the request thread whoever wrote it. Only a handback and a question are gated by the tier of the person.
+  The gate reads the author of the thread with one `conversations.replies` call per run and request address. It fails closed where the workspace has no known human-owner account, and the answer keeps its usual place.
+  The start-pending pass names no tracked item to the proxy, so its line for an item with no `communication-channel-id` is the only one said for that start. The proxy says its own for a start that names the item.
+  The request-thread step of a top-level send has no age bound. Every top-level post of the run into that channel goes into the thread until `--told` is given.
+  The root post proves its thread from `message.thread_ts` in the answer. Where that is absent, `conversations.replies` is read, and only a post not found in the thread is deleted. The delete is logged with channel and timestamp.
 - **Who holds the authority over a run** (`AgentsToolsAuthorityHolds`, `AgentsTools.Authority.include`): the
   caller that an address of the holder names, or one a grant in the session names. The root
   `magic-coordinator` holds throughout, as the human-owner's representative. Where the run's parent session
@@ -3705,6 +3731,13 @@ flag would be a silent no-op there -- refused instead, same shape as the
   `lib/parallel` runs in a nested subshell because it installs an `EXIT` trap. This is safe because
   `--intern-op-slack-call` waits out rate limits (`ratelimited`/429, `Retry-After`, up to 5 attempts,
   `AgentsToolsSlackRateLimitWait`).
+- **`--intern-op-doc-comments-input-scan`** lists the page comments still open, one row a comment: `PAGE_ID`,
+  `COMMENT_ID`, `AUTHOR`, `CREATED`. The pages are the `--page-id` values of the definition line, else the workspace
+  setting `CONFLUENCE_PAGE_CHECK_PAGES`, the one `--confluence-page-check` checks: a page id belongs to the estate
+  that sets it, so a second install names its own. Each page is read through `--confluence-comment-read --inline`,
+  never a second reader, and a row is `open` on its `RESOLUTION_STATUS`. A reply carries no status, so it is no row
+  of its own. A page set naming no page is rc 6, never an empty scan. A page that cannot be read is a
+  `**NOTE:** partial` line and rc 2, and the other pages' rows still print. Read-only.
 - **`--intern-op-routine-lock-take advance` closes dead spawns** after a successful take, and only then, as
   housekeeping the tooling does itself. Its lines go to the daemon line and the caller's event-track
   thread (`AgentsToolsHousekeepingReport`), none to its output. Dead on this
@@ -5003,6 +5036,15 @@ never the first one.
   fourth bullet above carries the four, and it is `reflection-20261110T1342Z`.
 - The `case "$0"` silence was first filed as an arm that prints nothing. It was the caller's relative path,
   the first bullet above carries both readings, and it is `reflection-20261110T1154Z`.
+- **A run with no watch left beside it is ended, and hands out no further check.** The runner's main shell holds its
+  driver as a background job, and on each pass reads whether its own stall watch is still one of its jobs. A watch that
+  is gone leaves the run with nothing to end it, so the shell ends the run through `AgentsRunStallEnd 0 gone`, which
+  writes `watch-gone=yes` and `stalled.txt`, and the run exits 124. A worker hands out no check once that note is there.
+  `AgentsRunTestsYieldBoundCheck`, section 5, is the test for both.
+- **The yield point's wait for a lane is bounded at `runYieldBound`.** A worker waiting for the mark to come off, or for
+  its lanes to come free, stands at most 120 s. So a run whose every check holds its receipt and whose one worker
+  stands there ends at that bound instead of standing for the life of the lane. `AgentsRunTestsYieldBoundCheck`,
+  section 6, is the test for it.
 
 ## 23. Owner resolutions, 2026-10-30 and 2026-10-31
 
@@ -5678,6 +5720,7 @@ The conversation threads this spawn continues, `<channel>:<ts>` space-separated:
 a replacement for a session that was talking with someone keeps listening there.
 Recorded as `conversation-threads:`, passed as MDAT_CONVERSATION_THREADS, and
 their recent history lands in input/conversation.md.
+Exactly one thread named here is the request thread of the run: the thread of the person's message it is for (see "The request thread").
 Whether the session this spawn starts opens its session thread at once. magic-team,
 the default, runs the ordinary session-starting/joining logic below. event-track is
 an explicit override for a session that starts alone -- a non-interactive start of the
@@ -6767,10 +6810,12 @@ The other party is read from the conversation itself (conversations.info, the on
 addressee the caller names. The human-owner's own conversation and a team account's pass; a person is also a known contact,
 asked of the contact store with no team filter, since the store keys a Slack id by its workspace and the acting member is none.
 A PERSON OUTSIDE THE TEAM IS ANSWERED IN THE THREAD OF THEIR OWN MESSAGE, AND ONLY A KNOWN PERSON IS WRITTEN TO (the team
-rules, Channels and threads): a top-level send into their conversation goes into the thread of the newest message they
-asked this member in, the one the Wait handed it (schedule/owed/<member>); with nothing asked, it opens a new subject as
-named. The contact store must know the person, else the send is refused (AgentsToolsContactAssertKnown, the one gate).
-The human-owner's conversation and a team account's are not this case.
+rules, Channels and threads): a top-level send into a conversation goes into the thread of the newest message the person
+asked this member in, the one the Wait handed it (schedule/owed/<member>). It must have been noted within three times MDAT_OWED_REPLY_SECONDS.
+With none, it goes into the thread the session was started for, where that thread is in the conversation.
+With neither, it opens a new subject as named. `--told` and `--update-ts` keep the post as written.
+The contact store must know the person, else the send is refused (AgentsToolsContactAssertKnown, the one gate).
+The human-owner's conversation and a team account's are not this case for the gate. They follow the thread rule all the same.
 Slack's own chat.postMessage `metadata` object. Every send carries
 one identifying its own acting member, read back by
 AgentsSlackMessagesFormat.awk's `[sender: X]` annotation -- this is
@@ -7199,3 +7244,54 @@ store. The selection rest before the left pane reads an item is **250 ms** (`RES
 menu reads nothing for the rows it passes and only the item it stops on. An operation the screen asks for at its root is replaced
 with what the screen already holds where one exists; `list:activity` stays the session list, and the six sections of `Activity` are
 its rows.
+
+## A wide retest request yields to the narrow ones waiting behind it
+
+- **A retest drain's own runner stops at a check boundary when a narrower request waits.** The drain names the queue's waiting folder in `MDAT_RETEST_YIELD_DIR` (`sh-lib/member/AgentsTools.RetestQueue.include:60`, `:62`). A plain run and a check name nothing, so the boundary is a drain's alone.
+- **Narrower means fewer tests than the request in flight has still to run.** The runner counts its own receipts for what is left, in `AgentsRunNarrowWait` (`sh-test/runner/AgentsRunExecute.sh:1006`). A request naming no test is the widest there is, and any request naming tests narrows it.
+- **The stop is the worker's next check, never a test already running.** The note `retest-yield.txt` is written by the first worker to reach it. Every other worker reads it before handing out a check (`AgentsRunExecute.sh:1035`).
+- **What a stopped run did not reach returns to `waiting/` as a new request with a new id.** It carries the original's `by`, `why`, `about`, `origin` and `workspace`, and `returned-from` naming that original (`AgentsTools.RetestQueue.include:447`). The original's verdict reads `YIELDED` (`:194`). Both carry the bare request id, which is what `--retest-result` takes, never the `.request` filename.
+- **The narrow request runs inside the same batch.** What waits for that copy is folded in and the batch goes another round (`:453` to `:465`). Ten rounds is the cap, and a batch at the cap puts what it never reached back into `waiting/` (`:463`).
+- **A drain that is signalled ends its own runner tree.** The runner starts in a process group whose pid and start time go into `drain.lock/run` (`:239`, `:297`). The group is signalled only while the system still knows that pid as that process.
+- **A drain that takes a stale lock ends the dead batch's runner before it starts its own.** The same function runs on the stale-lock path (`:342`) and from the drain's own EXIT trap (`:349`). So a drain told to end leaves no lock standing.
+- **`AgentsToolsRetestDrainEnd` reads `drain.lock/run` and not the holder.** A lock without that record therefore signals nothing, and the next drain only removes the lock.
+- **The boundary is a drain's, never a run's.** Section 15 of the check holds it. A plain `AgentsRunTests.sh` run goes on to its next test while a narrow request waits, and answers no request.
+- **The check is `sh-test/member/AgentsRetestQueueCheck.test.sh`, sections 4 and 12 to 15.** Four of its 69 assertions fail on the tree before this change. Section 13 reads the process table, so a busy host widens its window, and it allows 20 seconds for TERM.
+- **Its tiny tests hold themselves open with `hold.<test>` and `let.<test>`.** A section that holds every test must let every one go, or its drain stands until the rig ends it.
+
+## AgentsToolsScheduleWorkDuty: the emergency floor admits only an inquiry the coordinator sent
+
+- **The emergency floor admits a member other than the coordinator three ways.** One is a pending board task it owns carrying `mark: emergency` or `mark: urgent`. The marks are read into `dutyOwners` by the awk at `sh-lib/schedule/AgentsTools.DispatcherSchedule.include:1949` to `:1953`, and the ownership test is at `:1966` and `:1993`. Another is an item of kind `inquiry-*` in its own `incoming/` carrying `from: magic-coordinator`, read at `:1967` and `:1994`. The third is a call by name, which is not this floor's business.
+- **The floor itself is one case on the flags.** `:1947` sets `dutyCoordinator=yes`, and `dutyUrgent=yes` where worktime is not already on.
+- **An item's kind is its filename prefix, never its `type:` field.** So a `note-*` the coordinator sent starts nobody. An `inquiry-*` from any other member starts nobody either.
+- **The admission line is a byte-for-byte grep over `"$dutyInbox"/inquiry-*.md`, at `:1969` and `:1995`.** Three spellings of the sender line therefore refuse a task its reader meant to take. They are `From:` with a capital F, a trailing space, and a CRLF ending.
+- **An inquiry file that cannot be read refuses too.** The grep exits 2 there, and the line still refuses. An inquiry from the coordinator alongside a note from it admits, so the note is neither a help nor a harm.
+- **The order a duty works that input in is the routine's, not the scheduler's.** For `magic-coordinator` the routine is `magic-coordinator.work-duty.routine.md`, written under `magic-librarian`'s pen.
+
+## harness: an answer stopped empty at the provider output limit
+
+- **A run whose answer the provider stopped empty at its own output limit continues once, instead of ending.** The limit is `finish_reason` `length` on the chat wire. It is `max_tokens` on the Messages wire.
+- **The continuation writes a `CUT:` line and starts a fresh leg.** That leg carries the original task, the CheckList, and the dispatch item's Decisions (`AgentsHarnessStateOnDiskText`).
+- **A second such end with no round between stops the run.** The cause is kept in `<session>.refused`, and `harnessCutRound` measures the round between the two.
+- **Every other empty reason still ends the run, as before.** `AgentsHarnessLengthLimitCheck` holds the whole behaviour offline, against a fake curl.
+
+## comms: a contact's own address in CommsResolveTarget
+
+- **`AgentsTools.CommsResolveTarget` resolves a contact's own address from `contact:<id>`, with or without `:<ts>`.** It prints `client:<value>`. The value comes from that record's `slack-id`, else its `slack-conversation`, with the record's team label dropped (`sh-lib/comms/AgentsTools.CommsResolveTarget.include:155`).
+- **The address is on the other organisation's side.** A contact is reached through the `client-*` member of its organisation, and that member is recorded on the contact.
+- **A record with no Slack coordinate, or with several, answers rc 3 with one line saying so.** The person is never guessed between them. The line names the coordinates the record holds, or the tool that records one.
+
+## sh-lib/schedule/AgentsTools.DispatcherSchedule.include: start-failure escalation hold
+
+- **A start-failure hold is written only after the coordinator inquiry landed.** So a refused filing is retried at the next failure, not hidden for six hours. `AgentsToolsScheduleStartFailed` counts a key's failures in `starting/<key>.fails` and stops early while the count is under the limit (`sh-lib/schedule/AgentsTools.DispatcherSchedule.include:707`, `:723`, `:724`).
+- **At `MDAT_SCHEDULE_START_FAILS_ESCALATE`, three by default, it calls `AgentsToolsScheduleStartEscalate`** (`:729`, `:736`). That function builds the inquiry's own name and text, and returns the filing's rc (`:739`, `:741`).
+- **Only that rc 0 touches `starting/<key>.escalated`, which is the hold** (`:729` to `:731`). A refused filing prints one line naming it and writes nothing, so the next failure in the streak files again.
+- **The hold lasts `MDAT_SCHEDULE_START_FAILS_HOLD_MINUTES`, 360 by default, and is aged on the pass clock** (`:752`, `:753`, `:765`). A success clears both the count and the hold. A start the routine's own lock refused is a wait, not a failure, and counts for nothing (`:711` to `:719`).
+- **A hold made before the schedule thread started is lifted on that thread's first probe of the key** (`:756` to `:760`). Such a hold is a verdict on code the thread no longer runs.
+
+## myx.distro-agents: the comms sweep's cut-off floor
+
+- **A comms sweep source takes its floor from the cache folder when that folder has never completed a read.** The ingest reads `.ingest.txt` for its pointer (`sh-lib/comms/AgentsTools.CommsIngest.include:143` to `:145`). With no pointer it takes the newest message the folder holds, from `.state.txt` (`:149` to `:152`).
+- **Without that fallback the two states feed each other.** The pointer is written only after a read succeeds. So no pointer means a whole-history read, which dies on the page cap, which leaves no pointer again (`:146` to `:148`).
+- **The `.state.txt` value is used only when it reads as a Slack timestamp.** Anything not made of digits and dots is dropped at `:151`, and the pointer takes over from the first read that completes.
+- **The check is `sh-test/comms/AgentsCommsIngestCutoffCheck.test.sh`.**

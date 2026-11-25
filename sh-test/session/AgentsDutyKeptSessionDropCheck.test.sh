@@ -93,6 +93,9 @@ rigState(){ ## killed, finished, kept
 }
 ## THE FINISHED MARK, WHERE ITS OWN WRITER PUTS IT: a delivered handback writes `handback.given` beside the member's
 ## checklist, and that folder is the one locator's (AgentsSessionChecklistFileInto), never a path guessed here.
+## WHAT THE MARK HOLDS: an epoch, `date +%s`, written by the handback. A fixture writes that epoch and never an empty
+## file, and a reader that asks only whether the file exists cannot tell a finished session from a touched one.
+## Measured 2026-11-23 against the real writer.
 rigMarkPath(){
 	local markFile=""
 	markFile="$( env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_MEMBER="$rigMember" RIG_SESSION="$rigKeptSession" bash -c '

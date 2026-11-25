@@ -52,8 +52,14 @@
 			CPU with more RAM, 3 the GPU machine, - where the name carries
 			no size), context window, output budget and the form of the
 			effort none of its family; a model of no known family has -
-			in the last three. Reads only. Prints nothing and ends 1 where
-			the local server cannot be reached. Takes no arguments.
+			in the last three. Reads only, and sends the credential the
+			`local` leg declares. Where no model is listed, the call exits
+			1 with nothing on stdout and one error line on stderr. That
+			line names the cause: a credential the server did not accept,
+			another HTTP status, or no answer in time. It also names an
+			unreachable server, an answer naming no model, and any other
+			curl failure. That last one carries curl's own rc, with 52 for
+			an answer that closed unread. Takes no arguments.
 
 		--magic-section-upsert <MAGIC.md path> --section <heading> (--text <text>|--from-stdin)
 			The one write to a MAGIC.md: the body of the `## <heading>` section

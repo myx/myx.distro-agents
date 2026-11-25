@@ -5,6 +5,7 @@
 ##      and a process of the tooling itself is no run. The process list is this rig's own.
 ##   2. THE QUEUE, a duty running: the request is filed as an inquiry (its routine, members, description and task in the text) and the duty's list holds one pending item naming it.
 ##   3. THE QUEUE, no duty running: the inquiry is filed, and the answer says there is no list (none).
+##   4. A REFUSED FILING SAYS WHY: a writer that refuses leaves its reason on the caller's stderr, never swallowed.
 ## The end to end start (--spawn-session at the limit) is held by AgentsMagicSpawnSessionCheck.
 ## Offline: a stand-in DistroAgentsTools records the filing; the duty is a process of this check's own; every tree is this rig's own.
 set -u
@@ -41,25 +42,30 @@ rigAssert(){ ## what is asserted, got, want
 rigFn(){ ## the function and its arguments... -- run in the include: `<rc>:<what it printed>`; MDAT_SPAWN_LIMIT from rigLimit
 	local fnOut fnRc
 	fnOut="$( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_TMP="$rigTmp" ${rigLimit:+MDAT_SPAWN_LIMIT="$rigLimit"} \
+		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_TMP="$rigTmp" ${rigLimit:+MDAT_SPAWN_LIMIT="$rigLimit"} ${rigWriterRefuse:+RIG_WRITER_REFUSE="$rigWriterRefuse"} \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			set +e
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include" > /dev/null 2>&1
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" > /dev/null 2>&1
-			## The stand-in of the tool the queue files its inquiry with: it keeps what it was asked and the text it was given.
+			## The stand-in of the tool the queue files its inquiry with: it keeps what it was asked and the text it was given,
+			## and refuses with a reason of its own where RIG_WRITER_REFUSE asks it to.
 			DistroAgentsTools(){
 				case "$1" in
-					--upsert-inbox-inquiry) printf "%s|%s|%s\n" "$2" "$3" "$5" >> "$RIG_TMP/filed.log" ; cat "$7" > "$RIG_TMP/filed.text" ;;
+					--upsert-inbox-inquiry)
+						[ -z "${RIG_WRITER_REFUSE:-}" ] || { printf "%s\n" "$RIG_WRITER_REFUSE" >&2 ; return 1 ; }
+						printf "%s|%s|%s\n" "$2" "$3" "$5" >> "$RIG_TMP/filed.log" ; cat "$7" > "$RIG_TMP/filed.text"
+					;;
 				esac
 				return 0
 			}
 			"$@"
-		' rig "$@" 2> /dev/null )"
+		' rig "$@" 2> "$rigTmp/stderr" )"
 	fnRc=$?
 	printf '%s:%s' "$fnRc" "$fnOut"
 }
 rigLimit=""
+rigWriterRefuse=""
 
 echo "-- 1. the limit --"
 printf '1001 claude --session-id rig-run-one\n' > "$rigTmp/ps.list"
@@ -97,6 +103,16 @@ rm -rf "$rigWs/.local/agents/liveness" "$rigSp/magic-coordinator.checklist.md" "
 rigOut="$( rigFn AgentsToolsSpawnQueue "2 2" magic-team.coworking.routine.md "keeper-a" "d" "t" )"
 rigAssert "the answer says there is no list" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -e '^0:SPAWN_QUEUED=true$' ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '^SPAWN_QUEUE_CHECKLIST=none$' )" "1:1"
 rigAssert "the inquiry is filed all the same, and no list was made" "$( LC_ALL=C grep -c '^magic-coordinator|' "$rigTmp/filed.log" ):$( [ -e "$rigSp/magic-coordinator.checklist.md" ] && printf made || printf none )" "1:none"
+
+echo "-- 4. a refused filing says why --"
+## A queue that cannot be filed returns 1, and the writer's own reason reaches the caller's stderr: a refusal that
+## says nothing leaves the operator with 'the request could not be queued' and no cause.
+rigWriterRefuse='RIG-WRITER-REFUSED: the inbox folder could not be made'
+rm -f "$rigTmp/filed.log" "$rigTmp/stderr"
+rigOut="$( rigFn AgentsToolsSpawnQueue "2 2" magic-team.coworking.routine.md "keeper-a" "d" "t" )"
+rigAssert "a refused filing returns 1" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^\([0-9]*\):.*/\1/p' )" "1"
+rigAssert "and the writer's own reason is on stderr" "$( LC_ALL=C grep -c -F -x 'RIG-WRITER-REFUSED: the inbox folder could not be made' "$rigTmp/stderr" )" "1"
+rigWriterRefuse=""
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SPAWN QUEUE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

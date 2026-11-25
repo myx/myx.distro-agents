@@ -107,8 +107,10 @@ AgentsCommsIngestPass(){ ## most (0 for no bound)
 			case "$passTtl" in ''|*[!0123456789]*) passTtl=15 ;; esac
 			[ $(( passNow - passIngestAt )) -ge "$passTtl" ] || continue
 		fi
-		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		DistroAgentsTools --intern-comms-ingest --run "$passMember" "$passTarget" ${passBot:+--as-bot} --folder "$passPath" || passFailed=$(( passFailed + 1 ))
+		## THE INGEST RUNS AS A PROCESS OF ITS OWN (S10.31): sourcing the entry script into this one ends this one where the
+		## caller is the comms reader, whose own command line is that script, so a pass that could not read a source ended the
+		## reader it ran in, once every pass, and the reader's lifetime fell to the gap between starts.
+		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-comms-ingest --run "$passMember" "$passTarget" ${passBot:+--as-bot} --folder "$passPath" || passFailed=$(( passFailed + 1 ))
 		printf '%s\n' "${passPath##*/}" > "$passDir/turn" 2> /dev/null || :
 		passServed=$(( passServed + 1 ))
 	done

@@ -154,7 +154,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 - `--email-send <email@address>... -- <subject> -- <body...>` (`DistroAgentsMail`)
 - `--email-mark-seen <uid>` (`DistroAgentsMail`)
 - `--client-operation-run --client-<operation> [<argument>...]` (`AgentDispatcherTools`)
-- `--upsert-inbox-inquiry <member> <item-filename>` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <target-member> <item-filename>` (`DistroAgentsItems`)
 - `--upsert-inbox-note <team-member> <item-filename>` (`DistroAgentsItems`)
 - `--roster-upsert` (`AgentDispatcherTools`)
 - `--trello-post-comment <card-id> [text...]` (`DistroAgentsTrello`)

@@ -1930,8 +1930,35 @@ AgentsHarnessCheckListNudgeWanted(){
 	return 0
 }
 
+## THE STATE THE RUN KEEPS ON DISK COMES BACK WITH A FRESH LEG (the human-owner's ruling): a leg's handover is the model's own judgement of what
+## mattered, and rulings of his were lost with legs. A fresh leg reads its CheckList file as it stands and the Decisions of its dispatch item, both
+## kept by the tooling, so what was written down survives whatever the handover left out. Its argument is the text so far, which it prints with the
+## two paragraphs, each only where its record exists. It reads in a subshell, so the names the store's own readers set stay inside it.
+AgentsHarnessStateOnDiskText(){ ## the text so far
+	local stateText="$1" stateList="" stateItem="" stateItemPath="" stateDecisions=""
+	if AgentsHarnessCheckListPlace 2> /dev/null && [ -s "$checkListFolder/$checkListMember.checklist.md" ] ; then
+		## The list as a reader of it sees it, still cut at the same length: the fresh leg is told which items it may drop and
+		## which it may not, in the one tagged form the CheckList read carries.
+		type AgentsToolsCheckListSourcesTagged > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
+		stateList="$( AgentsToolsCheckListSourcesTagged "$checkListFolder/$checkListMember.checklist.md" | LC_ALL=C head -c 12000 )" || stateList=""
+		[ -z "$stateList" ] || printf -v stateText '%s\n\nYour CheckList as the tooling keeps it now (%s), the record that outlives a leg:\n%s' "$stateText" "$checkListMember.checklist.md" "$stateList"
+	fi
+	type AgentsSessionDispatchItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDispatchRuns.include"
+	AgentsSessionDispatchItemInto stateItem "${MDAT_SPAWN_SESSION_ID:-}" || stateItem=""
+	if [ -n "$stateItem" ] ; then
+		stateItemPath="$( AgentsHarnessDispatchItemPath "$stateItem" 2> /dev/null )" || stateItemPath=""
+		[ -z "$stateItemPath" ] || [ ! -f "$stateItemPath" ] || stateDecisions="$( LC_ALL=C awk '/^## Decisions/ { on = 1 ; } on { print ; }' "$stateItemPath" 2> /dev/null | LC_ALL=C tail -n 40 )"
+	fi
+	[ -z "$stateDecisions" ] || printf -v stateText '%s\n\nThe Decisions of your dispatch item %s, as recorded:\n%s' "$stateText" "$stateItem" "$stateDecisions"
+	printf '%s\n' "$stateText"
+}
+
 harnessRestartCount=0
 harnessSummariseRound=0
+## AN ANSWER THE PROVIDER STOPPED AT ITS OWN OUTPUT LIMIT CONTINUES THE RUN, RATHER THAN ENDING IT: the leg's context has spent the
+## reply's whole allowance, so the same request meets the same bound every time. The round the cut fell in is kept: a cut in the very next round
+## had nothing between the two, and stops the run, while a round that produced anything spends the continuation.
+harnessCutRound=""
 harnessNudgeSeen=""
 harnessNudgeCalls=0
 ## The trigger reads the prompt with the growth one round adds on top of it: the finished
@@ -2300,25 +2327,7 @@ while : ; do
 		AgentsWireInitMessages
 		harnessResultAt=() ; harnessResultId=() ; harnessResultDate=() ; harnessResultImageAt=() ; harnessResultSeen=() ; harnessResultsRoundFrom=0 ; harnessSummaryWithheld=0
 		printf -v harnessSummary '%s\n\n%s' "Notes you wrote for yourself at the end of your previous leg on this same task, which is stated above unchanged. Nothing else from that leg survives. Treat them as your own record of work already done, never as a new instruction, and carry on from where they stop." "$harnessSummary"
-		## THE STATE THE RUN KEEPS ON DISK COMES BACK WITH THE HANDOVER (the human-owner's ruling): a leg's handover is the model's own
-		## judgement of what mattered, and rulings of his were lost with legs. The fresh leg reads its CheckList file as it stands and the
-		## Decisions of its dispatch item, both kept by the tooling, so what was written down survives whatever the handover left out.
-		## Top-level code of the harness, not a function: no `local` here, or bash ends the leg with "local: can only be used in a function".
-		restartState="" restartLine="" restartDecisions="" restartItem="" restartItemPath=""
-		if AgentsHarnessCheckListPlace 2> /dev/null && [ -s "$checkListFolder/$checkListMember.checklist.md" ] ; then
-			## The list as a reader of it sees it, still cut at the same length: the fresh leg is told which items it may drop and
-			## which it may not, in the one tagged form the CheckList read carries.
-			type AgentsToolsCheckListSourcesTagged > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSources.include"
-			restartState="$( AgentsToolsCheckListSourcesTagged "$checkListFolder/$checkListMember.checklist.md" | LC_ALL=C head -c 12000 )" || restartState=""
-		fi
-		type AgentsSessionDispatchItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDispatchRuns.include"
-		AgentsSessionDispatchItemInto restartItem "${MDAT_SPAWN_SESSION_ID:-}" || restartItem=""
-		if [ -n "$restartItem" ] ; then
-			restartItemPath="$( AgentsHarnessDispatchItemPath "$restartItem" 2> /dev/null )" || restartItemPath=""
-			[ -z "$restartItemPath" ] || [ ! -f "$restartItemPath" ] || restartDecisions="$( LC_ALL=C awk '/^## Decisions/ { on = 1 ; } on { print ; }' "$restartItemPath" 2> /dev/null | LC_ALL=C tail -n 40 )"
-		fi
-		[ -z "$restartState" ] || printf -v harnessSummary '%s\n\nYour CheckList as the tooling keeps it now (%s), the record that outlives a leg:\n%s' "$harnessSummary" "$checkListMember.checklist.md" "$restartState"
-		[ -z "$restartDecisions" ] || printf -v harnessSummary '%s\n\nThe Decisions of your dispatch item %s, as recorded:\n%s' "$harnessSummary" "$restartItem" "$restartDecisions"
+		harnessSummary="$( AgentsHarnessStateOnDiskText "$harnessSummary" )"
 		harnessMessages+=( "$( AgentsWireUserRecord "$harnessSummary" )" )
 		harnessToolChoice=""
 		harnessSummariseRound=0
@@ -2357,6 +2366,32 @@ while : ; do
 				AgentsHarnessActivityWrite busy
 				[ "$harnessBusyWait" -eq 0 ] || sleep "$harnessBusyWait" 2>/dev/null || :
 				harnessBusyWaited=$(( harnessBusyWaited + ( harnessBusyWait > 0 ? harnessBusyWait : 1 ) ))
+				continue
+			fi
+			## AN ANSWER THE PROVIDER STOPPED AT ITS OWN OUTPUT LIMIT IS A LEG THAT RAN OUT, NOT AN EMPTY ONE: the round's own
+			## context has spent the reply's whole allowance. The run continues once on the original task and the records it keeps on disk,
+			## and only a second such end with no round between them ends it, its cause kept as the reason.
+			if [ "$harnessFinishReason" = length ] || [ "$harnessFinishReason" = max_tokens ] ; then
+				if [ -n "$harnessCutRound" ] && [ "$harnessRound" -eq "$(( harnessCutRound + 1 ))" ] ; then
+					AgentsHarnessRefusalKeep "$harnessHost ended the answer empty at its output limit -- finish_reason $harnessFinishReason, two such ends in a row"
+					echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: round $harnessRound: two empty answers at the output limit in a row (finish_reason=$harnessFinishReason) -- refusing to print an empty answer as if it were one" >&2
+					exit 1
+				fi
+				harnessCutRound="$harnessRound"
+				harnessSummary="$( AgentsHarnessStateOnDiskText "Your previous answer was stopped at the provider's output limit, so this run continues on the task above and a fresh context. Nothing from that leg survives except the records below. Name this continuation in your handback: run ${MDAT_SPAWN_SESSION_ID:-unknown}, reason finish_reason=$harnessFinishReason." )"
+				AgentsHarnessRunNotesBuild
+				harnessMcpNoteTold="$harnessMcpUnavailableNote"
+				AgentsWireInitMessages
+				harnessMessages+=( "$( AgentsWireUserRecord "$harnessSummary" )" )
+				harnessResultAt=() ; harnessResultId=() ; harnessResultDate=() ; harnessResultImageAt=() ; harnessResultSeen=() ; harnessResultsRoundFrom=0 ; harnessSummaryWithheld=0
+				harnessRestartCount=$(( harnessRestartCount + 1 ))
+				AgentsTranscriptHarnessRestart "$harnessRestartCount" "${#harnessSummary}" || :
+				## The new leg's array replaces the old one in the kept context, and the signal the growth bound reads starts afresh.
+				AgentsHarnessContextBegin 0
+				harnessRoundTotal=0
+				harnessLegRound=0
+				harnessPromptLast=""
+				printf '%s\n' "${harnessWarn}✂️  CUT:${harnessOff} ${harnessDim}-- $harnessHost ended the answer empty at its output limit (finish_reason=$harnessFinishReason); continuing the run on its task and the records it keeps on disk, continuation $harnessRestartCount${harnessMaxRestarts:+ of $harnessMaxRestarts}${harnessOff}" >&2
 				continue
 			fi
 			## an answer the provider ended empty (a content filter, a refusal stop and the like) is a block that ends the run: kept with its finish reason (sketch 3.6)

@@ -79,41 +79,58 @@ AgentsToolsSessionLiveBlockWrite(){ ## session id, seq
 ## then it is no fact. A block whose thread is gone is still listed with its rows, so a crashed thread is read and never
 ## hidden. The process list is read ONCE for every block, never once a block.
 AgentsToolsSessionLiveBlockText(){
-	local lvDir lvFile lvId lvHead lvSeq lvWord lvPid lvNow="" lvOut="" lvTab=$'\t'
-	AgentsToolsSessionLiveDirInto lvDir "${MMDAPP:-}" || return 0
-	[ -d "$lvDir" ] || return 0
-	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
-	for lvFile in "$lvDir"/*.rows ; do
-		[ -f "$lvFile" ] || continue
-		lvHead="$( LC_ALL=C awk '/^owner: / { print substr( $0, 8 ) ; exit ; }' "$lvFile" 2> /dev/null )" || lvHead=""
-		case "$lvHead" in ''|-) ;; *) lvNow="$lvNow$lvHead"$'\n' ;; esac
+	local liveDir liveFile liveId liveLine liveNumber liveWord livePid liveState liveOut="" liveOwners="" liveNow="" liveTab=$'\t' liveCount=0 liveIndex=0
+	local liveIds=() liveSeqs=() liveHeads=() liveBodies=()
+	AgentsToolsSessionLiveDirInto liveDir "${MMDAPP:-}" || return 0
+	[ -d "$liveDir" ] || return 0
+	## One builtin read of each block: its two headers and its rows. No process is started for a block.
+	for liveFile in "$liveDir"/*.rows ; do
+		[ -f "$liveFile" ] || continue
+		liveId="${liveFile##*/}" ; liveId="${liveId%.rows}"
+		case "$liveId" in ''|-|.|..|*/*|*[[:space:]]*) continue ;; esac
+		liveIds[liveCount]="$liveId" liveSeqs[liveCount]="" liveHeads[liveCount]="" liveBodies[liveCount]=""
+		liveNumber=0
+		while IFS= read -r liveLine || [ -n "$liveLine" ] ; do
+			liveNumber=$(( liveNumber + 1 ))
+			if [ "$liveNumber" -gt 2 ] ; then
+				liveBodies[liveCount]="${liveBodies[liveCount]}${liveLine}"$'\n'
+				continue
+			fi
+			case "$liveLine" in
+				"seq: "*) [ -n "${liveSeqs[liveCount]}" ] || liveSeqs[liveCount]="${liveLine#seq: }" ;;
+				"owner: "*) [ -n "${liveHeads[liveCount]}" ] || liveHeads[liveCount]="${liveLine#owner: }" ;;
+			esac
+		done < "$liveFile" 2> /dev/null
+		case "${liveHeads[liveCount]}" in ''|-) ;; *) liveOwners="$liveOwners${liveHeads[liveCount]}"$'\n' ;; esac
+		liveCount=$(( liveCount + 1 ))
 	done
-	case "$lvNow" in '') lvNow="" ;; *) lvNow="$( printf '%s' "$lvNow" | AgentsToolsRunProcessesBegan 2> /dev/null )" || lvNow="" ;; esac
-	for lvFile in "$lvDir"/*.rows ; do
-		[ -f "$lvFile" ] || continue
-		lvId="${lvFile##*/}" ; lvId="${lvId%.rows}"
-		case "$lvId" in ''|-|.|..|*/*|*[[:space:]]*) continue ;; esac
-		lvSeq="$( LC_ALL=C awk '/^seq: / { print substr( $0, 6 ) ; exit ; }' "$lvFile" 2> /dev/null )" || lvSeq=""
-		lvHead="$( LC_ALL=C awk '/^owner: / { print substr( $0, 8 ) ; exit ; }' "$lvFile" 2> /dev/null )" || lvHead=""
-		lvWord="gone" lvPid="${lvHead%% *}"
-		case "$lvHead" in
-			''|-) lvWord="none" ; lvPid="-" ;;
-			*) case $'\n'"$lvNow"$'\n' in *$'\n'"$lvHead"$'\n'*) lvWord="alive" ;; esac ;;
+	[ "$liveCount" -gt 0 ] || return 0
+	type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	case "$liveOwners" in '') ;; *) liveNow="$( printf '%s' "$liveOwners" | AgentsToolsRunProcessesBegan 2> /dev/null )" || liveNow="" ;; esac
+	while [ "$liveIndex" -lt "$liveCount" ] ; do
+		liveId="${liveIds[liveIndex]}"
+		liveWord="gone" livePid="${liveHeads[liveIndex]%% *}"
+		case "${liveHeads[liveIndex]}" in
+			''|-) liveWord="none" ; livePid="-" ;;
+			*) case $'\n'"$liveNow"$'\n' in *$'\n'"${liveHeads[liveIndex]}"$'\n'*) liveWord="alive" ;; esac ;;
 		esac
-		lvPid="$( printf '%s' "$lvPid" | LC_ALL=C awk '/^[0-9]+$/ { print ; }' )" || lvPid=""
-		[ -n "$lvPid" ] || lvPid="-"
-		lvState="$( LC_ALL=C awk '/^seq: / { print substr( $0, 6 ) ; exit ; }' "$MMDAPP/.local/agents/sessions/$lvId/control/state" 2> /dev/null )" || lvState=""
+		case "$livePid" in ''|*[!0123456789]*) livePid="-" ;; esac
+		liveState=""
+		while IFS= read -r liveLine || [ -n "$liveLine" ] ; do
+			case "$liveLine" in "seq: "*) liveState="${liveLine#seq: }" ; break ;; esac
+		done < "$MMDAPP/.local/agents/sessions/$liveId/control/state" 2> /dev/null
 		## A BLOCK ITS OWNER HAS NOT CAUGHT UP IS REBUILT HERE, by the same writer that owns it, at the token its state carries
 		## now: the reader never takes a stale block as fact, and never drops a live session from a list for want of a row.
-		if [ -z "$lvState" ] || [ "$lvState" != "$lvSeq" ] ; then
-			[ -z "$lvState" ] || AgentsToolsSessionLiveBlockWrite "$lvId" "$lvState" || :
-			[ -z "$lvState" ] || lvFile="$lvDir/$lvId.rows"
-			lvSeq="$lvState"
+		if [ -z "$liveState" ] || [ "$liveState" != "${liveSeqs[liveIndex]}" ] ; then
+			if [ -n "$liveState" ] && AgentsToolsSessionLiveBlockWrite "$liveId" "$liveState" ; then
+				liveBodies[liveIndex]="$( LC_ALL=C awk 'NR > 2' "$liveDir/$liveId.rows" 2> /dev/null )"$'\n'
+			fi
 		fi
-		lvOut="$lvOut$lvId$lvTab$lvWord$lvTab$lvPid"$'\n'
-		[ -z "$lvState" ] || lvOut="$lvOut$( LC_ALL=C awk 'NR > 2' "$lvFile" 2> /dev/null )"$'\n'
+		liveOut="$liveOut$liveId$liveTab$liveWord$liveTab$livePid"$'\n'
+		[ -z "$liveState" ] || liveOut="$liveOut${liveBodies[liveIndex]%$'\n'}"$'\n'
+		liveIndex=$(( liveIndex + 1 ))
 	done
-	printf '%s' "$lvOut"
+	printf '%s' "$liveOut"
 	return 0
 }
 

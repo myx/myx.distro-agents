@@ -7,6 +7,8 @@
 ##   2. it is kept in an entry of the run's own prefetch cache, and a later read of that very file there answers in one line
 ##   3. a run of a routine that names none carries no such text: the control, so a pass is the key's work and not the rig's
 ##   4. the routine validator accepts a reference that is a file there is, and refuses one no run could read, naming the key
+##   5. a run whose prefix already carries the member's own reference folder still gets what its routine names from outside
+##      it, and still drops a file inside it, a deeper one included
 ## Offline by construction: no socket, no credential.
 set -u
 : "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
@@ -135,7 +137,7 @@ BODY
 	} > "$1"
 }
 rigMakeSkills(){ ## skillset directory, the references line (may be empty)
-	mkdir -p "$1/magic-team" "$1/rig-a/reference"
+	mkdir -p "$1/magic-team" "$1/rig-a/reference/sub" "$1/rig-a/notes"
 	printf 'RIG-TEAM-COMMON-LINE one two\n' > "$1/magic-team/magic-team.basic.md"
 	printf -- '---\nmaintainers: rig\n---\nRIG-TEAM-ARMED\n' > "$1/magic-team/magic-team.armed.md"
 	printf -- '---\nname: magic-team\n---\nteam skill\n' > "$1/magic-team/SKILL.md"
@@ -145,6 +147,8 @@ rigMakeSkills(){ ## skillset directory, the references line (may be empty)
 	printf 'RIG-A-BASIC own words\n' > "$1/rig-a/rig-a.basic.md"
 	printf -- '---\nname: rig-a\n---\nmember skill\n' > "$1/rig-a/SKILL.md"
 	printf 'RIG-REFERENCE-CRAFT read before any code\n' > "$1/rig-a/reference/rig-ref.md"
+	printf 'RIG-DEEP-CRAFT one folder deeper than the member layer reaches\n' > "$1/rig-a/reference/sub/deep-ref.md"
+	printf 'RIG-NOTE-CRAFT outside the reference folder the member layer carries\n' > "$1/rig-a/notes/rig-note.md"
 }
 
 rigWire="AnthropicMessages"
@@ -156,9 +160,9 @@ rigScene(){ ## scene name, references line, 1 to make the skillset or 0 to reuse
 	printf '0' > "$rigDir/round"
 	[ "$3" = 0 ] || rigMakeSkills "$rigSkills" "$2"
 }
-rigRecord(){ ## routine file name
+rigRecord(){ ## routine file name, cache-prefix (routine by default)
 	{
-		printf -- '---\nspawn-id: %s\nparent-spawn-id: none\ncache-prefix: routine\nroutine: %s\nstatus: spawn-started\n---\n\n# Spawn session: %s\n' "$rigSpawn" "$1" "$rigSpawn"
+		printf -- '---\nspawn-id: %s\nparent-spawn-id: none\ncache-prefix: %s\nroutine: %s\nstatus: spawn-started\n---\n\n# Spawn session: %s\n' "$rigSpawn" "${2:-routine}" "$1" "$rigSpawn"
 	} > "$rigSandbox/$rigSpawn.spawn.md"
 }
 rigTextStream(){ ## canned-stream file, content
@@ -227,6 +231,29 @@ rigScene unnamed '' 1
 rigRecord magic-team.rigroutine.routine.md ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun
 rigAssert "no reference text, and the armed file still there" \
 	"$( rigIn "$( rigReq 1 )" 'RIG-REFERENCE-CRAFT' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" "no:yes"
+
+echo "-- 3b. a prefix that already carries the member's reference files: the routine's own read still arrives --"
+rigScene carried 'rig-a/notes/rig-note.md' 1
+rigRecord magic-team.rigroutine.routine.md extended ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun
+rigAssert "the file outside the member layer is in the first message" "$( rigIn "$( rigReq 1 )" 'RIG-NOTE-CRAFT' )" yes
+rigAssert "the armed file is beside it, so the read is the prefetch's own" \
+	"$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' ):$( rigIn "$( rigReq 1 )" 'RIG-NOTE-CRAFT' )" "yes:yes"
+
+echo "-- 3c. the same prefix, naming the file the member layer already carries: it is not read twice --"
+rigScene carried-own 'rig-a/reference/rig-ref.md' 1
+rigRecord magic-team.rigroutine.routine.md extended ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun
+rigAssert "its text is in the first message once" "$( rigCount "$rigDir/req.1" 'RIG-REFERENCE-CRAFT' )" 1
+rigScene plain-own 'rig-a/reference/rig-ref.md' 1
+rigRecord magic-team.rigroutine.routine.md ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun
+rigAssert "and once under a prefix that carries no member layer: the control" "$( rigCount "$rigDir/req.1" 'RIG-REFERENCE-CRAFT' )" 1
+
+echo "-- 3d. the executor's own reference folder, one deeper: dropped under the carrying prefix, read without it --"
+rigScene carried-deep 'rig-a/reference/sub/deep-ref.md' 1
+rigRecord magic-team.rigroutine.routine.md extended ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun
+rigAssert "it is absent under the prefix that carries its folder" "$( rigIn "$( rigReq 1 )" 'RIG-DEEP-CRAFT' )" no
+rigScene plain-deep 'rig-a/reference/sub/deep-ref.md' 1
+rigRecord magic-team.rigroutine.routine.md ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun
+rigAssert "and present under the prefix that carries nothing: the control" "$( rigIn "$( rigReq 1 )" 'RIG-DEEP-CRAFT' )" yes
 
 echo "-- 4. the routine validator: a reference is accepted where it is a file there is, and refused where it is not --"
 rigValidate(){ ## name, references line (may be empty)

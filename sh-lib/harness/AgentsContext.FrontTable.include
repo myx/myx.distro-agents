@@ -110,10 +110,12 @@ DistroAgentsSlack	--slack-socket-status	member
 DistroAgentsSlack	--slack-socket-stop	member
 DistroAgentsAtlassian	--confluence-comment-add	coordinator
 DistroAgentsAtlassian	--confluence-comment-read	member
+DistroAgentsAtlassian	--confluence-page-check	member
 DistroAgentsAtlassian	--confluence-page-create	coordinator
 DistroAgentsAtlassian	--confluence-page-delete	coordinator
 DistroAgentsAtlassian	--confluence-page-move	coordinator
 DistroAgentsAtlassian	--confluence-page-read	member
+DistroAgentsAtlassian	--confluence-page-render	member
 DistroAgentsAtlassian	--confluence-page-search	member
 DistroAgentsAtlassian	--confluence-page-update	coordinator
 DistroAgentsAtlassian	--confluence-space-create	coordinator
@@ -138,6 +140,7 @@ DistroAgentsGoogle	--google-comment-post	member
 DistroAgentsGoogle	--google-comment-read	member
 DistroAgentsGoogle	--google-doc-read	member
 DistroAgentsGoogle	--google-doc-write	member
+DistroAgentsGoogle	--google-doc-replace	member
 DistroAgentsGoogle	--google-file-find	member
 DistroAgentsGoogle	--google-sheet-clear	member
 DistroAgentsGoogle	--google-sheet-info	member

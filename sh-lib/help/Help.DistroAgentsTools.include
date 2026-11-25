@@ -157,12 +157,12 @@ echo "📘 syntax: DistroAgentsItems.fn.sh --move-to-pending [--team-member <tea
 echo "📘 syntax: DistroAgentsItems.fn.sh --move-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--edit-patch-from-stdin|--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --client-operation-run <magic-coordinator> --client-<operation> <client-member-name> [<argument>...]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]" >&2
-echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-read [--team-member <team-member>] <page-id>" >&2
+echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-read [--team-member <team-member>] <page-id> [--inline] [--since <iso-utc-date>]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-delete [--team-member <team-member>] <page-id>" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-move [--team-member <team-member>] <page-id> --parent-id <parent-page-id>" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]" >&2
-echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]" >&2
+echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-update [--team-member <team-member>] <page-id> (--version <n>|--if-version <n>) --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-create [--team-member <team-member>] --key <space-key> --name <text> [--description <text>]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-list [--team-member <team-member>] [--cursor <value>]" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]" >&2
@@ -208,7 +208,7 @@ echo "📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <t
 echo "📘 syntax: AgentDispatcherTools.fn.sh --state-note-read [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsTesting.fn.sh --send-report [--team-member <team-member>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --retro-lock-refresh [--team-member <team-member>]" >&2
-echo "📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [<team-member>...]" >&2
+echo "📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--routine-chain <routine>[,<routine>...]] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--conversation <channel>:<thread-ts>]... [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [--join-session <session-id>] [--handed-over-by <spawn-id>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [<team-member>...]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-advance [--team-member <team-member>] <ts>" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-read [--team-member <team-member>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-upsert [--team-member <team-member>] [--edit-patch-from-stdin|--from-file <path>]" >&2
@@ -318,6 +318,7 @@ echo "📘 syntax: DistroAgentsKnowledge.fn.sh --list-namespaces [<namespace>]" 
 echo "📘 syntax: DistroAgentsKnowledge.fn.sh --local-models-list" >&2
 echo "📘 syntax: DistroAgentsKnowledge.fn.sh --magic-section-upsert <MAGIC.md path> --section <heading> (--text <text>|--from-stdin)" >&2
 echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format] [--version <n>]" >&2
+echo "📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-render [--team-member <team-member>] --source <spec> [--page-id <page-id>]" >&2
 echo "📘 syntax: DistroAgentsMail.fn.sh --email-check [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsMail.fn.sh --email-read [--team-member <team-member>] <uid> [--seen]" >&2
 echo "📘 syntax: DistroAgentsGoogle.fn.sh --google-file-find [--team-member <team-member>] (<search-term> [--full-text] [--include-trashed]|<drive-query> --raw-query) [--limit <n>]" >&2
@@ -325,6 +326,7 @@ echo "📘 syntax: DistroAgentsGoogle.fn.sh --google-comment-post [--team-member
 echo "📘 syntax: DistroAgentsGoogle.fn.sh --google-comment-read [--team-member <team-member>] <file-id>" >&2
 echo "📘 syntax: DistroAgentsGoogle.fn.sh --google-doc-read [--team-member <team-member>] <doc-id>" >&2
 echo "📘 syntax: DistroAgentsGoogle.fn.sh --google-doc-write [--team-member <team-member>] <doc-id> (<text...>|--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsGoogle.fn.sh --google-doc-replace [--team-member <team-member>] <doc-id> (--from-stdin|--from-file <path>)" >&2
 echo "📘 syntax: DistroAgentsGoogle.fn.sh --google-sheet-clear [--team-member <team-member>] <sheet-id> <a1-range>" >&2
 echo "📘 syntax: DistroAgentsGoogle.fn.sh --google-sheet-info [--team-member <team-member>] <sheet-id>" >&2
 echo "📘 syntax: DistroAgentsGoogle.fn.sh --google-sheet-read [--team-member <team-member>] <sheet-id> <a1-range> [--unformatted]" >&2
@@ -369,7 +371,7 @@ echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-investigation-report [
 echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-decision-record [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]"
 echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-verbatim-record [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]"
 echo "📘 syntax: DistroAgentsItems.fn.sh --get-board-item [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
-echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]" >&2
+echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry <target-member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--from-comment <service>:<page-or-file>:<comment-id>] [--reply] [--from-file <path>|--upsert-from-slots]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --wait-for-input [--team-member <team-member>] [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop|--unwait <kind>:<target> --wait-session-id <session-id>] [[--wait-source-ttl <seconds>] --wait-source <kind>:<target>[#short|#full][#ttl=<seconds>]]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --wait-for-input [--team-member <team-member>] --wait-list-sources" >&2
 echo "📘 syntax: DistroAgentsQuestions.fn.sh --read-escalation [--team-member <team-member>] <request-id>" >&2

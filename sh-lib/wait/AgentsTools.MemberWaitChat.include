@@ -123,6 +123,7 @@ AgentsWaitProbeScan(){
 		grooming) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardGrooming.include" --intern-op-grooming-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;
 		sweep) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include" --intern-op-sweep-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;
 		client-sweep) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientSweep.include" --intern-op-client-sweep-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;
+		doc-comments) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpDocCommentsInputScan.include" --intern-op-doc-comments-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;
 		member-work-session) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include" --intern-op-member-work-session-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;
 		morning-review) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.InternOpMorningReview.include" --intern-op-morning-review-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;
 		permission-escalation) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include" --intern-op-permission-escalation-input-scan "$probeMember" > "$probeOut.reply" 2> "$probeOut.err" || probeScanRc=$? ;;

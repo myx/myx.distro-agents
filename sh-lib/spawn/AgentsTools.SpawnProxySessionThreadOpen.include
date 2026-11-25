@@ -32,13 +32,41 @@
 				rootStack="$( AgentsToolsSessionRoutineStackLines "$sessionId" )" || rootStack=""
 				rootStack="${rootStack:-$routineStackLines}"
 			fi
-			sessionThread="$(
+			## A request thread opens the root as a reply in it. Where that fails the cause is said and the thread opens in the old place, never nowhere.
+			local openRequest="$requestThread" openRequestUsed="" openHeaderOp=""
+			sessionThread=""
+			if [ -n "$openRequest" ] ; then
+				sessionThread="$(
+					AgentsToolsSpawnProxySessionRootPost "$callerName" "$rootTitle" "$spawnStartedBy" "$rootTarget" "$rootStack" "$openRequest"
+				)" || sessionThread=""
+				if [ -z "$sessionThread" ] ; then
+					requestMissed="$openRequest -- the opening post in it failed, and the warning above says why"
+					requestThread=""
+					echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: request thread $openRequest not used, so the session thread opens in $rootTarget" >&2
+				else
+					openRequestUsed="true"
+					## One carrier: Slack names the root, so a reply ts is replaced by it in the record and the item.
+					if [ "$sessionThread" != "$openRequest" ] ; then
+						conversationThreads="${conversationThreads/$openRequest/$sessionThread}"
+						requestThread="$sessionThread"
+						echo "$MDSC_CMD: agent-spawn-proxy: request thread $openRequest is a reply, so its root $sessionThread is the thread used" >&2
+					fi
+				fi
+				if [ "$dispatchDocMode" = "create" ] && [ -n "$dispatchItemName" ] && [ "$requestThread" != "$openRequest" ] ; then
+					openHeaderOp="--header:remove:request-thread"
+					[ -z "$requestThread" ] || openHeaderOp="--header:upsert:request-thread:slack:$requestThread"
+					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+					DistroAgentsTools --intern-op-board-upsert-move-edit running "$dispatchItemName" --from-state:running --context "$opContext" "$openHeaderOp" --log-verb:updated > /dev/null 2>&1 \
+						|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the dispatch item $dispatchItemName still names the request thread $openRequest" >&2
+				fi
+			fi
+			[ -n "$sessionThread" ] || sessionThread="$(
 				AgentsToolsSpawnProxySessionRootPost "$callerName" "$rootTitle" "$spawnStartedBy" "$rootTarget" "$rootStack"
 			)" || sessionThread=""
 			## Recorded at once as the session's, so the member brought in next finds it, and the
 			## session that brought this one in does (session-current, AgentsToolsSessionCurrentThreadFind).
 			## A duty records it for its own session too, which it starts alone and restarts into.
-			if [ -n "$sessionThread" ] && { [ -n "$sessionJoined" ] || [ -n "$workDutyStart" ] ; } ; then
+			if [ -n "$sessionThread" ] && { [ -n "$sessionJoined" ] || [ -n "$workDutyStart" ] || [ -n "$openRequestUsed" ] ; } ; then
 				type AgentsSessionThreadSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 				AgentsSessionThreadSet "$sessionId" "$sessionThread" 2> /dev/null \
 					|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the session thread $sessionThread of $sessionId could not be recorded, so a member brought in before this spawn is recorded may open another" >&2

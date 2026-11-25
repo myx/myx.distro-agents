@@ -124,6 +124,10 @@ AgentsToolsScheduleThreadPass(){
 		## THE CLEANUP SWEEP is started from here, once an hour by its own stamp and detached, so no call path of a member pays for it.
 		type AgentsToolsCleanupSweepDetached > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.CleanupSweep.include"
 		AgentsToolsCleanupSweepDetached
+		## THE AGENT STORES' OWN DAY: both prunes, once a day by their own stamp, beside the sweep and detached as it is. They remove
+		## record folders, so no call path of a member and no pass of this thread waits on them.
+		type AgentsToolsSpawnedRetentionRunDetached > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
+		AgentsToolsSpawnedRetentionRunDetached
 		passAt="$SECONDS" ; AgentsToolsScheduleThreadWantedInto ; passTimes="$passTimes, wanted $(( SECONDS - passAt ))s"
 		## A PASS LONGER THAN ITS GAP IS SAID: a pass is seconds, and one that ran into minutes (35 on MEL, in the DM look) left a log that read as a stopped
 		## schedule. The line names the pass's own length, so a reader tells a slow pass from a dead thread, and each step's, so the cost is found where it is.

@@ -57,6 +57,9 @@ rigKill(){ ## pid... -- killed, and waited for until the process is no process o
 	done
 }
 rigRecord(){ ## file, spawn id, owner, status, host, run pid (may be empty), shell pid (may be empty), its own session id (may be empty: a duty inside rig-sess)
+	## THE SESSION FOLDER COMES FROM THIS HEADER, NEVER FROM A LOCATOR CALLED INSIDE THE RULE. AgentsToolsScheduleDutyRestartDue
+	## loads AgentsTools.StartedRecords.include alone, so AgentsSessionChecklistFileInto is undefined inside it: a fix that needs
+	## the session's folder builds it from the `session-id` line written here, or loads the locator itself. Measured 2026-11-23.
 	{
 		printf -- '---\nspawn-id: %s\nsession-id: %s\nowner: %s\nstatus: %s\nroutine: magic-coordinator.work-duty.routine.md\nhost: %s\n' "$2" "${8:-rig-sess}" "$3" "$4" "$5"
 		[ -z "$6" ] || printf 'run-process: %s %s\n' "$6" "$( rigStartOf "$6" )"

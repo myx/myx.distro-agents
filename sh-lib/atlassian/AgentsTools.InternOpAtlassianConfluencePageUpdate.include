@@ -4,13 +4,17 @@
 ## AgentsTools.InternOpAtlassianConfluencePageUpdate.include -- the operation `--intern-op-atlassian-confluence-page-update`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
 	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
 		shift
-		local confPUMember="" confPUPageId="" confPUVersion="" confPUTitle="" confPUTitleGiven="false"
+		local confPUMember="" confPUPageId="" confPUVersion="" confPUTitle="" confPUTitleGiven="false" confPUIfVersion="" confPUIfVersionGiven="false"
 		local confPUStatus="" confPUStatusGiven="false" confPUSpaceId="" confPUBodyStorage="" confPUBodyGiven="false" confPUContext="intern-op-atlassian-confluence-page-update"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--member)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --member value missing" >&2 ; set +e ; return 1 ; } ; confPUMember="$1" ; shift ;;
 				--page-id)   shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --page-id value missing" >&2 ; set +e ; return 1 ; } ; confPUPageId="$1" ; shift ;;
 				--version)   shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --version value missing" >&2 ; set +e ; return 1 ; } ; confPUVersion="$1" ; shift ;;
+				--if-version)
+					shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --if-version value missing" >&2 ; set +e ; return 1 ; }
+					confPUIfVersion="$1" ; confPUIfVersionGiven="true" ; shift
+				;;
 				--title)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --title value missing" >&2 ; set +e ; return 1 ; } ; confPUTitle="$1" ; confPUTitleGiven="true" ; shift ;;
 				--status)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --status value missing" >&2 ; set +e ; return 1 ; } ; confPUStatus="$1" ; confPUStatusGiven="true" ; shift ;;
 				--space-id)  shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --space-id value missing" >&2 ; set +e ; return 1 ; } ; confPUSpaceId="$1" ; shift ;;
@@ -37,12 +41,40 @@
 			esac
 		done
 		if [ -z "$confPUMember" ] || [ -z "$confPUPageId" ] ; then
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: syntax is --member <team-member> --page-id <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>] [--context <caller>] -- <n> is the version this caller already read, NEVER re-read here: this operation computes <n>+1 and submits it. This is a FULL REPLACE: --title and --status are required on every call and are overwritten with whatever is passed, even when only the body actually changed" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: syntax is --member <team-member> --page-id <page-id> (--version <n>|--if-version <n>) --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>] [--context <caller>] -- <n> is the version this caller already read, NEVER re-read here: this operation computes <n>+1 and submits it. This is a FULL REPLACE: --title and --status are required on every call and are overwritten with whatever is passed, even when only the body actually changed" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAtlassianAssertNumber "$confPUPageId" "<page-id>" "$confPUContext" || { set +e ; return 1 ; }
+		## --if-version is the caller's own reading, checked here against a read taken now. The page
+		## is read and then written against, and a page that moved since that reading is a CONFLICT
+		## with nothing written: the next version number would silently drop the other writer's body.
+		if [ "$confPUIfVersionGiven" = "true" ] ; then
+			case "$confPUIfVersion" in
+				''|*[!0123456789]*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --if-version not a number: '$confPUIfVersion'" >&2
+					set +e ; return 1
+				;;
+			esac
+			type AgentsToolsAtlassianConfluencePageRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.ConfluenceReads.include"
+			local confPULiveHeader="" confPULiveVersion=""
+			confPULiveHeader="$( AgentsToolsAtlassianConfluencePageRead --member "$confPUMember" --page-id "$confPUPageId" --context "$confPUContext" --format storage 2>&1 > /dev/null )" || { set +e ; return 1 ; }
+			confPULiveVersion="$( printf '%s\n' "$confPULiveHeader" | LC_ALL=C sed -n 's/.* version=\([0123456789][0123456789]*\) .*/\1/p' )"
+			if [ -z "$confPULiveVersion" ] ; then
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: the page answered a read with no version, so whether it moved is UNKNOWN: $confPULiveHeader" >&2
+				set +e ; return 3
+			fi
+			if [ "$confPULiveVersion" != "$confPUIfVersion" ] ; then
+				printf '%s\n' "🙋 WARNING: $MDSC_CMD --$confPUContext: CONFLICT -- --if-version is $confPUIfVersion and the page stands at $confPULiveVersion, so nothing was written. Re-read the page, re-render it, and call again" >&2
+				set +e ; return 10
+			fi
+			confPUVersion="$confPULiveVersion"
+		fi
 		case "$confPUVersion" in
-			''|*[!0123456789]*)
+			'')
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: one of --version <n> or --if-version <n> is required" >&2
+				set +e ; return 1
+			;;
+			*[!0123456789]*)
 				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --version not a number: '$confPUVersion'" >&2
 				set +e ; return 1
 			;;

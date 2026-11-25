@@ -146,7 +146,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 - `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
 - `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`)
-- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <target-member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
 - `--get-board-item <item-filename>` (`DistroAgentsItems`)
 - `--routine-run-inline <routine>` (`ThisSession`)
 

@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpDocCommentsInputScan.include -- the operation `--intern-op-doc-comments-input-scan`, sourced by
+## DistroAgentsTools.fn.sh's own scan arm and by the wait's probe arm, with the operation's arguments.
+## A routine's `input-scan-def: doc-comments [--page-id <page-id> ...]` receives, in its input scan, one row per page
+## comment still open, in the pages the scan covers: PAGE_ID, COMMENT_ID, AUTHOR, CREATED.
+##
+## THE PAGES ARE THE SCAN'S OWN QUESTION, ANSWERED FROM THE SCAN AS IT EXISTS. The `--page-id` values of the
+## definition line are the set, and with none the workspace setting CONFLUENCE_PAGE_CHECK_PAGES names it -- the same
+## setting, read by the same operation, that `--confluence-page-check` checks. A page id belongs to the estate that
+## sets it, never to this package, so a second install names its own and needs no change here.
+##
+## THE COMMENTS ARE READ THROUGH `--confluence-comment-read --inline`, the read that already exists, and never by a
+## second reader. Its RESOLUTION_STATUS is what `open` means, and a reply carries none, so a reply is no row of its
+## own. Read-only: it reads pages and comments, and writes neither.
+##
+## Exit status: 0 every page read, 2 some page not read (each a `**NOTE:** partial` line, so the rows that did read
+## still reach the run), 1 no page read at all or a call that is no scan, 6 no page named -- which is never reported
+## as a page set with nothing open.
+
+	shift
+	local docBy="${1:-}" docPageIds="" docScope="" docPage docCap="" docNotes="" docRows="" docRead="" docReadRc=0
+	local docPages=0 docReadPages=0 docRc=0
+	shift || true
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--page-id)
+				case "${2:-}" in
+					''|*[!0123456789]*)
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-doc-comments-input-scan: --page-id takes a page id, a number, got: ${2:-<none>}" >&2
+						set +e ; return 1
+					;;
+				esac
+				docPageIds="$docPageIds $2"
+				shift 2
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-doc-comments-input-scan: invalid option: $1 -- syntax is <team-member> [--page-id <page-id>]... -- an input-scan reads all baseline-relevant items itself" >&2
+				set +e ; return 1
+			;;
+		esac
+	done
+	if [ -z "$docBy" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --intern-op-doc-comments-input-scan: syntax is <team-member> [--page-id <page-id>]... -- <team-member> required" >&2
+		set +e ; return 1
+	fi
+	AgentsToolsAssertBareName "$docBy" "<team-member>" doc-comments-input-scan || { set +e ; return 1 ; }
+
+	## NO PAGE IS A REFUSAL, never an empty result: a scan with no page to read would look exactly like an estate
+	## whose comments are all closed, and the gathering pass would never run again.
+	if [ -z "$docPageIds" ] ; then
+		type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+		docScope="$( AgentsToolsConfigOption magic-team --select CONFLUENCE_PAGE_CHECK_PAGES 2> /dev/null )" || docScope=""
+		for docPage in $( printf '%s' "$docScope" | LC_ALL=C tr ',' ' ' ) ; do
+			case "$docPage" in
+				''|*[!0123456789]*) ;;
+				*) docPageIds="$docPageIds $docPage" ;;
+			esac
+		done
+		if [ -z "$docPageIds" ] ; then
+			printf '%s\n' "🙋 WARNING: $MDSC_CMD --intern-op-doc-comments-input-scan: CONFLUENCE_PAGE_CHECK_PAGES holds no page id in this workspace, so the scan has no page to read -- name --page-id on the definition line, or set it to the ids this workspace's pages have" >&2
+			set +e ; return 6
+		fi
+		docScope="from the workspace setting CONFLUENCE_PAGE_CHECK_PAGES"
+	else
+		docScope="from the definition line"
+	fi
+
+	type DistroAgentsAtlassian > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsAtlassian.fn.sh"
+	for docPage in $docPageIds ; do
+		docPages=$(( docPages + 1 ))
+		docReadRc=0
+		docRead="$( DistroAgentsAtlassian --confluence-comment-read --team-member "$docBy" "$docPage" --inline 2>&1 )" || docReadRc=$?
+		if [ "$docReadRc" -ne 0 ] ; then
+			docNotes="$docNotes**NOTE:** partial -- page $docPage could not be read, so its open comments are not listed: $( printf '%s\n' "$docRead" | LC_ALL=C awk 'NF { print ; exit ; }' )"$'\n'
+			docRc=2
+			continue
+		fi
+		docReadPages=$(( docReadPages + 1 ))
+		case "$docRead" in
+			*'more: unknown'*) docCap=1 ;;
+		esac
+		docRows="$docRows$( printf '%s\n' "$docRead" | LC_ALL=C awk -F '\t' '$1 != "COMMENT_ID" && $7 == "open" { print $5 "\t" $1 "\t" $2 "\t" $3 ; }' )"$'\n'
+	done
+
+	printf '## open page comments (doc-comments, %s): PAGE_ID COMMENT_ID AUTHOR CREATED\n\n' "$docBy"
+	printf 'scope: %s page(s), %s\n' "$docPages" "$docScope"
+	[ -z "$docCap" ] || printf 'cap: a page is read once, up to its first 100 comments, and the endpoint reports no total\n'
+	printf '%s' "$docRows" | LC_ALL=C awk 'NF'
+	[ -z "$docNotes" ] || printf '\n%s' "$docNotes"
+	if [ "$docReadPages" -eq 0 ] ; then set +e ; return 1 ; fi
+	set +e ; return "$docRc"

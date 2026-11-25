@@ -143,6 +143,13 @@ AgentsCommsIngestSlack(){ ## member, the channel id, [--as-bot] [--folder <path>
 	if [ -z "$ingestFloor" ] && [ -f "$ingestDir/.ingest.txt" ] ; then
 		IFS= read -r ingestFloor 2> /dev/null < "$ingestDir/.ingest.txt" || ingestFloor=""
 	fi
+	## A FOLDER THAT NEVER COMPLETED A READ HAS NO POINTER, and its whole history is what the page cap stops. The pointer is written
+	## only after a read succeeds, so the two states feed each other: no pointer, so a whole read, so the cap, so no pointer again. The
+	## newest message the folder holds is the cut-off then, and the pointer takes over from the first read that completes.
+	if [ -z "$ingestFloor" ] && [ -f "$ingestDir/.state.txt" ] ; then
+		{ read -r ingestStateAt ingestStateFrom ingestFloor ; } 2> /dev/null < "$ingestDir/.state.txt" || ingestFloor=""
+		case "$ingestFloor" in ''|*[!0-9.]*) ingestFloor="" ;; esac
+	fi
 	[ -z "$ingestFloor" ] || ingestFloor="$( AgentsCommsIngestSlackTs "$ingestFloor" )"
 	mkdir -p "$ingestDir" 2> /dev/null
 	ingestRows="$( mktemp "$ingestDir/rows.XXXXXX" 2> /dev/null )" || { echo "⛔ ERROR: the ingest could not make a working file in $ingestDir" >&2 ; return 1 ; }

@@ -166,6 +166,9 @@ class TextSurface:
 ##   rowids <tag>                  the ids of the rows of the level the list is at, as `<tag>=<id> <id> ...`
 ##   keys <key...>                 each key is one turn of the screen
 ##   turn [<count>]                turns with no key
+##   epoch <seconds>               the wall clock the screen takes as now, in seconds with a fraction: the frame of the spinner is read off it
+##   reading <kind>=<key>...       the screen waits on those reads, as if the tooling had them out
+##   spin                          the turn of the spinner alone, as the idle screen makes it: `spin=yes` where it wrote a frame, `spin=no` where not
 ##   cpu <tag>                     the seconds of the processor used so far, `<tag>.cpu=`
 ##   spend <tag> <count>           that many turns with no key, and the seconds of the processor they took, `<tag>.cpu=`
 ##   wait <kind> <seconds>         turns, in real time, until no call of that kind runs; the selection is taken as
@@ -415,6 +418,14 @@ def scriptRun(module):
         elif command == "turn":
             for count in range(int(words[0]) if words else 1):
                 turn()
+        elif command == "epoch":
+            module.nowEpoch = (lambda fixed: lambda: fixed)(float(words[0]))
+        elif command == "reading":
+            state.reading = dict(word.split("=", 1) for word in words)
+        elif command == "spin":
+            wrote = module.spinnerTurn(surface, state)
+            surface.show()
+            print("spin=%s" % ("yes" if wrote else "no"))
         elif command == "cpu":
             ## `cpu <tag>`: the seconds of the processor the driver has used so far, `<tag>.cpu=`; two of them bound what lies between
             print("%s.cpu=%.3f" % (words[0], time.process_time()))

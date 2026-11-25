@@ -40,7 +40,7 @@
 📘 syntax: DistroAgentsItems.fn.sh --upsert-vault-tracking [--team-member <team-member>] <item-name> [--edit-patch-from-stdin|--from-file <path>|--upsert-from-stdin]
 📘 syntax: DistroAgentsItems.fn.sh --get-board-item [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsItems.fn.sh --get-my-board-items <team-member>
-📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry <target-member> <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--from-comment <service>:<page-or-file>:<comment-id>] [--reply] [--from-file <path>|--upsert-from-slots]
 📘 syntax: DistroAgentsItems.fn.sh --request-review [--team-member <team-member>] <item-filename> --reason <text>
 📘 syntax: DistroAgentsItems.fn.sh --accept-review [--team-member <team-member>] <item-filename> [--summary <text>]
 📘 syntax: DistroAgentsItems.fn.sh --return-review [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)
@@ -167,7 +167,7 @@
 		--upsert-inbox-reflection <item-filename> [--from-member <member>] [--edit-patch-from-stdin|--from-file <path>|--upsert-from-slots]
 			The same for a reflection: what was learned, and why it is worth keeping.
 
-		--upsert-inbox-inquiry <member> <item-filename> [--from-member <member>] [--from-file <path>|--upsert-from-slots] [--reply]
+		--upsert-inbox-inquiry <target-member> <item-filename> [--from-member <member>] [--from-file <path>|--upsert-from-slots] [--from-comment <service>:<page-or-file>:<comment-id>] [--reply]
 			One inquiry, one place: <member> is magic-coordinator by default. A target alias names the kind: @coordinator (also
 			@all, @team, @grooming), @retro @docs @conventions (librarian), @design, @ops, @tests, @code, @ui. Several targets,
 			comma-separated, go to the coordinator as one inquiry. A member is written to directly only by the coordinator, as

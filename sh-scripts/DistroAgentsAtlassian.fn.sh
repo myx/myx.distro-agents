@@ -53,7 +53,7 @@ DistroAgentsAtlassian(){
 			return $?
 		;;
 
-		--confluence-page-read|--confluence-space-list)
+		--confluence-page-check|--confluence-page-read|--confluence-page-render|--confluence-space-list)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.MemberCommsConfluence.include"
 			return $?
 		;;

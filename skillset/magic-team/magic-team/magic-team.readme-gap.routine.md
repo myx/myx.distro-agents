@@ -115,7 +115,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 - `--console-start [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]` (**hunt-readme-gap**, **establish-understanding**: batch the reads across the tree)
 - `--console-send <channel> [-- <command...>]` (**hunt-readme-gap**, **establish-understanding**)
-- `--upsert-inbox-inquiry <member> <item-filename> [--from-file <path>]` (`DistroAgentsItems`) (**close-the-gap**, `hand-off`; also to ask depth of the member `rules` names)
+- `--upsert-inbox-inquiry <target-member> <item-filename> [--from-file <path>]` (`DistroAgentsItems`) (**close-the-gap**, `hand-off`; also to ask depth of the member `rules` names)
 - `--upsert-inbox-reflection <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`) (**report-and-log**)
 - `--upsert-inbox-note <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (`DistroAgentsItems`) (**report-and-log**, where `log` names a note)
 

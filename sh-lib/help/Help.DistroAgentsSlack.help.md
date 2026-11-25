@@ -35,6 +35,10 @@
 			Posts one message to that place, or to that member's direct message, as the
 			member, or as the team bot with `--identity-bot`. `--address-to` names who it is
 			for, and the header of the post says so.
+			A top-level post to a conversation where a reply is owed goes into that
+			thread, and `--told` posts at the top instead. An owed line counts for three
+			times `MDAT_OWED_REPLY_SECONDS`. Else the thread the run was started for
+			takes it, for as long as the run lasts.
 
 		--slack-resolve-ids [--user-name <name>]... [--channel-name <name>]... [--raw]
 			Turns a person's name, a person's own id or a conversation's name into

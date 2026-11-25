@@ -324,10 +324,12 @@ def keyWait(state, now):
 ## The reads of one item, its facts and its lines, wait until the selection has rested on
 ## it (restLeft): a selection that runs down a list starts none of them on its way. So
 ## does the read of a folder that has the focus and is not shown (focusOnly), and that
-## one is made when the selection comes to rest on its row, then again each period while it stays.
+## one is made once for each time the selection comes to rest on its row: while the
+## selection stays there its period starts it no more.
 def startDueReads(state, reader, now):
     resting = restLeft(state, now) > 0
     focused = focusOnly(state)
+    came = state.restKey != state.focusSeen
     held = False
     for kind, key, words in wantedReads(state):
         if reader.busy(kind) or (resting and (kind in VIEW_PARTS or key in focused)):
@@ -336,9 +338,7 @@ def startDueReads(state, reader, now):
         last = state.started.get(key)
         ## a read that is made once is not due again because its period has passed; neither
         ## is one that is read seldom, but while it is the list shown
-        ## A FOCUS READ KEEPS ITS PERIOD WHILE THE SELECTION STAYS: the folder a row opens (the agents of a live session) changes under the
-        ## selection, and a read made once per rest left that pane as it was when the row was reached.
-        once = readEntry(key).get("once") or seldomNow(state, key)
+        once = readEntry(key).get("once") or seldomNow(state, key) or (key in focused and not came)
         ## the period runs from the end of the last read, three times its length where that is longer: a slow read never runs back to back
         took = last["ended"] - last["at"] if last and "ended" in last else 0.0
         ## A READ MAY KEEP ITS OWN PERIOD, and it wins over the screen's: what every section stands on is read once and held for that long, and a section

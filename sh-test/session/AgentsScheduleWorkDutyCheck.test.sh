@@ -5,7 +5,7 @@
 ## Held:
 ##   1. WORKTIME starts a standing member that has work, and says so with no reason clause.
 ##   2. OVERTIME ALONE (worktime off) starts every standing member with work, as worktime does.
-##   3. EMERGENCY ALONE (worktime off) starts a member other than the coordinator only for a pending task it owns marked emergency or important.
+##   3. EMERGENCY ALONE (worktime off) starts a member other than the coordinator only for a pending task it owns marked urgent or emergency.
 ##   4. A pending item of the member carrying no mark starts nothing out of hours.
 ##   5. THE COORDINATOR starts in emergency out of hours, whatever it owns.
 ##   6. A `dispatch-*` pending item is never the reason a member starts. That one rule is declared and is NOT met: see the row that names it.
@@ -15,6 +15,8 @@
 ##      and its spawns fail with no agent launched. Its control is the row after it, the same pass in a team rig.
 ##  10. THE ROUTINE FOLLOWS THE PERMISSION: a duty the schedule allows runs the work-duty routine, and one started on demand
 ##      with no permission runs the off-duty one.
+##  11. THE COORDINATOR'S DIRECT TASK, out of hours: an item of kind inquiry-* in a member's own inbox that the coordinator
+##      sent. A note it sent does not start the member, an inquiry from anyone else does not, and an empty inbox does not.
 ## Offline: no clock is faked, no workspace is read, and the spawner is a counter.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -56,6 +58,16 @@ rigPending(){ ## stem, owner, mark
 	} | rigStoreItem "$rigData" board pending $1.md
 }
 rigNoPending(){ rm -f "$rigData/board/pending"/*.md ; }
+## The inbox the rows put one item in. The filename carries its own `.md`, which the item's own writer does not add, and
+## each name's first word is the item's kind, so the prefix and the type field never disagree.
+rigInboxClear(){ rm -f "$rigData/inboxes"/*/incoming/*.md ; }
+rigInboxItem(){ ## member, item filename, sender or empty
+	{
+		printf -- '---\ntype: %s\n' "${2%%-*}"
+		[ -z "${3:-}" ] || printf 'from: %s\n' "$3"
+		printf -- '---\n\nrig work\n'
+	} | rigStoreItem "$rigData" inbox "$1" "$2" || exit 1
+}
 ## THE STAND-INS. Every one is inherited by the include's `type ... || . ` guards, so no real one is sourced over it.
 
 ##   the flags come from RIG_FLAGS, one `<flag>: yes|no` line each;
@@ -140,6 +152,8 @@ rigNoPending ; rigPending task-20261106T000000Z-rig keeper-rig-one important
 rigAssert "out of hours a member does not start for a pending task it owns that carries an important mark" "$( rigRun )" "magic-coordinator "
 rigNoPending ; rigPending task-20261106T000001Z-rig keeper-rig-two emergency
 rigAssert "and for one that carries an emergency mark" "$( rigRun )" "magic-coordinator keeper-rig-two "
+rigNoPending ; rigPending task-20261106T000003Z-rig keeper-rig-two urgent
+rigAssert "and for one that carries an urgent mark" "$( rigRun )" "magic-coordinator keeper-rig-two "
 
 echo "-- 4. an unmarked pending task out of hours --"
 rigNoPending ; rigPending task-20261106T000002Z-rig keeper-rig-one
@@ -198,6 +212,25 @@ rigAssert "CONTROL: and the coordinator routine is the work-duty one" "$( rigRou
 rigOutOfTime ; rigNoPending
 rigAssert "out of worktime, allowed by nothing, it still runs its off-duty routine" "$( rigRun )" "magic-coordinator "
 rigAssert "and that routine is the off-duty one" "$( rigRoutineOf magic-coordinator )" "magic-coordinator.off-duty.routine.md"
+
+echo "-- 11. emergency out of hours: the coordinator's direct task --"
+rigEmergency
+rigNoPending ; rigInboxClear
+rigInboxItem keeper-rig-one note-20261106T000200Z-rig.md magic-coordinator
+rigAssert "a note the coordinator sent starts no keeper out of hours" "$( rigRun )" "magic-coordinator "
+rigNoPending ; rigInboxClear
+rigInboxItem keeper-rig-one inquiry-20261106T000201Z-rig.md magic-coordinator
+rigAssert "an inquiry the coordinator sent starts that keeper out of hours" "$( rigRun )" "magic-coordinator keeper-rig-one "
+rigNoPending ; rigInboxClear
+rigInboxItem keeper-rig-one inquiry-20261106T000202Z-rig.md keeper-rig-two
+rigAssert "an inquiry another member sent starts nobody out of hours" "$( rigRun )" "magic-coordinator "
+## The rows above hold one item per inbox. This one holds two, because two lines in two files are not one direct task.
+rigNoPending ; rigInboxClear
+rigInboxItem keeper-rig-one note-20261106T000203Z-rig.md magic-coordinator
+rigInboxItem keeper-rig-one inquiry-20261106T000204Z-rig.md keeper-rig-two
+rigAssert "a coordinator note beside another member's inquiry starts nobody" "$( rigRun )" "magic-coordinator "
+rigNoPending ; rigInboxClear
+rigAssert "an empty inbox starts nobody out of hours" "$( rigRun )" "magic-coordinator "
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SCHEDULE WORK DUTY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount ))" >&2 ; exit 1

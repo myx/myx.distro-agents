@@ -92,7 +92,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 ## Tooling operations
 
 - `--get-board-item <item-filename>` (`DistroAgentsItems`)
-- `--upsert-inbox-inquiry <team-member> <item-filename>` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <target-member> <item-filename>` (`DistroAgentsItems`)
 
 # Maintainer Notes
 

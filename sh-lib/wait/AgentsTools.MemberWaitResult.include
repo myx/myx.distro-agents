@@ -176,20 +176,14 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 		fi
 
 		echo "WAIT-RESULT: $waitOutcome"
-		## THE REPLIES THE MEMBER OWES open every result (AgentsTools.OwedReplies.include): a person's message this wait hands over is noted by
-		## its reply address, and the ones unanswered in their own thread for half an hour are listed first, until a send of the member lands there.
-		if [ -n "$waitMode" ] ; then
-			type AgentsToolsOwedRepliesPrint > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include"
-			type AgentsToolsOwedRepliesNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include"
-				local owedOne owedKind
-				for owedOne in $waitHits ; do
-					owedKind="${owedOne#*=}" ; owedKind="${owedKind%%:*}"
-					case "$owedKind" in slack|replies|chat|dms|mentions) ;; *) continue ;; esac
-					[ -f "$waitDir/now.${owedOne%%=*}" ] || continue
-					AgentsToolsOwedRepliesNote "$memberName" "" < "$waitDir/now.${owedOne%%=*}"
-				done
-				AgentsToolsOwedRepliesPrint "$memberName" ""
+		## THE REPLIES THE MEMBER OWES open every result (AgentsTools.OwedReplies.include): those older than the bound are listed here.
+		## They are noted in the received part below, once for the wait, as the member is handed each person's message.
+		local owedLoaded="false"
+		if [ -n "$waitMode" ] || [ -n "$waitCollect" ] ; then
+			type AgentsToolsOwedRepliesNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include" || echo "⛔ ERROR: the owed-replies include could not be loaded, so this wait notes and lists no owed reply" >&2
+			! type AgentsToolsOwedRepliesNote > /dev/null 2>&1 || owedLoaded="true"
 		fi
+		[ "$owedLoaded" != "true" ] || [ -z "$waitMode" ] || AgentsToolsOwedRepliesPrint "$memberName" "$waitEnd"
 		[ -z "$waitMode" ] || echo "WAIT-MODE: $waitMode"
 		[ -z "$seenFailed" ] || echo "# ERROR: the seen reaction (eyes) failed on ${seenFailed% }, so those messages show no sign that they were read"
 		[ -z "$waitNeverRead" ] || echo "WAIT-NEVER-READ: ${waitNeverRead% }"
@@ -240,6 +234,68 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 					LC_ALL=C awk -v source="${waitHit#*=}" -v kind="$waitHitKind" -v conv="$( AgentsWaitAddressConv "$memberName" "${waitHit#*=}" )" -f "$waitAddrInvocation" < "$waitDir/now.$waitHitIndex" > "$waitDir/addr.$waitHitIndex" 2> /dev/null || cp "$waitDir/now.$waitHitIndex" "$waitDir/addr.$waitHitIndex" 2> /dev/null || :
 					[ -f "$waitDir/addr.$waitHitIndex" ] || cp "$waitDir/now.$waitHitIndex" "$waitDir/addr.$waitHitIndex"
 				done
+				## THE OWED REPLIES ARE NOTED HERE, once for the wait, before the sender mark hides a person's message from the noting.
+				## An inbox item is noted by the thread address in its own header. Only an item new against the baseline of the same hit is noted.
+				if [ "$owedLoaded" = "true" ] && { [ -n "$waitMode" ] || [ -n "$waitCollect" ] ; } ; then
+					local owedFiles=() owedHit owedIndex owedSource owedInboxMember owedInboxFolder owedInboxName owedInboxLine owedInboxBase owedInboxLines owedInboxAddr owedInboxUser owedInboxText owedInboxState owedInboxRead owedInboxHaveBase owedInboxBound owedInboxEpoch owedInboxNoted=""
+					for owedHit in $waitHits ; do
+						owedIndex="${owedHit%%=*}" ; owedSource="${owedHit#*=}"
+						case "${owedSource%%:*}" in
+							slack|replies|chat|dms|mentions|channel|thread) [ ! -f "$waitDir/addr.$owedIndex" ] || owedFiles[${#owedFiles[@]}]="$waitDir/addr.$owedIndex" ;;
+							inbox)
+								owedInboxMember="${owedSource#inbox}" ; owedInboxMember="${owedInboxMember#:}"
+								[ -n "$owedInboxMember" ] || owedInboxMember="$memberName"
+								type AgentsToolsInboxFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include" || echo "⛔ ERROR: the inbox include could not be loaded, so no inbox item shows its reply address" >&2
+								AgentsToolsInboxFolderInto owedInboxFolder "$owedInboxMember" incoming 2> /dev/null || continue
+								[ -f "$waitDir/now.$owedIndex" ] || continue
+								## An item is new where the baseline of this hit lacks its name. With no baseline only an item younger than the bound is new, so no old item is noted.
+								owedInboxBase=$'\n' ; owedInboxHaveBase=""
+								if [ -s "$waitDir/base.$owedIndex" ] ; then
+									owedInboxHaveBase="yes"
+									while IFS= read -r owedInboxLine || [ -n "$owedInboxLine" ] ; do owedInboxBase="$owedInboxBase$owedInboxLine"$'\n' ; done < "$waitDir/base.$owedIndex"
+								fi
+								owedInboxBound="${MDAT_OWED_REPLY_SECONDS:-1800}"
+								case "$owedInboxBound" in ''|*[!0123456789]*) owedInboxBound=1800 ;; esac
+								owedInboxBound=$(( owedInboxBound * 3 ))
+								owedInboxLines=""
+								while IFS= read -r owedInboxName || [ -n "$owedInboxName" ] ; do
+									[ -n "$owedInboxName" ] || continue
+									case "$owedInboxBase" in *$'\n'"$owedInboxName"$'\n'*) owedInboxLines="$owedInboxLines$owedInboxName"$'\n' ; continue ;; esac
+									if [ -z "$owedInboxHaveBase" ] ; then
+										owedInboxEpoch="${owedInboxName##*-slack-}" ; owedInboxEpoch="${owedInboxEpoch%%.*}"
+										case "$owedInboxEpoch" in ''|*[!0123456789]*) owedInboxEpoch=0 ;; esac
+										if [ "$owedInboxEpoch" -lt $(( waitEnd - owedInboxBound )) ] ; then owedInboxLines="$owedInboxLines$owedInboxName"$'\n' ; continue ; fi
+									fi
+									owedInboxAddr="" ; owedInboxUser="" ; owedInboxText="" ; owedInboxState=0 ; owedInboxRead=0
+									if [ -f "$owedInboxFolder/$owedInboxName" ] ; then
+										while { IFS= read -r owedInboxLine || [ -n "$owedInboxLine" ] ; } && [ "$owedInboxRead" -lt 40 ] ; do
+											owedInboxRead=$(( owedInboxRead + 1 ))
+											case "$owedInboxState:$owedInboxLine" in
+												0:---) owedInboxState=1 ;;
+												1:---) owedInboxState=2 ;;
+												1:'communication-channel-id: '*) owedInboxAddr="${owedInboxLine#communication-channel-id: }" ;;
+												2:'author: '*) owedInboxUser="${owedInboxLine#author: }" ;;
+												2:|2:'## '*|2:'source: '*|2:'channel: '*|2:'ts: '*) ;;
+												2:*) owedInboxText="$owedInboxLine" ; break ;;
+											esac
+										done < "$owedInboxFolder/$owedInboxName"
+									fi
+									case "$owedInboxAddr" in
+										*[!A-Za-z0-9:.]*|*:*:*:*|*.*.*) owedInboxAddr="" ;;
+										slack:[A-Z0-9]*:[0-9]*.[0-9]*) ;;
+										*) owedInboxAddr="" ;;
+									esac
+									owedInboxLines="$owedInboxLines$owedInboxName"$'\n'
+									[ -z "$owedInboxAddr" ] || owedInboxLines="$owedInboxLines# reply-to: $owedInboxAddr"$'\n'
+									[ -z "$owedInboxAddr" ] || [ "$owedInboxMember" != "$memberName" ] || owedInboxNoted="$owedInboxNoted${owedInboxAddr##*:} | ${owedInboxUser:-inbox} | [reply-to: $owedInboxAddr] $owedInboxText"$'\n'
+								done < "$waitDir/now.$owedIndex"
+								printf '%s' "$owedInboxLines" > "$waitDir/addr.$owedIndex"
+							;;
+						esac
+					done
+					[ -z "$owedInboxNoted" ] || { printf '%s' "$owedInboxNoted" > "$waitDir/owed.inbox" && owedFiles[${#owedFiles[@]}]="$waitDir/owed.inbox" ; } || echo "⛔ ERROR: the inbox arrivals of this wait could not be written, so none is noted as owed" >&2
+					[ "${#owedFiles[@]}" -eq 0 ] || cat "${owedFiles[@]}" 2> /dev/null | AgentsToolsOwedRepliesNote "$memberName" "$waitEnd"
+				fi
 				## EVERY MESSAGE FROM A PERSON OUTSIDE THE TEAM CARRIES WHO THAT PERSON IS (AgentsWaitSenderMark.awk). The contact store is asked here, by the
 				## tooling, once for each account that wrote, so no run starts from a bare Slack id or has to remember to look. An account the store does
 				## not know reads `no record: do not address by name, escalate`. The human-owner and the team's own posts are never marked.
@@ -266,7 +322,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 								fi
 							;; esac
 							case "$waitSenderRow" in
-								contact"$waitSenderTab"*) printf '%s\t%s\n' "$waitSenderId" "$( printf '%s' "$waitSenderRow" | LC_ALL=C awk -F'\t' -v id="$waitSenderId" '{ print $3 ", " $4 ", contact " $2 ( $8 != "" && $8 != "-" ? ", writes in " $8 : "" ) ( $NF == "recorded-now" ? ", first contact: recorded now from the Slack profile alone (tier-contact where it has an organisation); DistroAgentsContacts.fn.sh --contacted-by " id " gives the rules and the next step" : "" ) ; }' )" >> "$waitSenderMap" ;;
+								contact"$waitSenderTab"*) printf '%s\t%s\n' "$waitSenderId" "$( printf '%s' "$waitSenderRow" | LC_ALL=C awk -F'\t' -v id="$waitSenderId" '{ print $3 ", " $4 ", contact " $2 ( $9 != "" && $9 != "-" ? ", " $9 ( $7 != "" && $7 != "-" ? " (" $7 ")" : "" ) : "" ) ( $8 != "" && $8 != "-" ? ", writes in " $8 : "" ) ( $NF == "recorded-now" ? ", first contact: recorded now from the Slack profile alone (tier-contact where it has an organisation); DistroAgentsContacts.fn.sh --contacted-by " id " gives the rules and the next step" : "" ) ; }' )" >> "$waitSenderMap" ;;
 							esac
 						done
 						LC_ALL=C awk -v map="$waitSenderMap" -v owner="$waitSenderOwner" -f "$waitSenderMark" < "$waitDir/addr.$waitHitIndex" > "$waitDir/addr.$waitHitIndex.sender" 2> /dev/null && mv -f "$waitDir/addr.$waitHitIndex.sender" "$waitDir/addr.$waitHitIndex" 2> /dev/null || rm -f "$waitDir/addr.$waitHitIndex.sender"

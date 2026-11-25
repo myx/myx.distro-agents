@@ -23,6 +23,25 @@ AgentsHarnessAskParty(){ ## name
 	[ -d "$partyRoot/$1" ]
 }
 
+## A CONTACT'S READBACK, POSTED THE WAY THE TEAM REACHES ANOTHER ORGANISATION (Q970): magic-coordinator's own client
+## operation runs the send as the client-* member that reaches the contact, who alone holds that side's credentials.
+## No member's session acts as a client member, so the member identity of this session is stripped for the one call.
+## Prints what the send printed, as a member's send does.
+AgentsHarnessAskContactSend(){ ## client member, the contact's client: address, body, the account the answer comes from, the asker's own words
+	local contactSendMember="$1" contactSendTarget="$2" contactSendBody="$3" contactSendAccount="$4" contactSendProse="${5:-}"
+	[ -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/AgentDispatcherTools.fn.sh" ] || {
+		printf 'ERROR: the coordinator tooling is not at the origin this workspace resolves, %s, so a contact is reached by no call here. Nothing was sent.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/AgentDispatcherTools.fn.sh"
+		return 0
+	}
+	## Only the asker's own words are measured against the plain-language floor, as a member's send measures them:
+	## the template's own how-to-answer lines are the tooling's, and they are not rewritten by an asker.
+	printf '%s' "$contactSendProse" > "$harnessScratch/send.prose"
+	printf '%s' "$contactSendBody" | env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT MDAT_SEND_ASYNC="" \
+		MDAT_SEND_PROSE_FILE="$harnessScratch/send.prose" \
+		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/AgentDispatcherTools.fn.sh" --client-operation-run magic-coordinator \
+		--client-comms-slack-send-message "$contactSendMember" "$contactSendTarget" --address-to "$contactSendAccount" --from-stdin 2>&1
+}
+
 ## The answer form of the caller's question: its kind's own, else its select, else free text.
 AgentsHarnessAskForm(){
 	type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
@@ -231,6 +250,7 @@ AgentsHarnessAskFields(){
 	AgentsHarnessAskPost || return 0
 	AgentsToolsAskPostFieldsPack asked-as "${askPostName:-$harnessAskName}" tag "$askTag" question "$toolQuestion" context "$toolContext" about "$( AgentsHarnessAskAbout )" understood "$toolUnderstood" source "$toolFrom" will-do "$toolWillDo" \
 		refused-tool "$askRefusedTool" refused-target "$askRefusedTarget" refused-for "$askRefusedOwner" refusal-id "$toolRefusalId" folder "${askRefusedFolder:-}" project "${askRefusedProject:-}" contact "${askRefusedContact:-}" \
+		contact-member "${askContactMember:-}" \
 		reason "$toolReason" task "$toolTaskRef" proposal "$toolProposal" document "$toolDocument" \
 		decision-kind "${MDAT_ASK_DECISION_KIND:-}" decision-source "${MDAT_ASK_DECISION_SOURCE:-}" decision-strike "${MDAT_ASK_DECISION_STRIKE:-}" decision-escalate "${MDAT_ASK_DECISION_ESCALATE:-}"
 }

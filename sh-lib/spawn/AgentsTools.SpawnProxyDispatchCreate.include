@@ -14,6 +14,7 @@
 				[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
 				set +e ; spawnProxyDispatchCreateEnded=1 ; return 1
 			}
+			## The request thread rides under `request-thread`, never `communication-channel-id`: the sweeps read that header as a reply-pending thread of the item's own.
 			## review-by only where the caller said one (--review-by): an item that names none is
 			## reviewed by whoever its run reports to (AgentsToolsItemReviewer), and by nobody
 			## where that is `none`.
@@ -32,6 +33,7 @@
 				--header:upsert:member-workspace:"$memberWorkspaceName" \
 				${transcriptRel:+--header:upsert:transcript:"$transcriptRel"} \
 				${trackedItemName:+--header:upsert:tracks:"${trackedItemName%.md}"} \
+				${requestThread:+--header:upsert:request-thread:"slack:$requestThread"} \
 				${reviewBySaid:+--header:upsert:review-by:"$reviewBySaid"} \
 				${spawnDescriptionKept:+--header:upsert:description:"$spawnDescriptionKept"} \
 				${sessionCommentKept:+--header:upsert:session-comment:"$sessionCommentKept"} \

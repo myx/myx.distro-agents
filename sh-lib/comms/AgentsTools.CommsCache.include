@@ -357,7 +357,7 @@ AgentsToolsCommsCachePush(){ ## cache folder, now, most (optional; 0 or none: no
 	local pushSession pushBlock pushMember pushIdentity pushMethod pushPayload pushPauseDir pushPauseUntil pushMerged
 	case "$pushMost" in ''|*[!0123456789]*) pushMost=0 ;; esac
 	agentsCommsCachePushMade=0
-	[ -f "$pushDir/outbox.pushing.txt" ] || [ -s "$pushDir/outbox.messages.txt" ] || return 0
+	[ -f "$pushDir/outbox.pushing.txt" ] || [ -s "$pushDir/outbox.messages.txt" ] || [ -s "$pushDir/.fold.txt" ] || return 0
 	if ! ( set -o noclobber ; printf '%s\n' "$pushNow" > "$pushDir/.pushlock.txt" ) 2> /dev/null ; then
 		{ read -r pushLock < "$pushDir/.pushlock.txt" ; } 2> /dev/null || pushLock=0
 		case "$pushLock" in ''|*[!0-9]*) pushLock=0 ;; esac
@@ -367,12 +367,24 @@ AgentsToolsCommsCachePush(){ ## cache folder, now, most (optional; 0 or none: no
 	fi
 	while : ; do
 		if [ ! -f "$pushDir/outbox.pushing.txt" ] ; then
+			[ ! -s "$pushDir/.fold.txt" ] || mv -f "$pushDir/.fold.txt" "$pushDir/outbox.messages.txt" 2> /dev/null || :
 			[ -s "$pushDir/outbox.messages.txt" ] || break
 			mv -f "$pushDir/outbox.messages.txt" "$pushDir/outbox.pushing.txt" 2> /dev/null || break
 			printf '0 0 0\n' > "$pushDir/.push.txt" 2> /dev/null
 		fi
 		{ read -r pushSent pushRetry pushTries < "$pushDir/.push.txt" ; } 2> /dev/null || :
 		case "$pushSent:$pushRetry:$pushTries" in *[!0-9:]*|:*|*::*|*:) pushSent=0 pushRetry=0 pushTries=0 ;; esac
+		## THE FILE IN FLIGHT TAKES WHAT WAS APPENDED SINCE (S10.31): a send appends to outbox.messages.txt while outbox.pushing.txt is being posted, and its
+		## record otherwise waits behind every tracking post of that file. Renamed aside first, so a send that races the rename is carried by the same inode,
+		## then merged again: the coalesce puts a message ahead of the tracking posts, and `sent` still names the same record. A fold a turn died in is carried
+		## by the next one, which may post one record twice; nothing it holds is lost.
+		if [ ! -s "$pushDir/.fold.txt" ] && [ -s "$pushDir/outbox.messages.txt" ] ; then
+			mv -f "$pushDir/outbox.messages.txt" "$pushDir/.fold.txt" 2> /dev/null || :
+		fi
+		if [ -s "$pushDir/.fold.txt" ] ; then
+			cat "$pushDir/.fold.txt" >> "$pushDir/outbox.pushing.txt" 2> /dev/null \
+				&& rm -f "$pushDir/.fold.txt" "$pushDir/.merged.txt" 2> /dev/null || :
+		fi
 		## THE TRACKING POSTS OF A FILE ARE JOINED, once for the file, under this lock: consecutive posts of one member's activity become one message up to Slack's
 		## weight, so a backlog drains at the rate of messages the channel takes and not at one line a message (AgentsCommsOutboxCoalesce.awk). The posts already
 		## sent are kept as they are, so `sent` still points at the same record. A merge that fails leaves the file as it was.
@@ -533,6 +545,7 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 				[ ! -f "$watchEntryMark" ] || [ -n "$( find "$watchEntryMark" -mmin +2160 2> /dev/null )" ] || continue
 				[ ! -s "$MMDAPP/.local/cache/comms/$watchService/$watchEntry/outbox.messages.txt" ] || continue
 				[ ! -s "$MMDAPP/.local/cache/comms/$watchService/$watchEntry/outbox.pushing.txt" ] || continue
+				[ ! -s "$MMDAPP/.local/cache/comms/$watchService/$watchEntry/.fold.txt" ] || continue
 				rm -rf -- "$MMDAPP/.local/cache/comms/$watchService/$watchEntry" 2> /dev/null || :
 			done
 		done

@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ConfluencePageRender.include -- `--confluence-page-render`: one Confluence page body,
+## rendered from its one source. Print-only: it writes the body to stdout and never to a page.
+##
+## THE SOURCE IS NAMED, NEVER SEARCHED FOR. A spec is one of three shapes, each resolved through the
+## store's own owner function:
+##   board:<state>/<item-filename>[#<heading>]
+##   vault:<item-name>[#<heading>]
+##   <absolute path>[#<heading>]
+## `<heading>` renders that one section; without it the whole document is rendered and its
+## frontmatter is left out.
+##
+## ONE SOURCE PER PAGE, AND LINKS RESOLVED AT RENDER TIME. An internal link is emitted unpinned. A
+## save adds a pin where there is none, so a body written once carries its targets' versions at that
+## moment and a later page move leaves it stale; re-rendering and writing again is what clears it.
+## Measured on pages 4930174978 and 4930338817: an unpinned link came back pinned at the target's
+## version then, and a later write of that target left the pin alone.
+##
+## A HAND EDIT IS REPORTED, NEVER OVERWRITTEN. With `--page-id` the live body is read and compared
+## against the render, every `local-id` and `ri:version-at-save` attribute a save adds being taken
+## out first. Any line only the live page carries is a hand edit, printed on stderr, and the call
+## exits 1 so a write cannot follow it unnoticed.
+##
+## A PAGE THAT WAS NOT READ IS NEVER REPORTED CLEAN. The engine is python3 for the same reason
+## AgentsConfluencePageCheck.py is: the inline conversions are capture-group matches, which the
+## fleet's awk cannot do.
+##
+## The engine is AgentsConfluencePageRender.py beside this file.
+
+AgentsToolsAtlassianConfluencePageRender(){ ## --member <team-member> --source <spec> [--page-id <page-id>] [--context <caller>]
+	local rendMember="" rendSpec="" rendPageId="" rendContext="confluence-page-render"
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--member|--source|--page-id|--context)
+				if [ -z "${2:-}" ] ; then
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$rendContext: $1 value missing" >&2
+					return 1
+				fi
+				case "$1" in
+					--member)  rendMember="$2" ;;
+					--source)  rendSpec="$2" ;;
+					--page-id) rendPageId="$2" ;;
+					--context) rendContext="$2" ;;
+				esac
+				shift 2
+			;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$rendContext: invalid option: $1" >&2
+				return 1
+			;;
+		esac
+	done
+	if [ -z "$rendMember" ] || [ -z "$rendSpec" ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$rendContext: syntax is --member <team-member> --source <spec> [--page-id <page-id>] [--context <caller>] -- <spec> is board:<state>/<item-filename>[#<heading>], vault:<item-name>[#<heading>] or <absolute path>[#<heading>]" >&2
+		return 1
+	fi
+
+	## The heading, where the spec names one. The name is the text after the last '#', and a spec
+	## with no '#' renders the whole document.
+	local rendHeading="" rendPath="$rendSpec"
+	case "$rendSpec" in
+		*'#'*) rendHeading="${rendSpec##*#}" ; rendPath="${rendSpec%#*}" ;;
+	esac
+
+	## One source, resolved through the store that owns it. A store is never read by path from here.
+	local rendSourceFile="" rendSourceText=""
+	case "$rendPath" in
+		vault:*)
+			type AgentsToolsVaultItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/vault/AgentsTools.VaultPlace.include"
+			local rendItemName="${rendPath#vault:}"
+			## A bare name names the Markdown document of that name, as the vault's own read resolves it.
+			case "$rendItemName" in *.*) ;; *) rendItemName="$rendItemName.md" ;; esac
+			rendSourceFile="$( AgentsToolsVaultItemPath "$rendItemName" )" || rendSourceFile=""
+		;;
+		board:*)
+			local rendItem="${rendPath#board:}" rendState="${rendItem%%/*}" rendStateFound=""
+			rendItem="${rendItem#*/}"
+			case "$rendItem" in
+				''|*/*) rendItem="" ;;
+			esac
+			case "$rendState" in
+				backlog|pending|running|review|blocked|parked|processed|archived|retained) rendStateFound="$rendState" ;;
+			esac
+			if [ -n "$rendItem" ] && [ -n "$rendStateFound" ] && [ -n "${MDAT_DATA_ROOT:-}" ] ; then
+				rendSourceFile="$MDAT_DATA_ROOT/board/$rendStateFound/$rendItem"
+			fi
+		;;
+		/*) rendSourceFile="$rendPath" ;;
+	esac
+	if [ -z "$rendSourceFile" ] || [ ! -f "$rendSourceFile" ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$rendContext: the source could not be resolved: $rendSpec -- a spec is board:<state>/<item-filename>[#<heading>], vault:<item-name>[#<heading>] or <absolute path>[#<heading>], and nothing was rendered" >&2
+		return 1
+	fi
+
+	local rendLiveFile="" rendRc=0
+	if [ -n "$rendPageId" ] ; then
+		type AgentsToolsAtlassianConfluencePageRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.ConfluenceReads.include"
+		## An earned file: python3 opens it by path, and the comparison is against the page as it
+		## stands rather than against anything this process could have edited.
+		mkdir -p "$MMDAPP/.local/temp" || return 3
+		rendLiveFile="$( mktemp "$MMDAPP/.local/temp/agents-page-render-live.XXXXXX" )" || return 3
+		if ! AgentsToolsAtlassianConfluencePageRead --member "$rendMember" --page-id "$rendPageId" --context "$rendContext" --format storage > "$rendLiveFile" ; then
+			rm -f -- "$rendLiveFile"
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$rendContext: page $rendPageId was not read, so whether it differs from its render is UNKNOWN -- nothing was reported" >&2
+			return 3
+		fi
+	fi
+
+	AGENTS_RENDER_SOURCE_SPEC="$rendPath" \
+	AGENTS_RENDER_HEADING="$rendHeading" \
+	AGENTS_RENDER_LIVE_FILE="$rendLiveFile" \
+	LC_ALL=C.UTF-8 python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsConfluencePageRender.py" < "$rendSourceFile" || rendRc=$?
+	[ -z "$rendLiveFile" ] || rm -f -- "$rendLiveFile"
+	return "$rendRc"
+}

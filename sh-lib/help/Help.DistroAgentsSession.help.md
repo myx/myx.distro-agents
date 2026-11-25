@@ -130,6 +130,8 @@
 			The title of the session, what it is about: the title in lists and
 			statuses, and the thread's root post edited to match. The authority
 			rule's own options decide what a participant's change does.
+			A root the bot did not post, such as a person's message, keeps its
+			text. The output says so, and the title is set all the same.
 
 		--routine-stack (--push <routine>|--replace <routine>|--rewind|--return|--return-to <frame>) [--reason <text>] [--by chair|routine|tool]
 			One move of the calling session's routine stack, the ordered list of

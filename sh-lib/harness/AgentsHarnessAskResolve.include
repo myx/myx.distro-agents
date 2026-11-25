@@ -163,14 +163,22 @@ AgentsHarnessAskResolve(){ ## pending reply id, kind, question tag, wait output,
 			## author, so the record and the item's Decisions keep what the answer said. Its
 			## first line is the answer; the rest of it, and every later reply, are kept as
 			## clarifications on it (AgentsPendingReplyClarifications.awk).
-			local askAnswerHead="" askAnswerText="" askAnswerBody="" askAnswerTs="" askClarify=""
+			local askAnswerHead="" askAnswerText="" askAnswerBody="" askAnswerTs="" askAnswerRest="" askClarify=""
 			askAnswerBody="$( AgentsHarnessAskAnswerBody "$askWaitOut" "$askPendingId" )"
-			askAnswerHead="$( printf '%s\n' "$askAnswerBody" | LC_ALL=C grep -m1 -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' )" || askAnswerHead=""
+			## THE REPLY THE ANSWER WAS READ FROM, never the first one the list holds: the reader
+			## that classified it names that reply (ANSWER-TS), and the thread may hold replies
+			## ahead of it. A click, or a read that named no reply, falls back to the first reply.
+			askAnswerTs="$( printf '%s\n' "$askReadLines" | LC_ALL=C sed -n 's/^ANSWER-TS: //p' | head -1 )"
+			askAnswerRest="$( printf '%s\n' "$askAnswerBody" | LC_ALL=C awk -v want="$askAnswerTs" '
+				want != "" && ! started && index( $0, want " | " ) == 1 { started = 1 ; }
+				started { print ; }' )"
+			[ -n "$askAnswerRest" ] || askAnswerRest="$askAnswerBody"
+			askAnswerHead="$( printf '%s\n' "$askAnswerRest" | LC_ALL=C grep -m1 -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' )" || askAnswerHead=""
+			[ -n "$askAnswerTs" ] || askAnswerTs="$( printf '%s\n' "$askAnswerRest" | LC_ALL=C sed -n -E 's/^([0-9]+\.[0-9]+) \| .*/\1/p' | head -1 )"
 			case "$askAnswerHead" in
 				'reaction on the question: '*) askAnswerText="$askAnswerHead" ;;
-				?*) askAnswerText="$( printf '%s\n' "$askAnswerBody" | AgentsHarnessAskOwnWords | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyAnswerText.awk" 2>/dev/null )" || askAnswerText="" ;;
+				?*) askAnswerText="$( printf '%s\n' "$askAnswerRest" | AgentsHarnessAskOwnWords | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsPendingReplyAnswerText.awk" 2>/dev/null )" || askAnswerText="" ;;
 			esac
-			askAnswerTs="$( printf '%s\n' "$askAnswerBody" | LC_ALL=C sed -n -E 's/^([0-9]+\.[0-9]+) \| .*/\1/p' | head -1 )"
 			AgentsHarnessPendingReplyClose "$askPendingId" reply-received "$askAnswerText" "$askAnswerTs" \
 				"$( printf '%s\n' "$askAnswerHead" | LC_ALL=C sed -n -E 's/^[0-9]+\.[0-9]+ \| ([^|]*[^| ]) *\|.*/\1/p' )"
 			case "$askAnswerHead" in

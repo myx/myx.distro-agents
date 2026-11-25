@@ -115,7 +115,7 @@ Every harness tool and `magic-tooling` operation this routine uses. A harness to
 
 - `--slack-send-message <target> [text...]` (`DistroAgentsSlack`)
 - `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — the named `transcript-*` this routine keeps. `SessionTranscriptAppend` takes a note line.
-- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
+- `--upsert-inbox-inquiry <target-member> <item-filename> [--include-processed] [--from-file <path>]` (`DistroAgentsItems`)
 - `--advance-to-running <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` (`DistroAgentsItems`) — `magic-coordinator` only
 - `--move-to-processed <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` (`DistroAgentsItems`) — `magic-coordinator` only
 - `--move-to-pending <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]...` (`DistroAgentsItems`) — `magic-coordinator` only

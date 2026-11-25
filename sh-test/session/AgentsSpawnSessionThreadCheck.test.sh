@@ -42,8 +42,17 @@ rigRefuse(){
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSpawnSessionThreadCheck )" || exit 1
+## A spawn nobody waits on runs its close steps behind the call, in processes of their own. Where one still runs when the
+## rig's tree goes, it writes into the tree again and `rm` finds it not empty. Every process whose working folder is in
+## the tree is ended first, with the processes it started. Read, noted and signalled at once, so a pid taken since is never signalled.
+rigTreeEnd(){
+	local treePids
+	treePids="$( PATH="$rigProcPath" lsof -a -d cwd -Fpn 2> /dev/null | PATH="$rigProcPath" LC_ALL=C awk -v want="$rigTmp/" '/^p/ { pid = substr( $0, 2 ) } /^n/ { if ( index( substr( $0, 2 ) "/", want ) == 1 ) print pid }' )" || treePids=""
+	[ -z "$treePids" ] || { rigProcNote $treePids ; rigProcSignalWithChildren KILL $treePids ; }
+	return 0
+}
 ## A filled sandbox input/ loses its write bits by contract.
-trap 'chmod -R u+w -- "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
+trap 'chmod -R u+w -- "$rigTmp" 2> /dev/null ; rigTreeEnd ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin"
 ## THE RIG HAS ITS OWN HOME AND ITS OWN MEMBERS. The tooling reads the member-home registry and the
@@ -419,6 +428,8 @@ rigAssert "its handback is addressed to the member that spawned it" \
 ## the rig's tree goes.
 rigWaited=0
 while { [ "$( rigAgentField status )" = "spawn-started" ] || { [ -n "$rigAgentPid" ] && kill -0 "$rigAgentPid" 2> /dev/null ; } ; } && [ "$rigWaited" -lt 120 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
+## A process that outlived the status and the pid ends here, not under `rm`.
+rigTreeEnd
 rigCaller=()
 
 if [ "$rigFails" -ne 0 ] ; then

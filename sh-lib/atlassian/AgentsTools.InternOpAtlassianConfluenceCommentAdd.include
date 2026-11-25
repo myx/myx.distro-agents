@@ -41,6 +41,10 @@
 			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCAContext: --body-storage|--body-storage-from-stdin|--body-storage-from-file missing" >&2
 			set +e ; return 1
 		fi
+		## A REPLY TAKES ITS PARENT'S OWN LEG: an inline comment sits at its own endpoint and is no
+		## footer comment, so the footer leg is asked first and the inline leg only where the footer
+		## leg answers not-found. The POST then goes to the leg that answered, or nothing is posted.
+		local confCAParentLeg="footer-comments"
 		if [ -n "$confCAParentCommentId" ] ; then
 			case "$confCAParentCommentId" in
 				*[!0123456789]*)
@@ -49,7 +53,17 @@
 				;;
 			esac
 			local confCAParentBody confCAParentRc=0
-			confCAParentBody="$( AgentsToolsAtlassianCall "$confCAMember" confluence GET "/wiki/api/v2/footer-comments/$confCAParentCommentId" "$confCAContext" "" )" || confCAParentRc=$?
+			confCAParentBody="$( AgentsToolsAtlassianCall "$confCAMember" confluence GET "/wiki/api/v2/$confCAParentLeg/$confCAParentCommentId" "$confCAContext" "" )" || confCAParentRc=$?
+			if [ "$confCAParentRc" -eq 8 ] ; then
+				## The second leg's status replaces the first leg's 404: a success here is not the footer leg's answer.
+				confCAParentLeg="inline-comments"
+				confCAParentRc=0
+				confCAParentBody="$( AgentsToolsAtlassianCall "$confCAMember" confluence GET "/wiki/api/v2/$confCAParentLeg/$confCAParentCommentId" "$confCAContext" "" )" || confCAParentRc=$?
+			fi
+			if [ "$confCAParentRc" -eq 8 ] ; then
+				printf '%s\n' "🙋 WARNING: $MDSC_CMD --$confCAContext: no footer comment and no inline comment with id $confCAParentCommentId on page $confCAPageId -- a 404 also covers a comment this identity may not see, and the reply was NOT posted" >&2
+				set +e ; return 8
+			fi
 			if [ "$confCAParentRc" -ne 0 ] ; then
 				set +e ; return "$confCAParentRc"
 			fi
@@ -69,7 +83,7 @@
 			confCABody="{\"pageId\":\"$confCAPageIdEsc\",\"body\":{\"representation\":\"storage\",\"value\":\"$confCABodyEsc\"}}"
 		fi
 		local confCARc=0
-		AgentsToolsAtlassianCall "$confCAMember" confluence POST /wiki/api/v2/footer-comments "$confCAContext" "$confCABody" || confCARc=$?
+		AgentsToolsAtlassianCall "$confCAMember" confluence POST "/wiki/api/v2/$confCAParentLeg" "$confCAContext" "$confCABody" || confCARc=$?
 		if [ "$confCARc" -ne 0 ] ; then
 			set +e ; return "$confCARc"
 		fi

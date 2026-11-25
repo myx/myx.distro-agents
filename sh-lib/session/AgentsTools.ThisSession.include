@@ -626,10 +626,11 @@ AgentsToolsThisSessionIsExecutor(){
 
 ## The write of --set-session-topic, the intern operation DistroAgentsTools runs (--session-id <id>
 ## <text>): the session-comment header of every record of the session is set to the topic (the title
-## in lists and statuses), and the thread's root post is edited to match, as the bot that posted it.
+## in lists and statuses), and the thread's root post is edited to match, as the bot that posted it. A root the bot did not post, such as a
+## person's message, is left as it is and said so.
 ## The title is the change; the root edit is best-effort and never undoes the title.
 AgentsToolsThisSessionTopicSet(){ ## --session-id <id> <text>
-	local topicSession="" topicText="" topicBy="" topicFile topicThread="" topicRoot="" topicRc=0 topicWritten=""
+	local topicSession="" topicText="" topicBy="" topicFile topicThread="" topicRoot="" topicRc=0 topicWritten="" topicEdit="" topicNote=""
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--session-id) topicSession="${2:-}" ; shift 2 ;;
@@ -654,11 +655,17 @@ AgentsToolsThisSessionTopicSet(){ ## --session-id <id> <text>
 		topicRoot="$( STR_SESSION_NAME="$topicText" STR_STARTED_BY="$topicBy" AgentsToolsToolingTemplateFill session-thread.root.format.md session/AgentsSessionThreadRootFill.awk 2> /dev/null )" || topicRoot=""
 		if [ -n "$topicRoot" ] ; then
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			DistroAgentsTools --slack-edit-message --team-member "$topicBy" "$topicThread" --identity-bot "$topicRoot" > /dev/null 2>&1 || :
+			## Slack answers cant_update_message or message_not_found for a message the bot did not post: that is no fault of the title.
+			topicEdit="$( DistroAgentsTools --slack-edit-message --team-member "$topicBy" "$topicThread" --identity-bot "$topicRoot" 2>&1 > /dev/null )" || {
+				case "$topicEdit" in
+					*cant_update_message*|*message_not_found*) topicNote=" (the thread root is not the bot's post, so its text is left as it is)" ;;
+					*) topicEdit="${topicEdit##*$'\n'}" ; echo "$MDSC_CMD: ⚠ WARNING: --intern-op-set-session-topic: the thread root of $topicSession was not edited, and the title is set: ${topicEdit:0:300}" >&2 ;;
+				esac
+			}
 		fi
 	fi
 	[ "$topicRc" = 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-set-session-topic: one of the session's records could not be updated. Nothing more was changed." >&2 ; return 1 ; }
-	printf 'OK: --set-session-topic: session %s is about: %s\n' "$topicSession" "$topicText"
+	printf 'OK: --set-session-topic: session %s is about: %s%s\n' "$topicSession" "$topicText" "$topicNote"
 }
 
 ## The write of --set-session-chapter, the intern operation DistroAgentsTools runs (--session-id

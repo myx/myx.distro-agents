@@ -86,6 +86,8 @@ case "$1" in
 		## silently starting a new session when the id names no row with a thread.
 		local joinSessionId=""
 		local conversationThreads=""
+		## The words of conversationThreads that may name the request thread: an explicit --conversation, a relayed `# arrived on:` line and an item's header.
+		local requestWords=""
 		local sessionThreadMode="magic-team"
 		## Free text for a session-starting spawn's own opening post title. Never a
 		## bare name: this reaches a printf argument position, never its format
@@ -325,6 +327,7 @@ case "$1" in
 						set +e ; return 1
 					fi
 					case " $conversationThreads " in *" $2 "*) ;; *) conversationThreads="$conversationThreads${conversationThreads:+ }$2" ;; esac
+					case " $requestWords " in *" $2 "*) ;; *) requestWords="$requestWords${requestWords:+ }$2" ;; esac
 					shift 2
 				;;
 				--calling-member)
@@ -720,11 +723,72 @@ case "$1" in
 		fi
 
 		## A brief relaying messages from a thread continues that conversation too.
+		## Only the arrival line of a relayed Wait result may name the request thread. A permalink in a brief keeps its join meaning alone.
 		local derivedThread
 		while IFS= read -r derivedThread ; do
 			[ -n "$derivedThread" ] || continue
 			case " $conversationThreads " in *" $derivedThread "*) ;; *) conversationThreads="$conversationThreads${conversationThreads:+ }$derivedThread" ;; esac
+			case $'\n'"$spawnContext"$'\n' in
+				*$'\n# arrived on: slack:'"$derivedThread"$'\n'*|*$'\n# arrived on: slack:'"$derivedThread":*)
+					case " $requestWords " in *" $derivedThread "*) ;; *) requestWords="$requestWords${requestWords:+ }$derivedThread" ;; esac
+				;;
+			esac
 		done <<< "$( AgentsToolsSpawnConversationDerive "$spawnContext" )"
+		## THE REQUEST ADDRESS RIDES ON THE TRACKED ITEM where nothing else names it: its `communication-channel-id` (or `request-thread` on a dispatch item), read by the shell.
+		if [ -z "$requestWords" ] && [ -n "$trackedItemName" ] ; then
+			local itemAddrFile="" itemAddrLine="" itemAddrId="" itemAddrReq="" itemAddrFence=0 itemAddrSlack=""
+			type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" || echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: AgentsTools.ItemDecisions.include did not load, so the request thread of $trackedItemName is not read" >&2
+			if AgentsToolsBoardItemInto itemAddrFile "${trackedItemName%.md}" ; then
+				while IFS= read -r itemAddrLine ; do
+					if [ "$itemAddrFence" = 0 ] ; then [ "$itemAddrLine" = "---" ] || break ; itemAddrFence=1 ; continue ; fi
+					[ "$itemAddrLine" != "---" ] || break
+					case "$itemAddrLine" in
+						communication-channel-id:\ *) [ -n "$itemAddrId" ] || itemAddrId="${itemAddrLine#*: }" ;;
+						request-thread:\ *) [ -n "$itemAddrReq" ] || itemAddrReq="${itemAddrLine#*: }" ;;
+						references:\ *-slack-*|spawned-by:\ *-slack-*|tracks:\ *-slack-*) itemAddrSlack="yes" ;;
+					esac
+				done < "$itemAddrFile"
+				itemAddrId="${itemAddrId:-$itemAddrReq}"
+				case "$itemAddrId" in
+					'') [ -z "$itemAddrSlack" ] || echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: item ${trackedItemName%.md} traces to a Slack inbox item and carries no communication-channel-id, so this start has no request thread" >&2 ;;
+					slack:*)
+						itemAddrId="${itemAddrId#slack:}"
+						if AgentsToolsSpawnConversationThreadValid "$itemAddrId" ; then
+							requestWords="$itemAddrId"
+							case " $conversationThreads " in *" $itemAddrId "*) ;; *) conversationThreads="$conversationThreads${conversationThreads:+ }$itemAddrId" ;; esac
+						else
+							echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: item ${trackedItemName%.md} names the Slack place $itemAddrId, which is no <channel>:<thread ts>, so this start has no request thread" >&2
+						fi
+					;;
+				esac
+			elif [ "$sourceMode" = "board" ] || [ -n "$trackedItemSaid" ] ; then
+				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: item ${trackedItemName%.md} is on no board state this lookup reads, so its request thread is not read" >&2
+			fi
+		fi
+		## THE REQUEST THREAD is the one word left of requestWords. A thread of the event-track channel is no person's message and is dropped, in the record too.
+		local requestThread="" requestMissed=""
+		if [ -n "$requestWords" ] ; then
+			local requestTrack="" requestKept="" requestWord
+			type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include" || echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: AgentsTools.EventTrackThread.include did not load, so a request thread is not checked against the event-track channel" >&2
+			requestTrack="$( AgentsToolsEventTrackChannel )" || requestTrack=""
+			for requestWord in $requestWords ; do
+				if AgentsToolsEventTrackThreadIs "$requestWord" "$requestTrack" ; then
+					echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: request thread $requestWord is a thread of the event-track channel, which is no person's message, so it is dropped" >&2
+					conversationThreads=" $conversationThreads " ; conversationThreads="${conversationThreads/ $requestWord / }" ; conversationThreads="${conversationThreads# }" ; conversationThreads="${conversationThreads% }"
+				else
+					requestKept="$requestKept${requestKept:+ }$requestWord"
+				fi
+			done
+			requestWords="$requestKept"
+			case "$requestWords" in
+				'') ;;
+				*\ *)
+					requestMissed="$requestWords -- several threads are named, so none is the request"
+					echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: several request threads are named ($requestWords), so none is taken as the request and the session thread opens in its usual place" >&2
+				;;
+				*) requestThread="$requestWords" ;;
+			esac
+		fi
 		if [ -z "$joinSessionId" ] && [ -n "$conversationThreads" ] && [ "$sessionThreadMode" != "event-track" ] ; then
 			local conversationJoin=""
 			conversationJoin="$(
@@ -866,6 +930,16 @@ case "$1" in
 		## caller said the call is made as (--calling-member). Kept on the spawn's record
 		## (`parent-member:`), and who the lines this spawn posts for its caller are addressed to.
 		local spawnCallMember="${parentMemberSaid:-${spawnerMember:-$callingMemberSaid}}"
+		## A MEMBER THAT OWES A REPLY AND SPAWNS FOR NO NAMED CONVERSATION IS TOLD, never defaulted: the address may be another person's.
+		## Only a spawn made by a run is told, as MDAT_SPAWN_SESSION_ID says. A start by the schedule or a duty is not.
+		if [ -z "$requestWords" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "$spawnCallMember" ] && [ -z "$workDutyDispatchFile" ] ; then
+			local owedHere="" owedSeconds="${MDAT_OWED_REPLY_SECONDS:-1800}"
+			case "$owedSeconds" in ''|*[!0123456789]*) owedSeconds=1800 ;; esac
+			type AgentsToolsOwedRepliesNewest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include" || echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: AgentsTools.OwedReplies.include did not load, so no owed reply is looked up" >&2
+			if AgentsToolsOwedRepliesNewest owedHere "$spawnCallMember" "" "" "$(( owedSeconds * 3 ))" ; then
+				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: $spawnCallMember owes a reply at $owedHere and this spawn names no conversation: pass --conversation $owedHere if the session is for that message" >&2
+			fi
+		fi
 
 		export MDAT_SPAWN_SESSION_ID="$( uuidgen 2>/dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
 		if [ -z "$MDAT_SPAWN_SESSION_ID" ] ; then
@@ -1056,7 +1130,7 @@ case "$1" in
 		transcriptRel="$( AgentsTranscriptNewRel "$callerName" "$MDAT_SPAWN_SESSION_ID" )" || transcriptRel=""
 		[ "$teamDataKept" = "yes" ] || transcriptRel=""
 
-		local sessionStateDir="" outputFile=""
+		local sessionStateDir="" outputFile="" sessionJoinDir=""
 		type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 		AgentsSessionFolderInto sessionStateDir "$MMDAPP" "$MDAT_SPAWN_SESSION_ID" || :
 		mkdir -p "$sessionStateDir" || {
@@ -1070,6 +1144,8 @@ case "$1" in
 		## THE TIER IS RECORDED BY THE SESSION STORE'S OWN WRITER, once: a later run of the session keeps the tier it
 		## already holds, so a restart never moves the channel its messages go to.
 		type AgentsToolsSessionTierWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTier.include"
+		## A JOIN INTO A SESSION WITH NO FOLDER OF ITS OWN STILL STARTS: this call makes the session's folder as it makes its own run's.
+		[ "$sessionId" = "$MDAT_SPAWN_SESSION_ID" ] || { AgentsSessionFolderInto sessionJoinDir "$MMDAPP" "$sessionId" && mkdir -p "$sessionJoinDir" ; } || :
 		AgentsToolsSessionTierWrite "$sessionId" "$securityTier" || {
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: the security tier $securityTier could not be recorded for session $sessionId -- nothing was started" >&2
 			[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
@@ -1201,8 +1277,20 @@ case "$1" in
 				' "$( AgentsToolsRegistryFile spawned-sessions )"
 			)" || sessionThread=""
 		fi
-		if [ -z "$sessionThread" ] && [ -z "$sessionPrintback" ] && [ -z "$sessionTrack" ] && { [ -n "$sessionJoined" ] || [ -n "$workDutyStart" ] || [ "$sessionThreadMode" != "event-track" ] ; } ; then
+		if [ -z "$sessionThread" ] && [ -z "$sessionPrintback" ] && [ -z "$sessionTrack" ] && { [ -n "$sessionJoined" ] || [ -n "$workDutyStart" ] || [ -n "$requestThread" ] || [ "$sessionThreadMode" != "event-track" ] ; } ; then
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxySessionThreadOpen.include"
+		fi
+		## A REQUEST THE SESSION THREAD IS NOT is said and marked in the brief: a start that joins or inherits a thread, or whose side is the printback or tracking channel, keeps that place.
+		if [ -n "$requestThread" ] && [ "$sessionThread" != "$requestThread" ] ; then
+			requestMissed="$requestThread -- this start keeps ${sessionThread:-no session thread}, which is not the request thread"
+			echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: request thread $requestThread is not used: this start keeps ${sessionThread:-no session thread}" >&2
+			## The dispatch item no longer names a thread the session is not in.
+			if [ "$dispatchDocMode" = "create" ] && [ -n "$dispatchItemName" ] ; then
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				DistroAgentsTools --intern-op-board-upsert-move-edit running "$dispatchItemName" --from-state:running --context "$opContext" --header:remove:request-thread --log-verb:updated > /dev/null 2>&1 \
+					|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the dispatch item $dispatchItemName still names the request thread $requestThread" >&2
+			fi
+			requestThread=""
 		fi
 		[ -z "$sessionThreadLock" ] || AgentsToolsLocalLockGive "$sessionThreadLock"
 		[ -z "$sessionThread" ] || export MDAT_SESSION_THREAD="$sessionThread"
@@ -1639,6 +1727,7 @@ case "$1" in
 			done
 			spawnContext="$( printf '%s\n' "$spawnContext" "" "$conversationNote" )"
 		fi
+		[ -z "$requestMissed" ] || spawnContext="$( printf '%s\n' "$spawnContext" "" "request_thread_not_used: $requestMissed" )"
 		## A resumed session already holds its brief: its prompt is the corrections and the item's newest Decisions.
 		local resumeContext=""
 		if [ -n "$resumeFrom" ] || [ -n "$resumeContextFile" ] ; then

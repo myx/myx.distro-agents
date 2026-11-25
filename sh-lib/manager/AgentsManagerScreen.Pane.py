@@ -106,8 +106,11 @@ def followSelection(state, idle=False):
             state.view["table"]["filter"] = state.startFilter
             state.startFilter = ""
         ## a pane that is made new holds nothing of its item: its reads are due again, whenever they were last made
+        ## and has none of what its reads answered when the item was shown before: an answer noted as given is what made a second look take
+        ## no answer into the new pane (startDueReads), which left it with the row's few facts.
         for part in VIEW_PARTS:
             state.started.pop("%s:%s" % (part, viewKey), None)
+            state.answered.pop("%s:%s" % (part, viewKey), None)
         ## what an action answered stands on the item it was asked on, and goes with it
         if state.answer is not None and state.answer["key"] != viewKey:
             state.answer = None

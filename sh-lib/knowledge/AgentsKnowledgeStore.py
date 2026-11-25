@@ -34,7 +34,6 @@
 ##                                        rc 3 when the index does not stand, so the caller answers with the text alone
 ##
 ## NOTE: the full-scan LanceDB call (`search(None).limit(...).to_list()`) is written against the pinned LanceDB
-
 ## 0.40.0 API and is the one part of this file that a live install must confirm: the query, spread and retire all
 ## stand behind it, and a store built another way is read the same way.
 ##
@@ -401,7 +400,7 @@ def _buildLocked(indexDir, modelDir, modelStamp, sections):
             rows[at]["vector"] = [float(value) for value in vector]
     # A vanished row is one whose id the pass no longer produces: a changed row is re-embedded, never deleted.
     deleted = len(set(storedRows) - set(row["section-id"] for row in rows))
-    # Nothing to embed and nothing gone: the stored table already is this build, so it is not dropped and rewritten ().
+    # Nothing to embed and nothing gone: the stored table already is this build, so it is not dropped and rewritten.
 
     if not rebuild and not needsEmbed and deleted == 0 and "sections" in db.list_tables().tables:
         sys.stdout.write("built: %d section(s), unchanged\n" % len(rows))

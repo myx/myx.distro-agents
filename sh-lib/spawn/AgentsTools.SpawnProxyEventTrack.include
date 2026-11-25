@@ -18,15 +18,22 @@ type AgentsSettingsScopeHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-a
 ## thread under it is the participants' own. A target naming a person resolves to that
 ## person's id, so its DM is opened first and the thread is the conversation id Slack gives
 ## back. Prints `<channel>:<ts>`; where nothing was posted it prints nothing and says one
-## warning on stderr, and silently nothing where no bot token resolves. One line in the
+## warning on stderr, and silently nothing where no bot token resolves unless a request thread was asked for. One line in the
 ## monthly send log, in the member send's own columns.
-AgentsToolsSpawnProxySessionRootPost(){ ## member whose bot token posts it, the session's name, who started it (may be empty), the target (magic-team where none), the session's routine frames (may be empty)
-	local rootMember="$1" rootName="$2" rootBy="${3:-}" rootTarget="${4:-magic-team}" rootStack="${5:-}"
+## A request thread, the 6th parameter, makes the root a reply in that thread and resolves no target.
+## It prints the root Slack names for the thread, so a reply ts turns into its root.
+## A post Slack places at the top of the conversation is deleted at once, and the delete is logged and said.
+## Where the answer names no thread, conversations.replies is read first: a post found in the thread is kept.
+AgentsToolsSpawnProxySessionRootPost(){ ## member whose bot token posts it, the session's name, who started it (may be empty), the target (magic-team where none), the session's routine frames (may be empty), the request thread <channel>:<ts> (may be empty)
+	local rootMember="$1" rootName="$2" rootBy="${3:-}" rootTarget="${4:-magic-team}" rootStack="${5:-}" rootRequest="${6:-}"
 	local rootLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 	local rootText="" rootChannel="" rootPayload="" rootResponse="" rootErrFile="" rootError="" rootRc=0 rootTs="" rootIn="" rootJoined="false" rootDmUser=""
-	local rootOutcome="failed" rootReason="not posted: session-thread root" rootStamp=""
+	local rootOutcome="failed" rootReason="not posted: session-thread root" rootStamp="" rootCaller="$1" rootRetried="false" rootThread="" rootThreadRoot="" rootWhy=""
 	type AgentsToolsResolveSlackBotToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.CommsSlack.include"
-	AgentsToolsResolveSlackBotToken "$rootMember" > /dev/null 2>&1 || return 0
+	AgentsToolsResolveSlackBotToken "$rootMember" > /dev/null 2>&1 || {
+		[ -z "$rootRequest" ] || echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: no bot token resolves for $rootMember, so the request thread $rootRequest is not used" >&2
+		return 0
+	}
 	type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
 	type AgentsToolsRoutineStackShown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineStack.include"
 	rootText="$( STR_SESSION_NAME="$rootName" STR_STARTED_BY="$rootBy" STR_ROUTINES="$( AgentsToolsRoutineStackShown "$rootStack" )" AgentsToolsToolingTemplateFill session-thread.root.format.md session/AgentsSessionThreadRootFill.awk 2> /dev/null )" || rootText=""
@@ -34,65 +41,97 @@ AgentsToolsSpawnProxySessionRootPost(){ ## member whose bot token posts it, the 
 		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: its root post could not be filled from sh-lib/templates/session-thread.root.format.md" >&2
 		return 0
 	fi
-	type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
-	rootChannel="$( DistroAgentsToolsResolveTarget "$rootTarget" 2> /dev/null | sed -n 's/^CHANNEL=//p' )" || rootChannel=""
-	if [ -z "$rootChannel" ] ; then
-		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: $rootTarget names no conversation this workspace sets" >&2
-		return 0
+	if [ -n "$rootRequest" ] ; then
+		rootChannel="${rootRequest%%:*}" ; rootThread="${rootRequest#*:}"
+	else
+		type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
+		rootChannel="$( DistroAgentsToolsResolveTarget "$rootTarget" 2> /dev/null | sed -n 's/^CHANNEL=//p' )" || rootChannel=""
+		if [ -z "$rootChannel" ] ; then
+			echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: $rootTarget names no conversation this workspace sets" >&2
+			return 0
+		fi
+		## A target that names a person is their id, never a conversation: the bot opens the direct
+		## message first and the root goes to the conversation Slack answers with.
+		case "$rootChannel" in
+			U[A-Z0-9]*|W[A-Z0-9]*)
+				rootDmUser="$rootChannel"
+				type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				rootResponse="$( DistroAgentsTools --intern-op-slack-call "$rootMember" --api conversations.open --identity bot --form "users=$rootDmUser" \
+					--context --intern-op-agent-spawn-proxy 2> /dev/null )" || rootResponse=""
+				rootChannel="$( printf '%s\n' "$rootResponse" | LC_ALL=C awk -v path=channel.id -v optional=1 -v dialect=slack -f "$rootLib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || rootChannel=""
+				if [ -z "$rootChannel" ] ; then
+					echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: the direct message of $rootDmUser could not be opened" >&2
+					return 0
+				fi
+			;;
+		esac
 	fi
-	## A target that names a person is their id, never a conversation: the bot opens the direct
-	## message first and the root goes to the conversation Slack answers with.
-	case "$rootChannel" in
-		U[A-Z0-9]*|W[A-Z0-9]*)
-			rootDmUser="$rootChannel"
-			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			rootResponse="$( DistroAgentsTools --intern-op-slack-call "$rootMember" --api conversations.open --identity bot --form "users=$rootDmUser" \
-				--context --intern-op-agent-spawn-proxy 2> /dev/null )" || rootResponse=""
-			rootChannel="$( printf '%s\n' "$rootResponse" | LC_ALL=C awk -v path=channel.id -v optional=1 -v dialect=slack -f "$rootLib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || rootChannel=""
-			if [ -z "$rootChannel" ] ; then
-				echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: the direct message of $rootDmUser could not be opened" >&2
-				return 0
-			fi
-		;;
-	esac
 	rootErrFile="$( mkdir -p "$MMDAPP/.local/temp" && mktemp "$MMDAPP/.local/temp/mdat-session-root.XXXXXX" )" || rootErrFile=""
 	if [ -z "$rootErrFile" ] ; then
 		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: could not create a scratch file under $MMDAPP/.local/temp" >&2
 		return 0
 	fi
-	rootPayload="{\"channel\":\"$rootChannel\",\"text\":\"$( printf '%s' "$rootText" | LC_ALL=C awk -f "$rootLib/mcp/AgentsMcpJsonEscape.awk" )\",\"metadata\":{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"magic-team\",\"tracking\":\"session-root\"${MDAT_SPAWN_SESSION_ID:+,\"session\":\"$MDAT_SPAWN_SESSION_ID\"}}}}"
+	rootPayload="{\"channel\":\"$rootChannel\",\"text\":\"$( printf '%s' "$rootText" | LC_ALL=C awk -f "$rootLib/mcp/AgentsMcpJsonEscape.awk" )\"${rootThread:+,\"thread_ts\":\"$rootThread\"},\"metadata\":{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"magic-team\",\"tracking\":\"session-root\"${MDAT_SPAWN_SESSION_ID:+,\"session\":\"$MDAT_SPAWN_SESSION_ID\"}}}}"
 	while : ; do
 		rootRc=0
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-		rootResponse="$( DistroAgentsTools --intern-op-slack-call "$rootMember" --api chat.postMessage --identity bot --json-body "$rootPayload" \
+		rootResponse="$( DistroAgentsTools --intern-op-slack-call "$rootCaller" --api chat.postMessage --identity bot --json-body "$rootPayload" \
 			--context --intern-op-agent-spawn-proxy 2> "$rootErrFile" )" || rootRc=$?
 		[ "$rootRc" != "0" ] || break
 		if [ "$rootJoined" = "false" ] && LC_ALL=C grep -q '"error":"not_in_channel"' "$rootErrFile" ; then
 			rootJoined="true"
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-			if DistroAgentsTools --intern-op-slack-call "$rootMember" --api conversations.join --identity bot --form "channel=$rootChannel" \
+			if DistroAgentsTools --intern-op-slack-call "$rootCaller" --api conversations.join --identity bot --form "channel=$rootChannel" \
 				--context --intern-op-agent-spawn-proxy > /dev/null 2>&1 ; then
 				continue
 			fi
+		fi
+		## A request thread the member's token cannot reach is tried once with the team's token.
+		if [ -n "$rootRequest" ] && [ "$rootRetried" = "false" ] && [ "$rootCaller" != "magic-team" ] && LC_ALL=C grep -q -E '"error":"(channel_not_found|not_in_channel)"' "$rootErrFile" ; then
+			rootRetried="true" ; rootJoined="false" ; rootCaller="magic-team"
+			continue
 		fi
 		break
 	done
 	if [ "$rootRc" = "0" ] ; then
 		rootTs="$( printf '%s\n' "$rootResponse" | LC_ALL=C awk -v path=ts -v optional=1 -v dialect=slack -f "$rootLib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || rootTs=""
 		rootIn="$( printf '%s\n' "$rootResponse" | LC_ALL=C awk -v path=channel -v optional=1 -v dialect=slack -f "$rootLib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || rootIn=""
+		## The answer's own message names the thread it sits in. None means the post landed at the top of the conversation.
+		if [ -n "$rootRequest" ] && [ -n "$rootTs" ] ; then
+			rootThreadRoot="$( printf '%s\n' "$rootResponse" | LC_ALL=C awk -v path=message.thread_ts -v optional=1 -v dialect=slack -f "$rootLib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || rootThreadRoot=""
+			if [ -z "$rootThreadRoot" ] ; then
+				if DistroAgentsTools --intern-op-slack-call "$rootCaller" --api conversations.replies --identity bot --form "channel=${rootIn:-$rootChannel}" --form "ts=$rootThread" --form "oldest=$rootTs" --form inclusive=true --form limit=1 \
+					--context --intern-op-agent-spawn-proxy 2> /dev/null | LC_ALL=C grep -q -F "\"ts\":\"$rootTs\"" ; then
+					rootThreadRoot="$rootThread"
+				else
+					if DistroAgentsTools --intern-op-slack-call "$rootCaller" --api chat.delete --identity bot --form "channel=${rootIn:-$rootChannel}" --form "ts=$rootTs" \
+						--context --intern-op-agent-spawn-proxy > /dev/null 2>&1 ; then
+						rootWhy="the post ${rootIn:-$rootChannel}:$rootTs landed at the top of the conversation, not in the thread $rootRequest, and was deleted"
+					else
+						rootWhy="the post ${rootIn:-$rootChannel}:$rootTs landed at the top of the conversation, not in the thread $rootRequest, and could not be deleted"
+					fi
+					rootTs=""
+				fi
+			fi
+		fi
 	fi
 	rootError="$( LC_ALL=C grep -m1 'ERROR' "$rootErrFile" 2> /dev/null )" || rootError=""
 	rm -f "$rootErrFile"
-	[ -z "$rootTs" ] || { rootOutcome="ok" ; rootReason="session-thread root posted ts=$rootTs" ; }
+	[ -z "$rootTs" ] || { rootOutcome="ok" ; rootReason="session-thread root posted ts=$rootTs${rootRequest:+ in request thread $rootRequest}" ; }
+	[ -z "$rootWhy" ] || rootReason="not posted: $rootWhy"
 	rootStamp="$( date -u +%Y%m%dT%H%M%SZ )"
-	{ mkdir -p "$MMDAPP/.local/agents" && printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$rootStamp" "$rootMember" "$rootTarget" "$rootChannel" bot "$rootOutcome" "$rootReason" "${MDAT_SPAWN_SESSION_ID:--}" \
+	{ mkdir -p "$MMDAPP/.local/agents" && printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$rootStamp" "$rootMember" "${rootRequest:-$rootTarget}" "$rootChannel" bot "$rootOutcome" "$rootReason" "${MDAT_SPAWN_SESSION_ID:--}" \
 		>> "$MMDAPP/.local/agents/comms-slack-send.${rootStamp:0:4}-${rootStamp:4:2}.log" ; } 2> /dev/null \
 		|| echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: could not append the session thread root's outcome to the send log" >&2
 	if [ -z "$rootTs" ] ; then
-		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened ${rootError:-the Slack call failed}" >&2
+		if [ -n "$rootWhy" ] ; then
+			echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: $rootWhy" >&2
+		else
+			echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened ${rootError:-the Slack call failed}" >&2
+		fi
 		return 0
 	fi
-	printf '%s:%s\n' "${rootIn:-$rootChannel}" "$rootTs"
+	printf '%s:%s\n' "${rootIn:-$rootChannel}" "${rootThreadRoot:-$rootTs}"
 }
 
 ## A Slack link to one post, from its `<channel>:<ts>`:

@@ -834,7 +834,24 @@ AgentsToolsDecisionAccountDecides(){ ## account, item path (its projects and pro
 	AgentsToolsContactsStore decision-readback 2> /dev/null || return 1
 	for adFile in "$contactsPersons"/*.md ; do
 		[ -f "$adFile" ] || continue
-		LC_ALL=C grep -q -x -F -- "slack-id: $1" "$adFile" 2> /dev/null || continue
+		## A coordinate is written bare, `URIGADMIN1`, or with the team it is on, `client-ndm:URIGADMIN1`, and the
+		## store writes the labelled form. The account is the same one either way, and a record holding several is
+		## read one by one.
+		LC_ALL=C awk -v want="$1" '
+			$0 == "---" { fence++ ; if ( fence > 1 ) { exit ; } ; next ; }
+			fence == 1 && /^(slack-id|slack-conversation): / {
+				coordinate = $0 ;
+				sub( /^[a-z-]+: /, "", coordinate ) ;
+				held = split( coordinate, oneValue, "," ) ;
+				for ( valueAt = 1 ; valueAt <= held ; valueAt++ ) {
+					value = oneValue[valueAt] ;
+					gsub( /^[[:space:]]+|[[:space:]]+$/, "", value ) ;
+					sub( /^[^:]+:/, "", value ) ;
+					if ( value == want ) { found = 1 ; exit ; }
+				}
+			}
+			END { exit found ? 0 : 1 }
+		' "$adFile" 2> /dev/null || continue
 		adFile="${adFile##*/}"
 		! AgentsToolsDecisionPartyDecides "contact:${adFile%.md}" "${2:-}" || return 0
 	done

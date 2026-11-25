@@ -94,7 +94,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **Not yet ready** → stays in the inbox.
      - **Ignored** → nothing on the board.
      - every handled inbox item is closed per `magic-team.process-inbox.routine`.
-   - a promoted item tracing to one Slack message carries `communication-channel-id: slack:<channel>:<ts>` on its create call. Every move carries the field unchanged.
+   - a promoted item tracing to one Slack message carries `communication-channel-id: slack:<channel>:<thread root ts>` on its create call. Every move carries the field unchanged.
    - an item whose type has a `resume-review` (`interview-*` → `magic-team.interview.routine`; the list grows as more types define one) gets it run before its triage.
    - a cross-member hand-off this step creates gets `magic-team.process-inbox.routine`'s **reply-on-cross-member-handoff**.
    - run `check-backlog-promote` over `board-backlog`, and `check-reassess` over `board-pending`, `board-parked`, `board-blocked` and `board-running`.

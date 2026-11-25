@@ -7,7 +7,8 @@
 ##   1. a file brief with no tracked name: the dispatch tracks nothing, and no warning names one
 ##   2. a file brief with a tracked name: `tracks:` is written, and the run reads that item's rows
 ##   3. a tracked name that resolves to no board item: the spawn refuses, and starts nothing
-##   4. an item source and a tracked name that differ: the spawn refuses; the same name proceeds
+##   4. an item source and a tracked name: a different one refuses, the same board item proceeds,
+##      and a vault source may not track its own name, which is no board item
 ##   5. a tracked item the member takes no part in: no row is granted by it, and its owner reads it
 ##   6. a brief naming a board item, tracks none: one stderr line, and the spawn still starts
 ##   7. the wire's Agent declaration carries the argument, so a caller can pass it
@@ -180,6 +181,16 @@ rigAssert "two items named: it refuses, and starts nothing" \
 rigSpawn keeper-myx --from-board task-20261015T0000Z-rig-alpha.md --tracked-item task-20261015T0000Z-rig-alpha
 rigAssert "the same item named twice: it proceeds, and tracks it" \
 	"$( rigStarted ):$( rigHeader "$( rigItemPath "$rigItem" )" tracks )" "1:task-20261015T0000Z-rig-alpha"
+## A tracked item is a board item, so a vault source cannot track its own name: that name is no board
+## item, and `tracks:` is never inferred from the source a brief came from.
+rigVaultName="verbatim-20261015T0000Z-rig-vault"
+printf '# rig vault brief\n' | rigOwnerVaultPut "$rigVaultName.md" || rigRefuse "the rig's vault item could not be written"
+rigSpawn keeper-myx --from-vault "$rigVaultName" --tracked-item "$rigVaultName"
+rigAssert "a vault source with its own name tracked: no board item carries it, so it refuses" \
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'names no board item in any state' || : ):$( rigStarted )" "1:0"
+rigSpawn keeper-myx --from-vault "$rigVaultName"
+rigAssert "a vault source with no tracked name: neither guard refuses it, so it starts" \
+	"$( rigStarted ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'names no board item in any state' || : )" "1:0"
 
 echo "-- 5. a tracked item the member takes no part in: no row is granted by it --"
 rigTask task-20261015T0002Z-rig-gamma magic-tester "" "$rigWs/WORK/gamma.txt"

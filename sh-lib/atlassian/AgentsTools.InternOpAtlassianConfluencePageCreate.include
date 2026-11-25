@@ -100,6 +100,9 @@
 		[ -n "$confPCParentId" ] && confPCCreateBody="$confPCCreateBody,\"parentId\":\"$confPCParentId\""
 		confPCCreateBody="$confPCCreateBody,\"body\":{\"representation\":\"storage\",\"value\":\"$confPCBodyEsc\"}}"
 		local confPCRc=0
+		## No operation removes a page this identity may not delete, so a page made for a
+		## measurement stays in its space. Said before the request, while a caller can stop.
+		printf '%s\n' "🙋 WARNING: $MDSC_CMD --$confPCContext: the page created here cannot be removed afterwards unless this identity holds delete on it, so a page made for a measurement stays in its space" >&2
 		AgentsToolsAtlassianCall "$confPCMember" confluence POST /wiki/api/v2/pages "$confPCContext" "$confPCCreateBody" || confPCRc=$?
 		if [ "$confPCRc" -ne 0 ] ; then
 			set +e ; return "$confPCRc"

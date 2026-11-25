@@ -85,7 +85,7 @@ AgentsToolsGrantsMemberSkills(){ ## workspace
 
 ## The whole index on stdout, computed: non-zero, the output then no index, on a failure.
 AgentsToolsGrantsIndexText(){ ## workspace
-	local textWs="${1%/}" textStream textReal textRoot
+	local textWs="${1%/}" textStream textReal textRoot textSkill
 	[ -n "$textWs" ] || return 1
 	type LocalToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" || return 1
 	type AgentsToolsTeamGrantRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" || return 1
@@ -98,10 +98,15 @@ AgentsToolsGrantsIndexText(){ ## workspace
 		agentsGrantsPlaces="$( LocalToolsPlacesMergedText "$textWs" quiet )"
 		agentsGrantsRoots="$( LocalToolsPlacesWorkspaceRoots "$textWs" )"
 		printf '%s\n' "$agentsGrantsPlaces" | LC_ALL=C awk -F'\t' -v OFS='\t' 'NF >= 4 { print "place", $1, $2, $3, $4 ; }'
+		## The librarian's skillset grant holds for a workspace of the machine, and comes from that
+		## list alone: the skills a rig's own source/ holds are never granted.
 		while IFS= read -r textRoot ; do
 			[ -n "$textRoot" ] || continue
-			printf 'grant\tmagic-librarian:%s:skillset:approve:Edit(/%s/**.md)\n' "${textWs##*/}" "$textRoot"
-		done <<< "$( AgentsToolsGrantsMemberSkills "$textWs" )"
+			while IFS= read -r textSkill ; do
+				[ -n "$textSkill" ] || continue
+				printf 'grant\tmagic-librarian:%s:skillset:approve:Edit(/%s/**.md)\n' "${textWs##*/}" "$textSkill"
+			done <<< "$( AgentsToolsGrantsMemberSkills "$textRoot" )"
+		done <<< "$agentsGrantsRoots"
 		AgentsToolsTeamGrantRows "$textWs" permissions.registry | LC_ALL=C awk '{ print "grant\t" $0 ; }'
 		## The temp floor holds for the given workspace itself, whatever folder it sits in. The
 		## source rows below hold for a workspace of the machine, and come from that list alone.

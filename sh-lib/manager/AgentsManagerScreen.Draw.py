@@ -114,6 +114,7 @@ def drawLoading(surface, state, top, column, room, height):
     middle = top + height // 2
     surface.put(middle - 1, left, "\u250c" + "\u2500" * 7 + "\u2510", PLAIN)
     surface.put(middle, left, "\u2502   " + frame + "   \u2502", PLAIN)
+    state.spinSpots.append((middle, left + 4))
     surface.put(middle + 1, left, "\u2514" + "\u2500" * 7 + "\u2518", PLAIN)
 
 
@@ -864,6 +865,7 @@ def drawWindow(surface, state, layout, window):
             state.view["loadingSince"] = nowEpoch()
         elif nowEpoch() - since >= 0.4:
             surface.put(box[1], box[0] + box[2] - 2, spinnerNow(), PLAIN)
+            state.spinSpots.append((box[1], box[0] + box[2] - 2))
     elif window["name"] == "view":
         state.view["loadingSince"] = None
     rows = box[3] - 2
@@ -954,6 +956,7 @@ def drawScreen(surface, state):
     surface.clear()
     surface.cursor(None, None)
     state.spots = []
+    state.spinSpots = []
     if layout is not None and state.dialog is not None:
         state.dialog["plan"] = dialogPlan(state.dialog, columns, lines)
     if layout is None:
@@ -1015,6 +1018,18 @@ def drawStatusOnly(surface, state, layout):
     state.spots = [one for one in state.spots if one[4][0] != "key"]
     drawStatusLine(surface, state, line, surface.size()[0])
     surface.show()
+
+
+## THE SPINNER TURNS ON ITS OWN, whatever the tooling is doing: while the screen waits, each turn writes the cells the spinner stands in
+## and nothing else, so it moves eight times a second and the frame is never drawn whole for it. True where it wrote a frame.
+def spinnerTurn(surface, state):
+    spinFrame = spinnerNow()
+    if not state.spinSpots or not loadingShown(state) or spinFrame == state.spinFrame:
+        return False
+    state.spinFrame = spinFrame
+    for spinLine, spinColumn in state.spinSpots:
+        surface.put(spinLine, spinColumn, spinFrame, PLAIN)
+    return True
 
 
 def screenTurn(surface, state, reader, now, key, idle=False):
@@ -1080,5 +1095,6 @@ def screenTurn(surface, state, reader, now, key, idle=False):
     elif layout is not None:
         ## nothing but another second: the status line is drawn again alone, which is what an
         ## idle screen does once a second instead of drawing every cell of the frame
+        spinnerTurn(surface, state)
         drawStatusOnly(surface, state, layout)
 

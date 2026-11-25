@@ -74,6 +74,21 @@ DistroAgentsContacts(){
 			return $?
 		;;
 	esac
+	## THE TEAM MEMBER OPTION STANDS ANYWHERE AFTER THE NAME: put after the operation's own words, it is taken as if it stood first. Words after `--` stay as given.
+	case " ${*:3} " in
+		*" --team-member "*)
+			local hoistOperation="$1" hoistMember="" hoistRest=()
+			shift
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--team-member) hoistMember="${2:-}" ; shift ; [ $# -eq 0 ] || shift ;;
+					--) hoistRest+=( "$@" ) ; break ;;
+					*) hoistRest+=( "$1" ) ; shift ;;
+				esac
+			done
+			set -- "$hoistOperation" --team-member "$hoistMember" ${hoistRest[@]+"${hoistRest[@]}"}
+		;;
+	esac
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,
 	## and the call is made again under what they resolve (sh-lib/common/AgentsTools.CommonOptions.include).
 	case "${agentsCommonFronted:-}:${2:-}" in

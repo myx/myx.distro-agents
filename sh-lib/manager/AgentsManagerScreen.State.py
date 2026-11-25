@@ -190,6 +190,9 @@ class ManagerState:
         self.focusSeen = None
         ## what the last frame was drawn as: its size, its style and its split; the dialog or the menu over it (drawScreen)
         self.drawnAs = None
+        ## the cells the spinner stands in, as the last full frame drew them, and the frame last written there (spinnerTurn)
+        self.spinSpots = []
+        self.spinFrame = None
         ## D5 (--filter/--dialog of a start): the filter a start names, applied once the first turn
         ## has built the left window (runScreen); the one dialog a start shows, and the words it holds.
         self.startFilter = ""

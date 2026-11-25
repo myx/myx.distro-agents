@@ -200,16 +200,20 @@ AgentsHarnessPrefetchBuild(){
 	fi
 	## The reads, in the order a member is told to make them: its armed file, then those its routine names, then those its task
 	## names with sections. A routine's `references:` lines are read for its executor with no instruction, so a coding routine's
-	## `code-craft.md` and `shell.md` arrive with its text. An `extended` prefix already carries the member's own reference files
-	## (the Member+ layer below), so those are not read twice for it.
+	## `code-craft.md` and `shell.md` arrive with its text. An `extended` prefix already carries the member's own reference folder
+	## (the Member+ layer below), so that member's own `reference/` lines are not read twice for it, a deeper file included. Another
+	## member's file, and the executor's own file outside `reference/`, are carried by nothing there and are read.
 	pfWanted="$pfMember"$'\t'"$pfMember.armed.md"$'\t'
-	if [ -n "$pfRoutine" ] && [ "$pfPolicy" != extended ] && AgentsHarnessSkillSegmentOk "$pfRoutine" ; then
+	if [ -n "$pfRoutine" ] && AgentsHarnessSkillSegmentOk "$pfRoutine" ; then
 		type AgentsToolsSpawnRoutineResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnRoutine.include"
 		pfRefPath="$( AgentsToolsSpawnRoutineResolve "$pfRoutine" 2> /dev/null )" || pfRefPath=""
 		[ -z "$pfRefPath" ] || pfRefReads="$( AgentsHarnessPrefetchReferenceReads "$pfRefPath" "$pfRoot" )"
 	fi
 	while IFS=$'\t' read -r pfName pfFile ; do
 		[ -n "$pfName" ] || continue
+		if [ "$pfPolicy" = extended ] && [ "$pfName" = "$pfMember" ] ; then
+			case "$pfFile" in reference/*) continue ;; esac
+		fi
 		pfWanted="$pfWanted"$'\n'"$pfName"$'\t'"$pfFile"$'\t'
 	done <<< "$pfRefReads"
 	while IFS= read -r pfName ; do
