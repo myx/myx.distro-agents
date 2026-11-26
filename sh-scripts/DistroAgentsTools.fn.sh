@@ -668,7 +668,7 @@ DistroAgentsTools(){
 				echo "$MDSC_CMD: mcp-execute: ⛔ ERROR: takes no arguments" >&2
 				set +e ; return 1
 			fi
-			local execStatus=0 execFile
+			local execStatus=0 execFile execScript=""
 			## The tool files (the table of sh-lib/harness/AgentsContext.FrontTable.include) are commands of the script, as DistroAgentsTools is: each stands
 			## as a function that loads its file at its first call.
 			type AgentsToolsFrontAny > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
@@ -677,12 +677,21 @@ DistroAgentsTools(){
 			done
 			## The console's own command path, so a command is called by its name (epic S12.25).
 			. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/console-.local-path.include" || echo "$MDSC_CMD: mcp-execute: WARNING: the console path include failed, so commands may not resolve by name" >&2
-			## No call links a sandbox into source (epic S23.11) and no `grep -r` blocks on a fifo (epic S10.26): both guards are
-			## first on the call's PATH. Each maker keeps a guard whose text is the same, and writes a changed one, so the folder
-			## this puts on PATH never serves an old guard. Without a guard folder the call runs as before.
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && AgentsToolsGrepGuardMake "$MMDAPP/.local/agents/guard-bin" && PATH="$MMDAPP/.local/agents/guard-bin:$PATH"
+			## No call links a sandbox into source (epic S23.11), no `grep -r` blocks on a fifo (epic S10.26) and no git write
+			## destroys a source tree (the owner's ruling of 26 November): the three guards are first on the call's PATH, and
+			## the PATH is exported so what the script starts carries them too. Each maker keeps a guard whose text is the same,
+			## and writes a changed one, so the folder this puts on PATH never serves an old guard. Without a guard folder the
+			## call runs as before.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && AgentsToolsGrepGuardMake "$MMDAPP/.local/agents/guard-bin" \
+				&& . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.GitWrite.include" && AgentsToolsGitGuardMake "$MMDAPP/.local/agents/guard-bin" \
+				&& PATH="$MMDAPP/.local/agents/guard-bin:$PATH" && export PATH
+			## The script is read here, so a git write over a source tree is refused before any of it runs.
+			execScript="$( cat )"
+			if AgentsToolsGitWriteStop "${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" "${MDAT_SPAWN_AGENT:-this run}" "$execScript" "$PWD" ; then
+				return 0
+			fi
 			## tested, not bare: set -e would kill the process instead of returning the status
-			( set -e ; eval "$( cat )" ) || execStatus=$?
+			( set -e ; eval "$execScript" ) || execStatus=$?
 			if [ "$execStatus" != "0" ] ; then
 				set +e ; return $execStatus
 			fi

@@ -212,3 +212,19 @@ AgentsToolsBoardDependenciesSection(){
 		printf '## board dependencies\n\n(none recomputed yet)\n'
 	fi
 }
+
+## The blocker of a board item's own text that stands in `board-blocked`, if any: the first name in its `blocked-by:` whose file lies in
+## the blocked folder. This is the guard a start reads -- a dispatch does not start on an item whose blocker holds it -- and it answers
+## with the blocker's bare name, or rc 1 where every blocker is clear or the item names none.
+AgentsToolsBoardBlockedByBlocker(){ ## the item's text, as the file gives it
+	local blockerLine blockerName blockerFound=""
+	blockerLine="$( printf '%s\n' "$1" | LC_ALL=C awk -F': ' '/^blocked-by: / { print $2 ; exit }' )" || blockerLine=""
+	[ -n "$blockerLine" ] || return 1
+	while IFS= read -r blockerName ; do
+		blockerName="${blockerName#"${blockerName%%[! ]*}"}" ; blockerName="${blockerName%"${blockerName##*[! ]}"}"
+		[ -n "$blockerName" ] || continue
+		[ ! -f "${MDAT_DATA_ROOT:-}/board/blocked/${blockerName%.md}.md" ] || { blockerFound="${blockerName%.md}" ; break ; }
+	done <<< "$( printf '%s\n' "$blockerLine" | tr ',' '\n' )"
+	[ -n "$blockerFound" ] || return 1
+	printf '%s\n' "$blockerFound"
+}

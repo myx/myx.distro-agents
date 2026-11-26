@@ -829,12 +829,7 @@ AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 				spawnDutyHeld=no
 				## A RUN THAT ENDED WITHOUT A HANDBACK IS RESUMED IN ITS OWN SESSION (the sketch's resume rule): only a killed or
 				## finished session is dropped below, so no handback mark is read here.
-				if [ "$spawnDutyHeld" = no ] ; then
-					while IFS= read -r spawnDutyRecord ; do
-						[ -n "$spawnDutyRecord" ] || continue
-						[ -z "$( AgentsToolsFrontmatterKey "$spawnDutyRecord" killed-at )" ] || { spawnDutyHeld=yes ; break ; }
-					done <<< "$( AgentsToolsSpawnedSessionRecords "$spawnDutySession" own )"
-				fi
+				[ "$( AgentsToolsScheduleDutyKeptHeld "$spawnDutySession" )" = no ] || spawnDutyHeld=yes
 			fi
 			## A KEPT SESSION WHOSE CONTEXT DOES NOT LOAD IS NO SESSION TO JOIN: every start that joins it resumes that file and dies at the harness,
 			## so it is dropped here, with the harness's own test of the file, and the start opens a session of its own.
@@ -981,9 +976,10 @@ AgentsToolsScheduleAutorun(){
 	AgentsToolsScheduleStartsAllowed || return 0
 	while IFS=$'\t' read -r autoMember autoDir ; do
 		[ -n "$autoDir" ] || continue
-		for autoFile in "$autoDir"/*.routine.md ; do
+		## ONE AWK A MEMBER'S FOLDER, never one a routine file (2026-11-26: 14 s of an 83 s pass was this per-file frontmatter read).
+		while IFS=$'\t' read -r autoFile autoRunsAt ; do
+			[ -n "$autoFile" ] || continue
 			[ -f "$autoFile" ] || continue
-			autoRunsAt="$( AgentsToolsRoutineKeyOwn "$autoFile" runs-at )"
 			case "$autoRunsAt" in
 				## No runs-at is a routine run on demand only, as none says.
 				''|none) continue ;;
@@ -1003,7 +999,7 @@ AgentsToolsScheduleAutorun(){
 			if AgentsToolsScheduleSpawn "$autoName" --routine "$autoName" ; then
 				printf 'autorun: started %s\n' "$autoName"
 			fi
-		done
+		done <<< "$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsRoutineRunsAtScan.awk" "$autoDir"/*.routine.md 2> /dev/null )"
 	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
 	return 0
 }
@@ -1108,19 +1104,43 @@ AgentsToolsSchedulePaceText(){ ## -- one line: what was read, and what it decide
 		printf 'pace: %s.%ss machinery a call, %s calls in %s minutes -- too few to judge, a duty start is allowed\n' "$(( paceMedian / 1000 ))" "$(( paceMedian % 1000 / 100 ))" "$paceCount" "$(( paceWindow / 60 ))"
 		return 0
 	fi
-	## A LIGHT LOAD IS NOT A BLOCKER: a slow call on a machine making few calls a minute is a slow machine,
-	## not contention, so the rate decides before the timing does (the owner's rule).
-	paceRate=$(( paceCount * 60 / paceWindow ))
-	if [ "$paceRate" -lt "${MDAT_TOOL_PACE_RATE_PER_MINUTE:-60}" ] ; then
-		printf 'pace: %s.%ss machinery a call, %s calls in %s minutes (%s a minute) -- a light load, a duty start is allowed\n' "$(( paceMedian / 1000 ))" "$(( paceMedian % 1000 / 100 ))" "$paceCount" "$(( paceWindow / 60 ))" "$paceRate"
-		return 0
-	fi
-	if [ "$paceMedian" -lt "$paceLimit" ] ; then
-		printf 'pace: %s.%ss machinery a call, %s calls in %s minutes -- under %ss, a duty start is allowed\n' "$(( paceMedian / 1000 ))" "$(( paceMedian % 1000 / 100 ))" "$paceCount" "$(( paceWindow / 60 ))" "$(( paceLimit / 1000 ))"
-	else
-		printf 'pace: %s.%ss machinery a call, %s calls in %s minutes -- over %ss, a duty start is held\n' "$(( paceMedian / 1000 ))" "$(( paceMedian % 1000 / 100 ))" "$paceCount" "$(( paceWindow / 60 ))" "$(( paceLimit / 1000 ))"
-	fi
+	case "$( AgentsToolsSchedulePaceVerdict "$paceMedian" "$paceCount" "$paceWindow" "$paceLimit" )" in
+		light)
+			## A LIGHT LOAD IS NOT A BLOCKER: a slow call on a machine making few calls a minute is a slow machine, not contention,
+			## so the rate decides before the timing does (the owner's rule).
+			printf 'pace: %s.%ss machinery a call, %s calls in %s minutes (%s a minute) -- a light load, a duty start is allowed\n' "$(( paceMedian / 1000 ))" "$(( paceMedian % 1000 / 100 ))" "$paceCount" "$(( paceWindow / 60 ))" "$(( paceCount * 60 / paceWindow ))"
+		;;
+		under) printf 'pace: %s.%ss machinery a call, %s calls in %s minutes -- under %ss, a duty start is allowed\n' "$(( paceMedian / 1000 ))" "$(( paceMedian % 1000 / 100 ))" "$paceCount" "$(( paceWindow / 60 ))" "$(( paceLimit / 1000 ))" ;;
+		*) printf 'pace: %s.%ss machinery a call, %s calls in %s minutes -- over %ss, a duty start is held\n' "$(( paceMedian / 1000 ))" "$(( paceMedian % 1000 / 100 ))" "$paceCount" "$(( paceWindow / 60 ))" "$(( paceLimit / 1000 ))" ;;
+	esac
 	return 0
+}
+## Whether a pass's start, already taken, skips this item: a routine item waits for the next pass, while an urgent or emergency
+## one still starts -- the queue outranks the routine restart (the owner's ruling). rc 0 it is skipped, rc 1 it is taken.
+AgentsToolsSchedulePassTakenSkips(){ ## mark, what the pass already started
+	[ -n "$2" ] || return 1
+	case "$1" in urgent|emergency) return 1 ;; esac
+	return 0
+}
+
+## Whether a kept duty session's own records carry a kill mark: `yes` where an owner ended it, `no` where no record does. A run
+## that ended without a handback leaves no such mark, so its session is kept and the next start resumes it in place (the sketch's
+## resume rule); only a killed session is dropped. The start reads this, and its check reads it too.
+AgentsToolsScheduleDutyKeptHeld(){ ## session
+	local heldRecord
+	while IFS= read -r heldRecord ; do
+		[ -n "$heldRecord" ] || continue
+		[ -z "$( AgentsToolsFrontmatterKey "$heldRecord" killed-at )" ] || { printf 'yes\n' ; return 0 ; }
+	done <<< "$( AgentsToolsSpawnedSessionRecords "$1" own )"
+	printf 'no\n'
+}
+
+## The verdict on the machine's pace, one word: `light` where the calls a minute are few -- a slow machine, not contention --
+## `under` where the machinery time is under the limit, else `over`. The text above and its check read this same one.
+AgentsToolsSchedulePaceVerdict(){ ## median ms, calls, window seconds, limit ms
+	[ "$(( $2 * 60 / $3 ))" -ge "${MDAT_TOOL_PACE_RATE_PER_MINUTE:-60}" ] || { printf 'light\n' ; return 0 ; }
+	[ "$1" -ge "$4" ] || { printf 'under\n' ; return 0 ; }
+	printf 'over\n'
 }
 ## Whether the pace allows a duty start now. rc 0 it does, and rc 1 it does not: the one line AgentsToolsSchedulePaceText gives ends with the word.
 AgentsToolsSchedulePaceAllows(){
@@ -2144,14 +2164,15 @@ AgentsToolsScheduleImportantEmergency(){
 	type AgentsToolsInboxFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	local markFiles=()
 	AgentsToolsInboxFilesInto markFiles magic-coordinator no
-	for markFile in ${markFiles[@]+"${markFiles[@]}"} ; do
+	## ONE AWK FOR THE WHOLE INCOMING, never one a file (2026-11-26: 1,331 items meant 1,331 processes, 72 s of a 231 s pass).
+	while IFS=$'\t' read -r markFile markMark ; do
+		[ -n "$markFile" ] || continue
 		case "${markFile##*/}" in note-*-state-and-lock.md) continue ;; esac
-		markMark="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrint.awk" "$markFile" 2> /dev/null | LC_ALL=C sed -n 's/^mark: //p' | LC_ALL=C tail -n 1 )"
 		case "$markMark" in
 			important|urgent) [ -z "$markHold" ] || continue ; markImportant="yes" ;;
 			emergency) markEmergency="yes" ; markEmergencyItems+=( "${markFile##*/}" ) ;;
 		esac
-	done
+	done <<< "$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxMarkScan.awk" ${markFiles[@]+"${markFiles[@]}"} 2> /dev/null )"
 	[ -n "$markImportant$markEmergency" ] || return 0
 	## EVERY EMERGENCY ITEM IS CONFIRMED, never only the last one of them.
 	for markEmergencyItem in ${markEmergencyItems[@]+"${markEmergencyItems[@]}"} ; do
@@ -2423,6 +2444,9 @@ AgentsToolsScheduleStartPending(){
 	AgentsToolsScheduleStartsAllowed || return 0
 	type AgentsToolsRecheckConditionUnmet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
 	type AgentsToolsBoardItemHandler > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
+	## THE TYPE TABLE IS PARSED ONCE A PASS: every item's handler would otherwise re-read it, 45 ms an item
+	## (2026-11-26: 66 pending items, ~3 s of the phase). The same table is handed to every call, so nothing changes but the reading.
+	AGENTS_BOARD_TYPE_TABLE_CACHE="$( AgentsToolsBoardTypeTable 2> /dev/null )" ; export AGENTS_BOARD_TYPE_TABLE_CACHE
 	## The pace gate holds this start as it holds a duty start: a slow machine gets no new session. An urgent or emergency item starts
 	## whatever the pace (the owner's ruling), so the hold is read once here and applied per item, at its mark.
 	case "$( AgentsToolsSchedulePaceText 2> /dev/null )" in *' is held'*) pendHeld=yes ;; esac
@@ -2523,7 +2547,7 @@ AgentsToolsScheduleStartPending(){
 		[ -z "$pendHeld" ] || case "$pendMark" in emergency) ;; *) pendHeld=said ; continue ;; esac
 		[ "$pendOpen" = yes ] || case "$pendMark" in urgent|emergency) ;; *) continue ;; esac
 		## A pass whose one start was a duty still starts an urgent or emergency item: the queue outranks the routine restart.
-		[ -z "$pendPassTaken" ] || case "$pendMark" in urgent|emergency) ;; *) continue ;; esac
+		AgentsToolsSchedulePassTakenSkips "$pendMark" "$pendPassTaken" && continue
 		case "$pendMark" in
 			urgent|emergency) ;;
 			*)

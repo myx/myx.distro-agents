@@ -61,7 +61,7 @@ case "$1" in
 		local spawnSkillsetRoot=""
 		type AgentsToolsSkillsetRootInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.Root.include"
 		AgentsToolsSkillsetRootInto spawnSkillsetRoot "$MMDAPP"
-		local contextFromFile="false" waitMode="false" spawnContext=""
+		local contextFromFile="false" waitMode="false" spawnContext="" spawnBlocker=""
 		## Which agent CLI this one spawn runs on. Empty means the workspace setting
 		## decides, which is what every caller got before this option existed.
 		local spawnCliService=""
@@ -614,6 +614,15 @@ case "$1" in
 					readArgs+=( --lookup-folder "$boardFolder" )
 				done
 				spawnContext="$( AgentsToolsDataRead ${readArgs[@]+"${readArgs[@]}"} )" || { set +e ; return 1 ; }
+				## A DISPATCH DOES NOT START ON AN ITEM ITS BLOCKER HOLDS (the owner's ruling): a `blocked-by:` naming an item that stands in
+				## board-blocked refuses the start, with the blocker named. Measured at 13:32: a dispatch started and read dispatch-succeeded
+				## while the task its blocked-by named stood in blocked with an unmet condition.
+				type AgentsToolsBoardBlockedByBlocker > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDependencies.include"
+				spawnBlocker="$( AgentsToolsBoardBlockedByBlocker "$spawnContext" 2> /dev/null )" || spawnBlocker=""
+				[ -z "$spawnBlocker" ] || {
+					echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: ${fromBoardName%.md} is blocked by $spawnBlocker, which stands in board-blocked -- nothing was started" >&2
+					set +e ; return 1
+				}
 			;;
 			vault)
 				trackedMode="true"

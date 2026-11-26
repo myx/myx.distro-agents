@@ -1,0 +1,258 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.GitWrite.include -- a git write that would reset, checkout, restore, clean, stash, revert or commit a source
+## tree is refused, and the run that issues one is stopped before the write lands
+## (the human-owner's ruling of 26 November: running git over the source is intentional damage).
+##
+## A SOURCE TREE is a tree no run destroys with git: the workspace's source, the tooling origin's myx, the installed
+## .local/myx, and the source of each workspace beside this one -- none of them inside a sandbox tree. Everything else is
+## not a source tree, so the tooling's own git paths run unchanged: they act on the team-data store, and a check acts on
+## its own rig. That is the boundary between the tooling and a member's call.
+##
+## A subcommand known to read runs anywhere. A subcommand known to change a tree without destroying what stands in it --
+## add, pull, fetch, clone, push, merge -- runs as before. A subcommand that destroys, and any subcommand this list has
+## never seen, is refused where its tree is a source tree: unseen is not evidence that nothing is lost.
+##
+## Two layers hold it. The text of a served Bash call is read before anything runs, so a plain `git reset` is refused and
+## named. The `git` a run's shell executes is a guard, first on PATH, so a wrapper whose text hides the word -- a shell
+## function from another file, an alias, a script -- still meets the guard at the write itself, `git -C <path>` included.
+##
+## Held by sh-test/harness/AgentsBashGitWriteGuardCheck.test.sh.
+##
+##   AgentsToolsGitDestructive <subcommand> [<words...>]  rc 0 where the subcommand destroys what stands in a tree
+##   AgentsToolsGitSourceRoots                            each source tree, one a line
+##   AgentsToolsGitTreeIsSource <path>                    rc 0 where the path lies in a source tree, its real path in agentsGitWriteTree
+##   AgentsToolsGitArgs <the words after git>             sets agentsGitWriteCommand, agentsGitWriteTree, agentsGitWriteOperand
+##   AgentsToolsGitWriteSeek <text> [<cwd>]               rc 0 where the text runs a refused write over a source tree
+##   AgentsToolsGitWriteMessage <tree> <subcommand>       the refusal, on stdout
+##   AgentsToolsGitWriteRefused <session> <member> <tree> <subcommand> <where>
+##                                                        the stop, in the run's audit log and its session thread
+##   AgentsToolsGitWriteStop <session> <member> <text> [<cwd>]
+##                                                        rc 0 where it refused and recorded, the refusal printed
+##   AgentsToolsGitGuard <the arguments of git>           the guard `git` of a run's PATH: refuses, else runs the real git
+##   AgentsToolsGitGuardMake <folder>                     writes that guard there, unless the same text is already there
+##
+## Sourced, never run. Functions only. Every part fails open: a fault in this file refuses a write it cannot judge, and
+## never lets one through, because an unjudged git command is exactly the case that cost a working day.
+##
+
+## Whether a subcommand destroys what stands in a tree. The read forms and the ones that add or move work forward are named,
+## so a subcommand this list has never seen counts as destructive: a word nobody has judged yet is not a safe word.
+AgentsToolsGitDestructive(){ ## subcommand, then its words
+	local writeSub="$1"
+	shift
+	case "$writeSub" in
+		status|log|diff|show|rev-parse|ls-remote|describe|blame|shortlog|show-ref|rev-list|merge-base) return 1 ;;
+		for-each-ref|ls-files|ls-tree|cat-file|name-rev|count-objects|var|version|help|whatchanged) return 1 ;;
+		add|pull|fetch|clone|push|merge|init|gc|fsck|prune|pack-refs) return 1 ;;
+	esac
+	case "$writeSub" in
+		stash) case "${1:-}" in ''|list|show) return 1 ;; esac ; return 0 ;;
+		branch) case " $* " in *' -d '*|*' -D '*|*' -m '*|*' -M '*|*' -f '*|*' --delete '*|*' --move '*|*' --force '*) return 0 ;; esac ; return 1 ;;
+		tag) case " $* " in *' -d '*|*' -a '*|*' -s '*|*' -f '*|*' --delete '*) return 0 ;; esac ; return 1 ;;
+		remote) case "${1:-}" in add|remove|rename|set-url|prune|update) return 0 ;; esac ; return 1 ;;
+		config) case "${1:-}" in --get|--get-all|--list|-l|--get-regexp|-h|--help) return 1 ;; esac ; [ "$#" -ge 2 ] && return 0 ; return 1 ;;
+		worktree) case "${1:-}" in add|remove|prune|move|lock|unlock|repair) return 0 ;; esac ; return 1 ;;
+		submodule) case "${1:-}" in add|update|init|deinit|sync) return 0 ;; esac ; return 1 ;;
+		notes) case "${1:-}" in add|remove|copy|append|edit|prune) return 0 ;; esac ; return 1 ;;
+		reflog) case "${1:-}" in expire|delete) return 0 ;; esac ; return 1 ;;
+	esac
+	return 0
+}
+
+## Each source tree, one a line, its real path. AgentsToolsSourceRoots owns that answer, and already leaves out a path inside a
+## sandbox tree: a rig's own copy of source is that rig's content, never the tree that lost work. MDAT_GIT_SOURCE_ROOTS names
+## a tree the answer cannot compute -- a check's rig -- and it can only add a refusal, never lift one.
+AgentsToolsGitSourceRoots(){
+	local rootsPlain="" rootsExtra=""
+	type AgentsToolsSourceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" 2> /dev/null || return 0
+	rootsPlain="$( AgentsToolsSourceRoots 2> /dev/null )"
+	[ -z "${MDAT_GIT_SOURCE_ROOTS:-}" ] || rootsExtra="${MDAT_GIT_SOURCE_ROOTS//:/$'\n'}"
+	printf '%s\n%s\n' "$rootsPlain" "$rootsExtra" | LC_ALL=C awk 'NF' | LC_ALL=C sort -u
+}
+
+## Whether a path lies in a source tree, with its real path in agentsGitWriteTree. A path that is not there yet is resolved
+## through its parent, so the name a write would create answers as the tree it would land in.
+AgentsToolsGitTreeIsSource(){ ## path
+	local treePath="$1" treeParent="" treeRoot=""
+	agentsGitWriteTree=""
+	case "$treePath" in ''|.) treePath="${agentsGitWriteBase:-$PWD}" ;; esac
+	case "$treePath" in
+		\~) treePath="${HOME:-/nonexistent}" ;;
+		\~/*) treePath="${HOME:-/nonexistent}${treePath#\~}" ;;
+		'$HOME') treePath="${HOME:-/nonexistent}" ;;
+		'$HOME'/*) treePath="${HOME:-/nonexistent}${treePath#\$HOME}" ;;
+		'$MMDAPP') treePath="${MMDAPP:-/nonexistent}" ;;
+		'$MMDAPP'/*) treePath="${MMDAPP:-/nonexistent}${treePath#\$MMDAPP}" ;;
+		'$MDLT_ORIGIN') treePath="${MDLT_ORIGIN:-/nonexistent}" ;;
+		'$MDLT_ORIGIN'/*) treePath="${MDLT_ORIGIN:-/nonexistent}${treePath#\$MDLT_ORIGIN}" ;;
+	esac
+	case "$treePath" in /*) ;; *) treePath="${agentsGitWriteBase:-$PWD}/$treePath" ;; esac
+	if [ -d "$treePath" ] ; then
+		agentsGitWriteTree="$( cd -P "$treePath" 2> /dev/null && pwd -P )" || agentsGitWriteTree="$treePath"
+	else
+		treeParent="${treePath%/*}"
+		if [ -n "$treeParent" ] && [ -d "$treeParent" ] ; then
+			agentsGitWriteTree="$( cd -P "$treeParent" 2> /dev/null && pwd -P )/${treePath##*/}" || agentsGitWriteTree="$treePath"
+		else
+			agentsGitWriteTree="$treePath"
+		fi
+	fi
+	while IFS= read -r treeRoot ; do
+		[ -n "$treeRoot" ] || continue
+		treeRoot="${treeRoot%/}"
+		case "$agentsGitWriteTree" in "$treeRoot"|"$treeRoot"/*) return 0 ;; esac
+	done <<< "$( AgentsToolsGitSourceRoots )"
+	return 1
+}
+
+## The words of one git command: its subcommand, the tree it was told to act on, and the first operand after it.
+AgentsToolsGitArgs(){ ## the words after git, its own flags included
+	local argsArg=""
+	agentsGitWriteCommand="" ; agentsGitWriteTree="" ; agentsGitWriteOperand=""
+	while [ $# -gt 0 ] ; do
+		argsArg="$1" ; shift
+		case "$argsArg" in
+			-C) [ $# -eq 0 ] || { agentsGitWriteTree="$1" ; shift ; } ; continue ;;
+			-C?*) agentsGitWriteTree="${argsArg#-C}" ; continue ;;
+			--work-tree) [ $# -eq 0 ] || { agentsGitWriteTree="$1" ; shift ; } ; continue ;;
+			--work-tree=*) agentsGitWriteTree="${argsArg#--work-tree=}" ; continue ;;
+			--git-dir|--namespace|--super-prefix|-c) [ $# -eq 0 ] || shift ; continue ;;
+			--git-dir=*|--namespace=*|--super-prefix=*) continue ;;
+			-*) continue ;;
+		esac
+		if [ -z "$agentsGitWriteCommand" ] ; then
+			agentsGitWriteCommand="$argsArg"
+		elif [ -z "$agentsGitWriteOperand" ] ; then
+			agentsGitWriteOperand="$argsArg"
+		fi
+	done
+	return 0
+}
+
+## Whether a command text runs a refused write over a source tree. A comment and a single-quoted string are not read, since
+## the words there run nothing. One command a line: the separators, a brace and a backtick become line ends, so the body of a
+## shell function is read as the commands it holds, and the wrapper words before a command are skipped -- `sudo git`,
+## `GIT_DIR=x git`, `env git` and `echo a | git` are each read as the git command they are.
+AgentsToolsGitWriteSeek(){ ## command text, cwd
+	local seekText seekLine seekTree
+	agentsGitWriteCommand="" ; agentsGitWriteTree="" ; agentsGitWriteOperand=""
+	case "$1" in *git*) ;; *) return 1 ;; esac
+	agentsGitWriteBase="${2:-$PWD}"
+	seekText="$( printf '%s\n' "$1" | LC_ALL=C sed -e "s/'[^']*'/''/g" -e 's/^[[:space:]]*#.*$//' -e 's/[[:space:]]#.*$//' )"
+	seekText="${seekText//[;&|({]/$'\n'}" ; seekText="${seekText//\`/$'\n'}"
+	set -f
+	while IFS= read -r seekLine ; do
+		set -- $seekLine
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				then|do|else|elif|exec|sudo|xargs|nohup|command|builtin|time|env) shift ; continue ;;
+				[A-Za-z_]*=*) shift ; continue ;;
+				'{'|'}') shift ; continue ;;
+			esac
+			break
+		done
+		[ $# -gt 0 ] || continue
+		case "${1##*/}" in git) ;; *) continue ;; esac
+		shift
+		AgentsToolsGitArgs "$@"
+		[ -n "$agentsGitWriteCommand" ] || continue
+		AgentsToolsGitDestructive "$agentsGitWriteCommand" "$@" || continue
+		seekTree="$agentsGitWriteTree"
+		[ -n "$seekTree" ] || seekTree="$agentsGitWriteBase"
+		if AgentsToolsGitTreeIsSource "$seekTree" ; then
+			set +f
+			return 0
+		fi
+	done <<< "$seekText"
+	set +f
+	agentsGitWriteCommand="" ; agentsGitWriteTree=""
+	return 1
+}
+
+AgentsToolsGitWriteMessage(){ ## tree, subcommand
+	printf 'ERROR: the command runs a git write (%s) over a source tree, so nothing was run.\n' "$2"
+	printf 'Tree: %s\n' "$1"
+	printf 'Rule: no run writes a source tree with git. A member never commits and never reverts, and recovery goes forward from the sources of what was lost.\n'
+	printf 'A read-only git runs: status, log, diff, show, rev-parse and ls-remote. A write outside a source tree runs as before.\n'
+}
+
+## The stop, in the two records of the run it happened in: its audit log, which is the session transcript, and its session
+## thread, which is the session chat file. Both are best effort, and neither one lifts the refusal.
+AgentsToolsGitWriteRefused(){ ## session, member, tree, subcommand, where
+	local refusedSession="$1" refusedMember="${2:-this run}" refusedTree="$3" refusedSub="$4" refusedWhere="${5:-an unnamed place}"
+	[ -n "$refusedSession" ] || return 0
+	if type AgentsTranscriptEvent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" 2> /dev/null ; then
+		AgentsTranscriptEvent "$refusedSession" NOTE "stopped a git $refusedSub over a source tree" 4096 \
+			tree "$refusedTree" by "$refusedMember" where "$refusedWhere" 2> /dev/null || :
+	fi
+	if type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null ; then
+		printf 'STOPPED: a git %s over a source tree (%s), refused before the write landed. Nothing was run.\n' "$refusedSub" "$refusedTree" \
+			| AgentsToolsSessionChatAppend "$refusedSession" "$refusedMember" "$refusedMember" - "$refusedWhere" notice > /dev/null 2>&1 || :
+	fi
+	return 0
+}
+
+## The one refusal a served call makes: rc 0 where the text is a refused write over a source tree, its message printed and the
+## stop recorded, rc 1 where it is not. The session and the member are the caller's own, so both records name the run.
+AgentsToolsGitWriteStop(){ ## session, member, command text, cwd
+	if ! AgentsToolsGitWriteSeek "${3:-}" "${4:-}" ; then return 1 ; fi
+	AgentsToolsGitWriteMessage "$agentsGitWriteTree" "$agentsGitWriteCommand"
+	AgentsToolsGitWriteRefused "$1" "$2" "$agentsGitWriteTree" "$agentsGitWriteCommand" "${4:-an unnamed place}"
+	return 0
+}
+
+## The guard `git` a run's shell runs. A wrapper whose text hides the git word -- a shell function from another file, a
+## script, an alias -- still runs this binary, so the write meets the guard before it lands. The real git is the first `git`
+## on PATH outside the guard folder, and MDAT_GIT_GUARD_AFTER breaks the loop a second guard on PATH would make.
+AgentsToolsGitGuard(){ ## the arguments of git
+	local guardDir="" guardAfter="${MDAT_GIT_GUARD_AFTER:-}" guardTarget="${MDAT_GIT_GUARD_TARGET:-}"
+	local guardSession="${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" guardMember="${MDAT_SPAWN_AGENT:-this run}"
+	local guardTree=""
+	AgentsToolsGitArgs "$@"
+	guardTree="$agentsGitWriteTree"
+	[ -n "$guardTree" ] || guardTree="$PWD"
+	if [ -n "$agentsGitWriteCommand" ] && AgentsToolsGitDestructive "$agentsGitWriteCommand" "$@" ; then
+		if AgentsToolsGitTreeIsSource "$guardTree" ; then
+			AgentsToolsGitWriteMessage "$agentsGitWriteTree" "$agentsGitWriteCommand"
+			AgentsToolsGitWriteRefused "$guardSession" "$guardMember" "$agentsGitWriteTree" "$agentsGitWriteCommand" "$PWD"
+			return 1
+		fi
+	fi
+	[ -z "$guardTarget" ] || [ ! -x "$guardTarget" ] || exec "$guardTarget" "$@"
+	IFS=:
+	for guardDir in $PATH ; do
+		case "$guardDir" in */.local/agents/guard-bin) continue ;; esac
+		if [ -n "$guardAfter" ] ; then [ "$guardDir" != "$guardAfter" ] || guardAfter="" ; continue ; fi
+		[ -x "$guardDir/git" ] || continue
+		MDAT_GIT_GUARD_AFTER="$guardDir" MDAT_GIT_GUARD_TARGET="$guardDir/git" export MDAT_GIT_GUARD_AFTER MDAT_GIT_GUARD_TARGET
+		exec "$guardDir/git" "$@"
+	done
+	printf 'ERROR: the guard git found no real git on PATH, so nothing was run.\n' >&2
+	return 127
+}
+
+AgentsToolsGitGuardMake(){ ## folder -- writes the guard `git` there, for a run to put first on its PATH; the same text is kept
+	local guardHere guardText guardTemp
+	guardHere="$( cd -P "${BASH_SOURCE[0]%/*}" 2> /dev/null && pwd -P )/${BASH_SOURCE[0]##*/}"
+	guardText='#!/usr/bin/env bash'$'\n'"[ -f \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.GitWrite.include\" ] || MDLT_ORIGIN='${guardHere%/myx/myx.distro-agents/sh-lib/common/*}'"$'\n'". '$guardHere' || exit 1"$'\n''AgentsToolsGitGuard "$@"'
+	[ "$( cat "$1/git" 2> /dev/null )" = "$guardText" ] && [ -x "$1/git" ] && return 0
+	mkdir -p "$1" || return 1
+	guardTemp="$( mktemp "$1/git.XXXXXX" 2> /dev/null )" || return 1
+	printf '%s\n' "$guardText" > "$guardTemp" && chmod +x "$guardTemp" && mv -f "$guardTemp" "$1/git"
+}
+
+## The guard first on this process's PATH, exported once, so every child carries it too: a shell a run starts, the MCP
+## servers the harness launches for `execute` and for myx.common, and the shell each of those starts in turn. Called at a
+## run's start and before any command, so a channel this file never sees still meets the guard where it runs git.
+AgentsToolsGitGuardPath(){ ## [<workspace>]
+	local pathWorkspace="${1:-${MMDAPP:-}}" pathFolder=""
+	[ -n "$pathWorkspace" ] || return 0
+	pathFolder="${pathWorkspace%/}/.local/agents/guard-bin"
+	case ":$PATH:" in *":$pathFolder:"*) return 0 ;; esac
+	AgentsToolsGitGuardMake "$pathFolder" || return 0
+	PATH="$pathFolder:$PATH" ; export PATH
+	return 0
+}

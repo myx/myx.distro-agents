@@ -13,10 +13,11 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTool="${rigHere%/sh-lib}/sh-scripts/DistroAgentsTools.fn.sh"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-rigTmp="$( rigTempDir AgentsManagerScheduleReadCheck )" || exit 1
+## A TEMP FOLDER OF ITS OWN, and no suite ticket: this check reads only the workspace it builds here, calls no tooling operation of
+## a real workspace, and so it takes no place in the machine's one-at-a-time line (the queue exists for runs that do).
+rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsManagerScheduleReadCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+trap 'rm -rf -- "$rigTmp" 2> /dev/null || :' EXIT
 rigFails=0 rigPasses=0
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then printf '  PASS  %s\n' "$1" ; rigPasses=$(( rigPasses + 1 ))
@@ -42,17 +43,21 @@ rigNew set "MDAT_SCHEDULE_TIMEZONE=UTC
 MDAT_SCHEDULE_WORKTIME=09:00 18:00 mon,tue,wed,thu,fri
 MDAT_SCHEDULE_WEEKEND=sat,sun
 MDAT_SCHEDULE_EMERGENCY=until $(( rigNow + 90 ))
+MDAT_SCHEDULE_OVERTIME=until $(( rigNow + 3600 ))
 "
 rigBefore="$( find "$rigTmp/set" -type f | LC_ALL=C sort | xargs cksum )"
 rigRead set
-rigAssert "it ends 0, and its stdout is rows only" "$rigRc:$( LC_ALL=C grep -c -v -E '^(now|flag|switch|cell)	' "$rigTmp/set.out" )" "0:0"
-rigAssert "the rows are now, eight flags and the vacation entry row, one switch and 168 cells, in that order of kinds" \
-	"$( LC_ALL=C awk -F'\t' '{ if ( $1 != last ) { kinds = kinds ( kinds == "" ? "" : " " ) $1 ; last = $1 ; } count[$1]++ ; } END { print kinds ":" count["now"] ":" count["flag"] ":" count["switch"] ":" count["cell"] ; }' "$rigTmp/set.out" )" \
-	"now flag switch cell:1:9:1:168"
+rigAssert "it ends 0, and its stdout is rows only" "$rigRc:$( LC_ALL=C grep -c -v -E '^(now|flag|flag-end|switch|cell)	' "$rigTmp/set.out" )" "0:0"
+rigAssert "168 cells and nine flag rows, the vacation entry row among them" \
+	"$( LC_ALL=C awk -F'\t' '{ count[$1]++ ; } END { print count["cell"] ":" count["flag"] ; }' "$rigTmp/set.out" )" "168:9"
+rigAssert "a flag-end row for each timed flag, and for no other" \
+	"$( LC_ALL=C awk -F'\t' '$1 == "flag" && $4 ~ /seconds left/ { timed++ ; } $1 == "flag-end" { ends++ ; } END { print ( timed == ends && ends > 0 ) ? "matched" : "mismatch " timed "/" ends ; }' "$rigTmp/set.out" )" "matched"
 rigAssert "the flags are worktime, weekend, holidays, holding, emergency, overtime, learning, supervised, then the vacation entry row" "$( LC_ALL=C awk -F'\t' '$1 == "flag" { printf "%s ", $2 ; }' "$rigTmp/set.out" )" "worktime weekend holidays holding emergency overtime learning supervised vacation "
 rigAssert "now names the zone the settings give" "$( rigRow set now | LC_ALL=C cut -f5 )" "UTC"
 rigAssert "an override with a TTL reads yes with its seconds left" \
 	"$( rigRow set flag emergency | LC_ALL=C cut -f3 ):$( rigRow set flag emergency | LC_ALL=C cut -f4 | LC_ALL=C grep -c 'seconds left' )" "yes:1"
+rigAssert "a timed flag prints its own end, the seconds it has left from this clock: emergency and overtime" \
+	"$( rigRow set flag-end emergency | LC_ALL=C awk -F'\t' -v n="$rigNow" '{ if ( $3 >= n + 85 && $3 <= n + 95 ) print "emergency-end" ; }' ):$( rigRow set flag-end overtime | LC_ALL=C awk -F'\t' -v n="$rigNow" '{ if ( $3 >= n + 3595 && $3 <= n + 3605 ) print "overtime-end" ; }' )" "emergency-end:overtime-end"
 rigAssert "the nearest change is the end of the emergency, within its 90 seconds" \
 	"$( rigRow set switch | LC_ALL=C awk -F'\t' '{ if ( $3 == "emergency-ends" && $2 >= 1 && $2 <= 90 ) print "emergency-ends"; else print $0 ; }' )" "emergency-ends"
 rigAssert "a work day: nothing before 09, worktime from 09 to 17, nothing from 18" "$( rigCell set mon 08 ):$( rigCell set mon 09 ):$( rigCell set mon 17 ):$( rigCell set mon 18 )" "-:worktime:worktime:-"

@@ -6,6 +6,9 @@
 ## line is marked `>` for stdout and `!` for stderr, the rendering a detached read already gives (sketch 3.3).
 
 type AgentsToolsSessionPauseWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
+## The git-write guard of a served call and of the shell it starts (AgentsTools.GitWrite.include): a git write over a source
+## tree is refused, whatever wrapper reaches it.
+type AgentsToolsGitWriteStop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.GitWrite.include"
 
 ## A detached process's handle must be unique for the whole SESSION, not for one harness
 ## process: the counter this used to be kept in a shell variable reset in every served call, so
@@ -633,30 +636,14 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 		printf 'ERROR: the command scans a whole tree (%s), which costs every other call on this machine its pace for minutes: a workspace holds about 1300 folders and 900 projects. Name the one folder the task needs (a project folder, one session or store entry), read the registries the tooling keeps (--spawns, --tasks, the member index), or ask the owner of that store for a read operation. Nothing was started.\n' "$harnessScanWide"
 		return 0
 	fi
-	## NO GIT, AND NO INDEX OR CACHE FOLDER, IN A COMMAND: the tools own both. A repository is pulled and published by the workspace
-	## palette tasks and edited by hand after the pull, and an index is brought current by the ingest task. A command that runs `git`
-	## (the command word after the wrappers, quoted strings and comments aside) or names `.local/system-index`, `.local/output-cache`
-	## or `.local/source-cache` is refused before anything runs. A Bash grant on the folder opens it, for a task that fixes the tools.
-	case "$toolCommand" in
-		*git*)
-			toolGitText="${toolCommand//[;&|(\`]/$'\n'}" toolGitFound=""
-			while : ; do case "$toolGitText" in *\'*\'*) toolGitText="${toolGitText%%\'*}_Q_${toolGitText#*\'*\'}" ;; *) break ;; esac ; done
-			set -f
-			while IFS= read -r toolGitLine ; do
-				for toolGitWord in $toolGitLine ; do
-					case "$toolGitWord" in then|do|else|exec|sudo|xargs|nohup|command|builtin|time|env|[A-Za-z_]*=*) continue ;; esac
-					case "${toolGitWord##*/}" in git) toolGitFound=1 ;; esac
-					break
-				done
-				[ -z "$toolGitFound" ] || break
-			done <<< "$toolGitText"
-			set +f
-			if [ -n "$toolGitFound" ] ; then
-				printf 'ERROR: the command runs git, which a member never does. Pull and publish a repository with the workspace palette tasks DistroImageSync --execute-source-prepare-pull and --execute-source-process-push, and edit a file by hand after the pull. Nothing was run.\n'
-				return 0
-			fi
-		;;
-	esac
+	## NO GIT WRITE OVER A SOURCE TREE (the owner's ruling of 26 November), AND NO INDEX OR CACHE FOLDER: a git write that would
+	## reset, checkout, restore, clean, stash, revert or commit a source tree is refused before anything runs, whatever wrapper
+	## reaches it -- a shell function, an alias, a script that calls git, or `git -C <path>`. Read-only git runs, and so does a
+	## write outside a source tree. The guard and its rule are in AgentsTools.GitWrite.include. An index is brought current by
+	## the ingest task. A Bash grant on the folder opens an index or cache folder, for a task that fixes the tools.
+	if AgentsToolsGitWriteStop "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" "${harnessAgent:-this run}" "$toolCommand" "$toolCwd" ; then
+		return 0
+	fi
 	for toolRefusedFolder in system-index output-cache source-cache ; do
 		case "$toolCommand" in
 			*".local/$toolRefusedFolder"*)
@@ -714,13 +701,17 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 	case ":$PATH:" in *":$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts:"*) ;; *) . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/console-.local-path.include" 2> /dev/null || : ;; esac
 	## No command links a sandbox into source (epic S23.11): the guard ln is first on PATH, for the command and for what it starts.
 	## And no shell `grep -r` blocks on a request fifo (epic S10.26): the guard grep beside it puts `-D skip` before the arguments.
+	## And no git write over a source tree, however it is reached: the guard git beside them refuses one where the command runs it.
 	## The guards' text is checked once per harness process, whatever PATH it was started with: a process that inherits the
 	## folder on PATH would otherwise never write a changed guard, and the rig would run the old one for ever. Each maker
 	## keeps a guard whose text is the same, so this costs one read of each file per process.
 	if [ -z "${harnessGuardsMade:-}" ] ; then
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && AgentsToolsGrepGuardMake "$MMDAPP/.local/agents/guard-bin" && harnessGuardsMade=1
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsLnGuardMake "$MMDAPP/.local/agents/guard-bin" && AgentsToolsGrepGuardMake "$MMDAPP/.local/agents/guard-bin" \
+			&& AgentsToolsGitGuardMake "$MMDAPP/.local/agents/guard-bin" && harnessGuardsMade=1
 	fi
-	case ":$PATH:" in *":$MMDAPP/.local/agents/guard-bin:"*) ;; *) [ -z "${harnessGuardsMade:-}" ] || PATH="$MMDAPP/.local/agents/guard-bin:$PATH" ;; esac
+	## Exported, so what the command starts carries the guards too: a wrapper script is a child process, and a guard held in
+	## this shell alone would reach the command but not the script it runs.
+	case ":$PATH:" in *":$MMDAPP/.local/agents/guard-bin:"*) ;; *) [ -z "${harnessGuardsMade:-}" ] || { PATH="$MMDAPP/.local/agents/guard-bin:$PATH" ; export PATH ; } ;; esac
 	if [ "$toolDetach" = "true" ] || [ "$toolDetach" = "1" ] || [ "$toolDetach" = "yes" ] ; then
 		if ! AgentsHarnessCwdAllowed "$toolCwd" ; then return 0 ; fi
 		toolCwd="$harnessResolvedPath"

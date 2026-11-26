@@ -279,6 +279,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-reveal <scope-id> <ke
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-set <scope-id> <key>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-unset <scope-id> <key>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-clear <scope-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-reset <scope-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-delete <scope-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-new <subsystem>:<name>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-wizard-read <cli-service|git-settings>" >&2

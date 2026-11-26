@@ -28,13 +28,15 @@ SCHEDULE_LEAD = 5
 
 ## What `--manager-schedule-read` printed, as the rows of `Schedule` (a row for each flag, in the order the operation gave them), each carrying the whole picture (`schedule`) for the summary.
 def parseScheduleRows(readKey, level, text):
-    held = {"now": None, "flags": [], "switch": None, "cells": {}}
+    held = {"now": None, "flags": [], "switch": None, "cells": {}, "ends": {}}
     for printed in text.split("\n"):
         fields = printed.split("\t")
         if fields[0] == "now" and len(fields) >= 4:
-            held["now"] = (fields[2], fields[3])
+            held["now"] = (fields[2], fields[3], int(fields[1]) if fields[1].isdigit() else 0)
         elif fields[0] == "flag" and len(fields) >= 4:
             held["flags"].append((fields[1], fields[2], fields[3]))
+        elif fields[0] == "flag-end" and len(fields) >= 3 and fields[2].isdigit():
+            held["ends"][fields[1]] = int(fields[2])
         elif fields[0] == "switch" and len(fields) >= 3:
             held["switch"] = (fields[1], fields[2])
         elif fields[0] == "cell" and len(fields) >= 4:
@@ -101,6 +103,7 @@ def scheduleGridLines(held, width=60):
         if name == "overtime" and answer.startswith("yes"):
             overtimeLeft = int("".join(ch for ch in note if ch.isdigit()) or 0)
     overtimeFrom = SCHEDULE_DAYS.index(nowDay) * 24 + int(nowHour) if nowDay in SCHEDULE_DAYS and nowHour.isdigit() else -1
+    nowEpoch = held["now"][2] if held["now"] and len(held["now"]) > 2 else 0
     lines = []
     for first in range(0, 24, perLine):
         lines.append(looked(" " * SCHEDULE_LEAD + "".join(("%02d" % hour).ljust(size) for hour in range(first, first + perLine)).rstrip(), DIM))
@@ -109,7 +112,11 @@ def scheduleGridLines(held, width=60):
             for position, hour in enumerate(range(first, first + perLine)):
                 flag = scheduleCellFlag(held["cells"].get((day, "%02d" % hour), "-"))
                 overtimeAt = SCHEDULE_DAYS.index(day) * 24 + int(hour)
-                if overtimeLeft and flag == "-" and 0 <= (overtimeAt - overtimeFrom) * 3600 < overtimeLeft:
+                overtimeHours = (overtimeAt - overtimeFrom) * 3600 if overtimeFrom >= 0 else -1
+                overtimeEnd = held.get("ends", {}).get("overtime", 0)
+                if flag == "-" and overtimeHours >= 0 and (
+                        (overtimeEnd and nowEpoch + overtimeHours < overtimeEnd)
+                        or (overtimeLeft and overtimeHours < overtimeLeft)):
                     flag = "overtime"
                 text, look = scheduleCell(flag, size)
                 texts.append(text)

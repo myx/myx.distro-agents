@@ -23,6 +23,14 @@ case "$BASH" in /*/bash) command -v bash > /dev/null 2>&1 || { PATH="${PATH:+$PA
 
 harnessHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 
+## THE GIT GUARD IS EXPORTED BEFORE ANY SERVER IS LAUNCHED (the owner's ruling of 26 November: running git over the source is
+## intentional damage). The guard `git` goes first on this process's PATH, so it reaches every child this harness starts and
+## every child of those: the Bash tool's shell, the MCP servers launched below for `execute` and for myx.common, and the shell
+## each of those runs a script in. That is how all three shell channels the harness owns meet the same guard, one of them
+## being myx.common's own `lib/execShStdin`, whose shell this file never sees. Its rule and its text are in
+## AgentsTools.GitWrite.include, called before any command by the Bash tool and by `execute`.
+[ ! -f "$harnessHere/common/AgentsTools.GitWrite.include" ] || { . "$harnessHere/common/AgentsTools.GitWrite.include" && AgentsToolsGitGuardPath "${MMDAPP:-}" ; }
+
 ## THE FULL MANUAL TYPE. This file is also the leg `universal`, and the one way to run it with no
 ## thin stub in front: every value comes from the environment its preset supplies. A stub still
 ## wins, because each of these is filled only where it is empty. The endpoint, the wire and the

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-## AgentsBashGitIndexGuardCheck -- the Bash tool refuses a command that runs git, and one that names an index or cache folder
-## (the owner's standing rules; the guard in AgentsHarnessToolsBash.include before the stale-tree rewrite). The tools own both:
-## a repository is pulled and published by the workspace palette tasks, and an index is brought current by the ingest task.
+## AgentsBashGitIndexGuardCheck -- the Bash tool refuses a command that names an index or cache folder
+## (the owner's standing rules; the guard in AgentsHarnessToolsBash.include before the stale-tree rewrite). An index is
+## brought current by the ingest task, never by a member.
 ## Held, through the served Bash tool, each with a marker file the command would also write, so the marker says whether it ran:
-##   1. a command that runs git is refused with ERROR, nothing runs: after `&&`, after `sudo`, after a variable assignment;
-##   2. the word git as data runs: inside single quotes, in a comment, as a path (`.git`), inside another word;
-##   3. a command that names .local/system-index, .local/output-cache or .local/source-cache is refused, nothing runs;
-##   4. a command that names another .local folder runs.
-## Red: the check on a harness without the guard fails every refused row, since the marker is written. A guard that reads the
-## word anywhere in the text fails `the word git as data runs`.
+##   1. a command that names .local/system-index, .local/output-cache or .local/source-cache is refused, nothing runs;
+##   2. a command that names another .local folder runs.
+## The git half of this check moved to AgentsBashGitWriteGuardCheck.test.sh when the human-owner's ruling of 26 November
+## narrowed it: a git write over a source tree is refused, and a read-only git runs. A blanket refusal of every git command
+## would fail that check's own control, so the rows that asserted one were removed here with their reason.
+## Red: the check on a harness without the guard fails every refused row, since the marker is written.
 ## Offline: a temp folder of this check alone, removed at its end; nothing is requested.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -52,32 +52,18 @@ rigTry(){ ## call name, refusal words, command text (JSON-escaped already)
 	printf '%s:%s' "$( LC_ALL=C grep -c "$2" "$rigTmp/$1.out" )" "$( [ -f "$rigTmp/inside/mark.$1" ] && printf ran || printf none )"
 }
 
-echo "-- 1. a command that runs git is refused, nothing runs --"
-rigAssert "git status"                      "$( rigTry g1 'runs git' 'git status' )" "1:none"
-rigAssert "git after &&"                    "$( rigTry g2 'runs git' 'true && git log' )" "1:none"
-rigAssert "git after sudo"                  "$( rigTry g3 'runs git' 'sudo git pull' )" "1:none"
-rigAssert "git after an assignment"         "$( rigTry g4 'runs git' 'GIT_DIR=x git diff' )" "1:none"
-rigAssert "git by a path"                   "$( rigTry g5 'runs git' '/usr/bin/git merge x' )" "1:none"
-rigAssert "git after a pipe"                "$( rigTry g6 'runs git' 'echo a | git apply' )" "1:none"
-
-echo "-- 2. the word git as data runs --"
-rigAssert "the word quoted as data runs"    "$( rigTry d1 'runs git' "echo 'git status'" )" "0:ran"
-rigAssert "a comment naming git runs"       "$( rigTry d2 'runs git' 'true # git status\ntrue' )" "0:ran"
-rigAssert "a .git path runs"                "$( rigTry d3 'runs git' 'ls .git 2>/dev/null || true' )" "0:ran"
-rigAssert "git inside another word runs"    "$( rigTry d4 'runs git' 'echo digit legit github' )" "0:ran"
-
-echo "-- 3. an index or cache folder is refused, nothing runs --"
+echo "-- 1. an index or cache folder is refused, nothing runs --"
 rigAssert "the system index"                "$( rigTry i1 'index or cache folder' 'ls .local/system-index 2>/dev/null || true' )" "1:none"
 rigAssert "the output cache"                "$( rigTry i2 'index or cache folder' 'cat x/.local/output-cache/y 2>/dev/null || true' )" "1:none"
 rigAssert "the source cache"                "$( rigTry i3 'index or cache folder' 'echo .local/source-cache' )" "1:none"
 
-echo "-- 4. another .local folder runs --"
+echo "-- 2. another .local folder runs --"
 rigAssert "the agents folder runs"          "$( rigTry o1 'index or cache folder' 'ls .local/agents 2>/dev/null || true' )" "0:ran"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ BASH GIT INDEX GUARD CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2
-	echo "  warn: a member's Bash can run git and read the index and cache folders the tools own" >&2
-	echo "  fix:  the NO GIT guard in sh-lib/harness/AgentsHarnessToolsBash.include" >&2
+	echo "  warn: a member's Bash can read the index and cache folders the tools own" >&2
+	echo "  fix:  the index and cache guard in sh-lib/harness/AgentsHarnessToolsBash.include" >&2
 	exit 1
 fi
 echo "BASH_GIT_INDEX_GUARD: OK ($rigPassCount assertions, offline)"

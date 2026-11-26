@@ -119,6 +119,7 @@ echo "-- overtime paints the hours outside worktime, and none of its own worktim
 rigCase overtime
 LC_ALL=C awk -F'\t' 'BEGIN{OFS="\t"} $1=="flag" && $2=="overtime" {$3="yes" ; $4="(50043 seconds left)"} {print}' \
 	"$MANAGER_SCREEN_RIG/rows.--manager-schedule-read" > "$MANAGER_SCREEN_RIG/rows.next" && mv "$MANAGER_SCREEN_RIG/rows.next" "$MANAGER_SCREEN_RIG/rows.--manager-schedule-read"
+	printf 'flag-end\tovertime\t%s\n' "$(( 1793062935 + 50043 ))" >> "$MANAGER_SCREEN_RIG/rows.--manager-schedule-read"
 rigSize="120 50"
 rigScript <<'RIGSCRIPT'
 at @schedule

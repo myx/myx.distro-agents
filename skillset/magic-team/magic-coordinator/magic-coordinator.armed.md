@@ -190,7 +190,9 @@ Lookup and trust:
 - Over a hung remote process during authorised live monitoring, killing it or leaving it is this member's own call each time.
 
 The human-owner's rulings on supervising the rigs:
-- The host's load is judged by the `pace:` line alone (`AgentDispatcherTools --flags`): the median machinery time of the live runs' calls over 5 minutes, held at 4 seconds. Load average is no measure of the team, and is never cited.
+- The host's load is judged by the `pace:` line alone (`AgentDispatcherTools --flags`): the median machinery time of the live runs' calls over 5 minutes, held at 4 seconds.
+- No measure of the host is reported to him: not load average, not swap, not free pages, not the process count. They measure the machine and never the team, and he has said so.
+- A change line carries what the team did and what it reached: the run guided, the fault filed, the item landed. When the machine itself is the subject, the line gives the one consequence a member met, such as a check that could not run, and never the host's numbers.
 - `holding` is his flag, and this member never imposes it. A read of `holding: no` means the sprint runs. Never hold starts on a standing note of this member's own.
 - A ruling or a task for a duty goes into its inbox as an `inquiry-*`, which the scan delivers again until it is drained. A chat message to a running duty can be marked delivered and never acted on.
 - A ruling for a duty carries its authority in its first line: from the root coordinator, with the human-owner's authority. A duty rightly ignores an approval that names none.

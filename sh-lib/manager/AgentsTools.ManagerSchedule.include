@@ -41,6 +41,13 @@ case "$1" in
 				"yes "*|"no "*) printf 'flag\t%s\t%s\t%s\n' "$scheduleFlag" "${scheduleLine%% *}" "${scheduleLine#* }" ;;
 				*) printf 'flag\t%s\t%s\t-\n' "$scheduleFlag" "$scheduleLine" ;;
 			esac
+			## A FLAG THAT RUNS OUT HAS AN END THE PICTURE DRAWS TO (overtime's off-hours): the note's own seconds, from this clock.
+			case "$scheduleLine" in
+				*' seconds left'*)
+					scheduleLeft="${scheduleLine#* (}" ; scheduleLeft="${scheduleLeft%% *}"
+					case "$scheduleLeft" in ''|*[!0-9]*) ;; *) printf 'flag-end\t%s\t%s\n' "$scheduleFlag" "$(( scheduleEpoch + scheduleLeft ))" ;; esac
+				;;
+			esac
 		done
 		## THE MEMBERS' OWN FLAGS (AgentsToolsScheduleMemberFlag): the entry row of vacation, which is set for one member, and a row `<flag>:<member>` for each member whose
 		## vacation or overtime holds now, so a person sees who is on one and clears it from its own row.

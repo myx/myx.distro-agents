@@ -210,6 +210,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-scope-set <scope-id> <key>
 📘 syntax: DistroAgentsTools.fn.sh --manager-scope-unset <scope-id> <key>
 📘 syntax: DistroAgentsTools.fn.sh --manager-scope-clear <scope-id>
+📘 syntax: DistroAgentsTools.fn.sh --manager-scope-reset <scope-id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-scope-delete <scope-id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-scope-new <subsystem>:<name>
 📘 syntax: DistroAgentsTools.fn.sh --manager-wizard-read <cli-service|git-settings>
@@ -4654,6 +4655,24 @@
 			`cleared <scope-id> <how many>`. Exit 1, with one error line, where a
 			key could not be taken out, saying how many were, and for an id that
 			is none of the scopes. The console offers it for any scope.
+
+		--manager-scope-reset <scope-id>
+			One of the console's own operations (see Notes). Takes out of one scope
+			every key a declaration gives a default, one by one as
+			`--manager-scope-unset` does, so each reads its declared default again;
+			the file, its comments and the other scopes stay. A declaration is one of
+			two forms: a `settings-rows.list` row of an installed package that carries
+			exactly the fields that file's own `## Form:` line names, or a `settings`
+			line of the agents console's own settings digest. The sixth field of such
+			a row is the declared default, and it may be empty: an empty default is a
+			default.
+			A scope holding any key that no declaration gives a default is refused,
+			and nothing is taken out: a reset is whole or it is none. Prints one row on
+			stdout: `reset <scope-id> <how many>`. Exit 1, with one error line,
+			for an id that is none of the scopes, a key that no declaration gives
+			a default (each named), and a key that could not be taken out. Clear
+			and Delete stand beside it for the rest: Clear takes out every key, and
+			Delete removes the scope where its subsystem has many.
 
 		--manager-scope-new <subsystem>:<name>
 			One of the console's own operations (see Notes). Makes one scope,
