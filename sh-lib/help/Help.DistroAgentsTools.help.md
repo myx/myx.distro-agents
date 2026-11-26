@@ -343,6 +343,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --undo-plan <record-id> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --undo-run <record-id> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --undo-purge <record-id> [--session-id <id>]
+📘 syntax: DistroAgentsTools.fn.sh --undo-rework <record-id> [--session-id <id>]
+📘 syntax: DistroAgentsTools.fn.sh --undo-settle <record-id> [--part <n>[,<n>]] [--by <member>] [--text <words>] [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-state [<key>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-add <key>
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-approve <key>

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check of AgentsToolsSuperviseBoard (sh-lib/supervise/AgentsTools.SuperviseBoard.include): on a rig workspace of its own,
-## each kind is printed where its case holds and left out where it does not. `epic`: a still epic is marked, a moving one is not.
+## each kind is printed where its case holds and left out where it does not. `epic`: a still epic is marked, a moving one is not, and
+## one whose `## Done` holds a line reads `done`, never `still`.
 ## `pending-skipped`: a recheck-date not due beside an unmet condition, and a verify on a task never run; a task with a build routine, one a run
 ## names, a due date, and a recheck-date not due beside a condition that reads met or none (any case, past leading spaces), or beside
 ## none, are not; a `metrics` prefix is unmet, and named. `recheck-unreadable`: a recheck-date its reader cannot take.
@@ -31,7 +32,8 @@ rigRecord(){ ## sandbox id, status, started-at, description
 ## Epics: one still (edited three hours ago, nothing names it), one moving (an item naming it changed now).
 printf '# still\n' > "$rigEpics/epic-blueprint-20260101T0000Z-still.md"
 printf '# moving\n' > "$rigEpics/epic-blueprint-20260101T0000Z-moving.md"
-touch -t "$( date -v-3H +%Y%m%d%H%M 2> /dev/null || date -d '-3 hours' +%Y%m%d%H%M )" "$rigEpics/epic-blueprint-20260101T0000Z-still.md" "$rigEpics/epic-blueprint-20260101T0000Z-moving.md"
+printf '# done\n\n## Done\n\n- Delivered on 2026-01-01.\n' > "$rigEpics/epic-blueprint-20260101T0000Z-done.md"
+touch -t "$( date -v-3H +%Y%m%d%H%M 2> /dev/null || date -d '-3 hours' +%Y%m%d%H%M )" "$rigEpics/epic-blueprint-20260101T0000Z-still.md" "$rigEpics/epic-blueprint-20260101T0000Z-moving.md" "$rigEpics/epic-blueprint-20260101T0000Z-done.md"
 rigItem running task-20260101T0001Z-on-moving 'type: task' 'epic: epic-blueprint-20260101T0000Z-moving'
 ## Running: one a live run names, one no run names.
 rigItem running task-20260101T0010Z-live-run 'type: task'
@@ -104,8 +106,10 @@ AgentsToolsBoardStateFoldersInto(){ ## array variable, state...
 rigOut="$( MMDAPP="$rigWs" AgentsToolsSuperviseBoard "$rigWs" 2> /dev/null )"
 rigHas(){ printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F -- "$1" ; }
 echo "-- epic --"
-rigAssert "a still epic is marked still" "$( rigHas 'epic ws 20260101T0000Z-still edited=' ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep 'still edited=' | LC_ALL=C grep -c ' still$' )" "1:1"
+rigAssert "a still epic is marked still" "$( rigHas 'epic ws epic-blueprint-20260101T0000Z-still edited=' ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep 'still edited=' | LC_ALL=C grep -c ' still$' )" "1:1"
 rigAssert "a moving epic is not" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '20260101T0000Z-moving' | LC_ALL=C grep -c ' still$' )" "0"
+rigAssert "an epic with a line under its ## Done reads done" "$( rigHas 'epic ws epic-blueprint-20260101T0000Z-done edited=' ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep 'Z-done edited=' | LC_ALL=C grep -c ' done$' )" "1:1"
+rigAssert "and a delivered epic is never still" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep 'Z-done edited=' | LC_ALL=C grep -c ' still$' )" "0"
 echo "-- pending-skipped --"
 rigAssert "a recheck-date not due beside an unmet condition is named" "$( rigHas 'pending-skipped ws task-20260101T0002Z-recheck recheck=2099-01-01_08:00_+0000' )" "1"
 rigAssert "one beside a met condition is not: the start pass starts it" "$( rigHas 'task-20260101T0011Z-met' )" "0"

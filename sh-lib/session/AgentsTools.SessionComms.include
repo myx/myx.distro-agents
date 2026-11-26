@@ -56,10 +56,11 @@ type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.d
 ## The reads a minute the whole reader is held to; the gaps of the cadence, in seconds.
 agentsSessionCommsReadsPerMinute=20
 agentsSessionCommsActiveGap=3
-## What one pass takes from a session's own outbox, and from all the channel outboxes together: a few posts a pass, so a backlog is
-## drained over many passes, and never holds the pass that takes the console's messages and reads the threads.
+## What one pass takes from a session's own outbox, and from all the channel outboxes together. A pass is still bounded, so it takes the
+## console's messages and reads the threads. The channel bound is the measured post rate of the service: 48 posts at 0.86 s a post holds
+## a pass about 41 s, inside the pass's own turn.
 agentsSessionCommsPostsPerSession=2
-agentsSessionCommsPostsPerPass=4
+agentsSessionCommsPostsPerPass=48
 ## The seconds one pass may spend on new work: the console's messages are taken at its top, so a console message waits about this long, and
 ## never the length of a pass that a backlog or a slow call would otherwise make.
 agentsSessionCommsPassSeconds=5

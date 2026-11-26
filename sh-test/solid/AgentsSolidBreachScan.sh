@@ -213,9 +213,37 @@ rows(){
 				}
 				close(file)
 			}'
-	## duplicate: an awk program of 80+ characters, one row per extra file carrying it
-	LC_ALL=C grep -rnoE "awk [^|]{0,40}'[^']{80,}'" sh-lib --include='*.include' --include='*.sh' |
-		LC_ALL=C awk -F: '{ f = $1 ; l = $2 ; $1 = "" ; $2 = "" ; t = $0 ; sub(/^[^'"'"']*/, "", t) ; if (!(t in first)) first[t] = f ":" l ; else if (index(first[t], f ":") != 1) printf "duplicate\t%s:%s\tsame awk program as %s\n", f, l, first[t] ; }'
+	## duplicate: an awk program of 80+ characters, one row per extra file carrying it. The files selected are those
+	## whose awk invocation opens its program quote within 40 characters, and each is read whole so that a program
+	## split over several lines is read on to its closing quote rather than being cut at the line end.
+	LC_ALL=C grep -rlE --include='*.include' --include='*.sh' "awk [^|]{0,40}'" sh-lib | LC_ALL=C sort |
+		LC_ALL=C awk '
+			BEGIN { quoteChar = "\x27" ; minProgram = 80 ; headMost = 40 }
+			{
+				bodyFile = $0 ; lineCount = 0
+				while ((getline bodyText < bodyFile) > 0) { lineCount++ ; bodyLine[lineCount] = bodyText }
+				close(bodyFile)
+				for (lineAt = 1 ; lineAt <= lineCount ; lineAt++) {
+					restText = bodyLine[lineAt]
+					while ((hitAt = index(restText, "awk ")) > 0) {
+						afterText = substr(restText, hitAt + 4) ; restText = substr(restText, hitAt + 3)
+						headText = afterText
+						if ((barAt = index(headText, "|")) > 0) headText = substr(headText, 1, barAt - 1)
+						openAt = index(headText, quoteChar)
+						if (openAt == 0 || openAt - 1 > headMost) continue
+						programText = substr(afterText, openAt + 1) ; closeAt = 0
+						if ((closeAt = index(programText, quoteChar)) > 0) programText = substr(programText, 1, closeAt - 1)
+						else for (aheadLine = lineAt + 1 ; aheadLine <= lineCount && !closeAt ; aheadLine++) {
+							if ((closeAt = index(bodyLine[aheadLine], quoteChar)) > 0) programText = programText "\n" substr(bodyLine[aheadLine], 1, closeAt - 1)
+							else programText = programText "\n" bodyLine[aheadLine]
+						}
+						if (!closeAt || length(programText) < minProgram) continue
+						if (!(programText in firstFile)) { firstFile[programText] = bodyFile ; firstLine[programText] = lineAt ; continue }
+						if (firstFile[programText] == bodyFile) continue
+						printf "duplicate\t%s:%d\tsame awk program as %s:%d\n", bodyFile, lineAt, firstFile[programText], firstLine[programText]
+					}
+				}
+			}'
 	## the internal contracts: unreached calls, silent loads, optional calls, dual use, duplicate definitions, dead functions
 	python3 "$scanHere/AgentsSolidContracts.py" "$root"
 	## trivial: a function or variable that is inlined, with what makes it one

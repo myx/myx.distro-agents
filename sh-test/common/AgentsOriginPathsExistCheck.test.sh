@@ -58,6 +58,14 @@ rigAssert "control: a path that goes on past its quote into a glob is a pattern,
 printf 'grep -e %s\n' "'\\\$MDLT_ORIGIN/myx/myx\\.common/'" > "$rigTmp/regex.sh"
 rigAssert "control: a path cut at a backslash is regex text, not asked about" "[$( python3 -I -B "$rigPathsReader" "$rigTmp/regex.sh" )]" "[]"
 
+cat > "$rigTmp/heredoc.sh" <<'RIGEOF'
+cat > /dev/null <<'RIGBODY'
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsRigNoSuchFile.include"
+RIGBODY
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"
+RIGEOF
+rigAssert "control: a quoted here-doc's body is fixture text, and the load after its terminator is a path" "$( python3 -I -B "$rigPathsReader" "$rigTmp/heredoc.sh" | LC_ALL=C sed 's/^[^|]*|//' | LC_ALL=C tr '\n' '|' )" "myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include|"
+
 ## THE ONE FORM of an include of a file of a myx.distro-* package's sh-lib: a statement `. <target>` or `source
 ## <target>` in a shell file of a package (its sh-lib, sh-scripts and builders: *.sh, *.include, *.rc), outside a
 ## comment, whose target spells `myx/<package>/sh-lib/<file>` literally after `$MDLT_ORIGIN` or a `${MDLT_ORIGIN:-...}`

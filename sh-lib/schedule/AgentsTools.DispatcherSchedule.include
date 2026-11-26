@@ -2590,7 +2590,7 @@ AgentsToolsScheduleRetestDrain(){
 	[ -z "${agentsScheduleRetestStarted:-}" ] || return 0
 	AgentsToolsSchedulePaceAllows || return 0
 	retestState="$( AgentsToolsRetestQueueState )" || retestState=""
-	case "$retestState" in *'holder=alive'*) return 0 ;; esac
+	case "$retestState" in *'holder=alive'*|*'holder=unknown'*) return 0 ;; esac
 	case "$retestState" in 'waiting='[1-9]*) ;; *) return 0 ;; esac
 	mkdir -p "${retestLog%/*}" 2> /dev/null && { printf '' >> "$retestLog" ; } 2> /dev/null || { printf 'retest-drain: the log of the drain could not be written: %s\n' "$retestLog" ; return 0 ; }
 	## ITS OWN PROCESS GROUP AND A HANGUP IGNORED, so the batch outlives the pass that started it and a stop ends the tree (the owner's ruling).

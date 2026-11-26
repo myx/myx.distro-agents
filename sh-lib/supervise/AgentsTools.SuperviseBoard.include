@@ -8,8 +8,8 @@
 ##
 ## Kinds:
 ##   `epic` every epic blueprint of the vault not marked superseded: `<ws> <epic> edited=<n>m moved=<n> running=<n>`, and `still`
-##          last where no board item naming it changed in the last hour and the blueprint itself is older than two hours. An epic
-##          is the owner's goal, so a still one is read and moved, never left.
+##          last where no board item naming it changed in the last hour and the blueprint itself is older than two hours, or `done`
+##          where a line stands under its own `## Done`. An epic is the owner's goal, so a still one is read and moved, never left.
 ##   `pending-skipped` an approved board-pending task the schedule's start pass leaves in silence (AgentsToolsScheduleStartPending):
 ##          `<ws> <item> recheck=<date>` for a recheck-date not yet due beside an unmet `condition:`, `<ws> <item> verify-before-build` for a task whose routine
 ##          falls to the table's verify row (no handler-routine) and that no run has ever worked.
@@ -29,7 +29,7 @@
 
 AgentsToolsSuperviseBoard(){ ## workspace path, now (epoch)
 	local boardWs="${1%/}" boardNow="${2:-$( date +%s )}" boardRoot boardWsName boardItems=() boardEpics boardEpic boardName boardAge
-	local boardMoved boardRun boardItem boardKey boardRecheck boardEpoch boardRecords boardRow boardStatus
+	local boardMoved boardRun boardClosed boardEnd boardItem boardKey boardRecheck boardEpoch boardRecords boardRow boardStatus
 	boardWsName="${boardWs##*/}"
 	type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
 	boardRoot="$( AgentsToolsTeamDataRootOf "$boardWs" 2> /dev/null )" || return 0
@@ -54,14 +54,24 @@ AgentsToolsSuperviseBoard(){ ## workspace path, now (epoch)
 		for boardEpic in ${boardEpicFiles[@]+"${boardEpicFiles[@]}"} ; do
 			[ "${boardEpic%/*}" = "$boardVault" ] || continue
 			case "${boardEpic##*/}" in epic-blueprint-*.md) ;; *) continue ;; esac
-			LC_ALL=C grep -q '^Superseded by' "$boardEpic" && continue
+			## AN EPIC IS CLOSED BY ITS OWN RECORD: `Superseded by` retires it, and a line under the contract's `## Done` records its delivery.
+			boardClosed="$( LC_ALL=C awk '
+				/^Superseded by/ { print "superseded" ; exit }
+				$0 == "## Done" { doneAt = 1 ; next }
+				doneAt && $0 ~ /[^[:space:]]/ { print "done" ; exit }
+			' "$boardEpic" )"
+			case "$boardClosed" in superseded) continue ;; esac
 			boardName="${boardEpic##*/}" ; boardName="${boardName%.md}"
 			boardAge=$(( ( boardNow - $( stat -f %m "$boardEpic" 2> /dev/null || stat -c %Y "$boardEpic" ) ) / 60 ))
 			boardEpics=0 ; [ -z "$boardMoved" ] || boardEpics="$( printf '%s\n' "$boardMoved" | LC_ALL=C xargs grep -l -F -- "$boardName" 2> /dev/null | LC_ALL=C wc -l | tr -d ' ' )"
 			AgentsToolsBoardItemsInto boardItems "" running
 			boardRun=0 ; [ ${#boardItems[@]} -eq 0 ] || boardRun="$( LC_ALL=C grep -l -F -- "$boardName" "${boardItems[@]}" 2> /dev/null | LC_ALL=C wc -l | tr -d ' ' )"
-			printf 'epic %s %s edited=%sm moved=%s running=%s%s\n' "$boardWsName" "${boardName#epic-blueprint-}" "$boardAge" "$boardEpics" "$boardRun" \
-				"$( [ "$boardEpics" = 0 ] && [ "$boardAge" -gt 120 ] && printf ' still' )"
+			boardEnd=""
+			case "$boardClosed" in
+				done) boardEnd=" done" ;;
+				*) [ "$boardEpics" = 0 ] && [ "$boardAge" -gt 120 ] && boardEnd=" still" ;;
+			esac
+			printf 'epic %s %s edited=%sm moved=%s running=%s%s\n' "$boardWsName" "$boardName" "$boardAge" "$boardEpics" "$boardRun" "$boardEnd"
 		done
 		## PENDING THE SCHEDULE PASSES OVER IN SILENCE.
 		type AgentsToolsBoardItemKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"

@@ -104,15 +104,20 @@ AgentsToolsManagerSessionControls(){ ## session id (every session of the workspa
 AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for the active sessions only (may be empty)
 	type AgentsSessionRowsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-	local rowsOp="$1" rowsActive="${2:-}" rowsLearn="" rowsFile rowsPending rowsSpawned rowsLine measuredDated=""
+	local rowsOp="$1" rowsActive="${2:-}" rowsLearn="" rowsFile rowsPending rowsSpawned rowsLine measuredDated="" rowsTtl=30 rowsFresh=""
 	local rowsDated=()
 	[ "$rowsOp" != --schedule-learning ] || rowsLearn=1
+	## THE ACTIVE LIST IS THE NON-CLOSED SESSIONS, NOT THE LIVE ONES (sketch 14.5: "Active Sessions -- shows non-closed
+	## sessions, same format as root table"). A session whose thread has gone and whose record still stands is active, and it
+	## has no live block; the blocks alone printed 32 rows where the store holds 34. So this list takes the full read, and the
+	## blocks serve only the console's own live view (DistroAgentsTools --manager-session-active-list).
+	## The waiting and all lists take the same read, for the same reason.
 	## THE LIST IS PREPARED AND KEPT THIRTY SECONDS: a pass that asks for the whole history asks often, and deriving every
 	## session and run again each time is what made its first page seconds. The active and waiting lists keep their own copy
 	## too: the supervisor and the root read them at every tick, and each was a full derivation of the whole store.
 	local rowsKept="$MMDAPP/.local/agents/manager-sessions.ready.${rowsOp#--}${rowsActive:+.active}" rowsKeptAt rowsKeptNow rowsKeep
 	case "$rowsOp" in
-		--all-sessions|--manager-session-list|--active-sessions|--waiting-sessions) [ -n "$MMDAPP" ] || rowsKept="" ;;
+		--all-sessions|--manager-session-list|--waiting-sessions) [ -n "$MMDAPP" ] || rowsKept="" ;;
 		*) rowsKept="" ;;
 	esac
 	if [ -n "$rowsKept" ] && [ -s "$rowsKept" ] && [ -z "${MDAT_ROWS_REBUILD:-}" ] ; then
@@ -124,8 +129,20 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 				## THE AGE AND THE STORES: a copy is served only while no spawn record, ask or session file is newer than it.
 				## Age alone served a counters row that counted an ask the store no longer held (measured 2026-11-26 09:50: the
 				## withdraw check read 1 open after its own withdraw, inside the 30 s). One find over the three stores.
-				if [ "$(( rowsKeptNow - rowsKeptAt ))" -lt 30 ] \
-					&& [ -z "$( find "${MMDAPP%/}/.local/agents/spawned" "${MMDAPP%/}/.local/agents/pending" "${MMDAPP%/}/.local/agents/sessions" -type f -newer "$rowsKept" 2> /dev/null | LC_ALL=C head -1 )" ] ; then
+				## THE WAITING LIST KEEPS FIVE MINUTES AND READS THE ASKS ALONE: the state it prints is "waits on an answer", and the
+				## asks are what change it -- a session's control/state moves every few seconds whether it waits or not, so that leg
+				## rebuilt the whole list on every tick (measured 2026-11-26 10:55: 19 s for 3 rows). The pace gate's own five minutes
+				## is the lag a status surface may carry, as `--tasks` states it.
+				## THE SESSIONS LEG IS control/state AND NOTHING ELSE: the store held 305,989 files on 2026-11-26, and `-type f`
+				## walked 42 s of them on every call, where the rows read 2,996 state files.
+				if [ "$rowsOp" = "--waiting-sessions" ] ; then
+					rowsTtl=300
+					rowsFresh="$( find "${MMDAPP%/}/.local/agents/pending" -type f -newer "$rowsKept" 2> /dev/null | LC_ALL=C head -1 )"
+				else
+					rowsFresh="$( { find "${MMDAPP%/}/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.spawn.md' -type f -newer "$rowsKept" 2> /dev/null ; find "${MMDAPP%/}/.local/agents/sessions" -mindepth 3 -maxdepth 3 -name state -path '*/control/*' -newer "$rowsKept" 2> /dev/null ; find "${MMDAPP%/}/.local/agents/pending" -type f -newer "$rowsKept" 2> /dev/null ; } | LC_ALL=C head -1 )"
+				fi
+				if [ "$(( rowsKeptNow - rowsKeptAt ))" -lt "$rowsTtl" ] \
+					&& [ -z "$rowsFresh" ] ; then
 					cat "$rowsKept" 2> /dev/null
 					return 0
 				fi

@@ -135,6 +135,11 @@ printf '#!/usr/bin/env bash\nfor s in backlog pending running review ; do : ; do
 rigAssert "the planted spaced run is found" "$( rigScanRun "$rigFake" "$rigFakeInclude" "$rigFakeInclude" | sed 's|.*/||' | tr '\n' ' ' )" "AgentsTools.Planted.include:2: backlog pending running review "
 printf '#!/usr/bin/env bash\ncase "$s" in\n\trunning) : ;;\n\treview) : ;;\nesac\n' > "$rigFake/sh-lib/states/AgentsTools.Planted.include"
 rigAssert "a file naming the states apart holds no group" "$( rigScanRun "$rigFake" "$rigFakeInclude" "$rigFakeInclude" )" ""
+printf '#!/usr/bin/env bash\ncase "$k:$t" in\n\tinbox:"$who"|board:review|board:parked|board:retained) ;;\nesac\n' > "$rigFake/sh-lib/states/AgentsTools.Planted.include"
+rigAssert "a planted board:-prefixed family is found, its members' prefix dropped" \
+	"$( rigScanRun "$rigFake" "$rigFakeInclude" "$rigFakeInclude" | sed 's|.*/||' | tr '\n' ' ' )" "AgentsTools.Planted.include:3: review|parked|retained "
+printf '#!/usr/bin/env bash\ncase "$k:$t" in\n\tinbox:"$who"|board:review|board:nonsense) ;;\nesac\n' > "$rigFake/sh-lib/states/AgentsTools.Planted.include"
+rigAssert "a board:-prefixed family holding a non-state is foreign, no row" "$( rigScanRun "$rigFake" "$rigFakeInclude" "$rigFakeInclude" )" ""
 
 echo "-- 5. a state added to the one list and given no home is homeless --"
 rigGrown="$rigTmp/grown.include"

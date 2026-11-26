@@ -221,6 +221,16 @@ rigAssert "and it names the tool it is in" "$( rigWord rigclose 6 )" "tool=Wait"
 rigAssert "a closed record with no process gets no line" "$( rigLine riggone )" ""
 rigAssert "and reads no dead either" "$( rigKind dead )" "0"
 
+echo "-- 3c. a probe that cannot look names no death --"
+## A refused process table is the instrument's own failure, never a machine with no runs on it.
+mkdir -p "$rigTmp/nopsbin" || rigRefuse "the refused-probe folder could not be made"
+printf '#!/usr/bin/env bash\nexit 126\n' > "$rigTmp/nopsbin/ps" ; chmod +x "$rigTmp/nopsbin/ps"
+rigScanPath="$rigTmp/nopsbin:/usr/bin:/bin:/usr/sbin:/sbin"
+rigOut="$( rigScan )"
+rigScanPath=""
+rigAssert "a refused process table reads no dead" "$( rigKind dead )" "0"
+rigAssert "and the scan names the refusal" "$( rigKind ps-refused )" "1"
+
 echo "-- 4. a parked run and a dismissed run are neither stuck nor dead --"
 rigAssert "a parked run gets no run line" "$( rigLine rigpark )" ""
 rigAssert "a dismissed run gets no run line" "$( rigLine rigdism )" ""
@@ -230,8 +240,10 @@ echo "-- 4b. the scan costs the same however many closed records stand --"
 ## The forks of a scan, counted by a PATH stub of the tools it runs: a scan that runs a process per record is then seen,
 ## never reasoned about. Two scans, one on this rig and one with a hundred and twenty closed records added.
 rigForkCount(){ ## none
-	: > "$rigTmp/fork.log"
 	rigScanPath="$rigTmp/forkbin:/usr/bin:/bin:/usr/sbin:/sbin"
+	## Whatever the scan builds once and keeps is built by an uncounted pass first: two counts compared 153 with 53 across one such warm-up.
+	rigScan > /dev/null 2>&1
+	: > "$rigTmp/fork.log"
 	rigScan > /dev/null 2>&1
 	rigScanPath=""
 	LC_ALL=C wc -l < "$rigTmp/fork.log" | tr -d ' '
@@ -243,6 +255,9 @@ for rigForkTool in ps sed awk grep find cut basename head tail tr wc sort ls : ;
 	printf '#!%s\nprintf "%%s\\n" %s >> "%s"\nexec %s "$@"\n' "$BASH" "$rigForkTool" "$rigTmp/fork.log" "$rigForkReal" > "$rigTmp/forkbin/$rigForkTool"
 	chmod +x "$rigTmp/forkbin/$rigForkTool"
 done
+rigForkClose(){ ## few, many -- 1 where 120 more records added no more than one fork
+	[ "$2" -le "$(( $1 + 1 ))" ] && [ "$2" -ge "$(( $1 - 1 ))" ] && printf 1 || printf 0
+}
 rigFewForks="$( rigForkCount )"
 rigIdleAt=0
 while [ "$rigIdleAt" -lt 120 ] ; do
@@ -252,7 +267,7 @@ while [ "$rigIdleAt" -lt 120 ] ; do
 done
 rigOut="$( rigScan )"
 rigManyForks="$( rigForkCount )"
-rigAssert "the fork count of a scan, without then with 120 more closed records" "$rigFewForks $rigManyForks" "$rigFewForks $rigFewForks"
+rigAssert "the fork count of a scan, without then with 120 more closed records: ${rigFewForks} then ${rigManyForks}" "$( rigForkClose "$rigFewForks" "$rigManyForks" )" "1"
 rigAssert "and every live run is still on its line" "$( rigKind run )" "9"
 
 echo "-- 5. the kinds of before are unchanged --"
@@ -277,7 +292,7 @@ done
 rigOut="$( rigScan )"
 rigAskManyForks="$( rigForkCount )"
 rigAssert "and still no parent is named, with 120 more closed records behind it" "$( rigKind parent-ask )" "0"
-rigAssert "the fork count of a scan with an owner ask, without then with 120 more closed records" "$rigAskFewForks $rigAskManyForks" "$rigAskFewForks $rigAskFewForks"
+rigAssert "the fork count of a scan with an owner ask, without then with 120 more closed records: ${rigAskFewForks} then ${rigAskManyForks}" "$( rigForkClose "$rigAskFewForks" "$rigAskManyForks" )" "1"
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ SUPERVISE SCAN CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2 ; exit 1

@@ -10,9 +10,10 @@ This page is a map, not a copy. Where a mechanism needs its detail, the owning f
 
 A session records its messages in one file, `<session>/session.chat`, under `.local/agents/sessions/`. The name is the constant `agentsSessionChatName` in `sh-lib/session/AgentsTools.SessionChat.include:65`.
 
-Three files sit beside it, and each has one job.
+Four files sit beside it, and each has one job.
 
 - `session.chat.index` carries one line per block: the block number, its Slack ts or `-`, its `<conversation>:<thread>` or `-`, its origin, the line of its header, and its seen mark. `AgentsTools.SessionChat.include:23`.
+- `session.chat.stamps` is appended to, never rewritten: `<block>\t<ts>\t<conversation:thread>\t<seen>`, the ts and the seen mark Slack answered with later. `AgentsTools.SessionChat.include:301`, written at `:313`.
 - `session.chat.pointers` carries `<reader><TAB><value>`, the one place a session keeps where a reader has got to. `AgentsTools.SessionChat.include:39`.
 - `session.chat.resolved` is written aside and moved into place, so a reader never sees a half-written resolution. `AgentsTools.SessionChat.include:374` to `:378`.
 
@@ -26,6 +27,15 @@ Two rules keep that reader honest.
 - A `notice` block is no message of the floor's. The next foreground call's digest surfaces it, one line, and marks it so it shows once. `AgentsTools.SessionChat.include:54` to `:55`.
 
 One writer holds the session's local lock for the length of one append, one stamp, one import or one pointer. So a block's number and its header's line are what they say, however many runs write at once. `AgentsTools.SessionChat.include:57`.
+
+### What reads the floor, and what each reader does
+
+The reader has four callers, and each acts on what it finds differently.
+
+- `AgentsWaitProbeChat` serves it as the Wait tool's `chat:<session>` source, and what it delivered is recorded beside it. `sh-lib/wait/AgentsTools.MemberWaitChat.include:53`, read at `:82`.
+- `AgentsToolsTaskMessagePending` asks whether anything is waiting, so a tool call still running can be woken. `sh-lib/session/AgentsTools.ToolTask.include:59`, read at `:69`.
+- `AgentsHarnessWaitChatDismissal` looks for a `DISMISSED` alone, so a dismissal is never held behind the checklist. `sh-lib/harness/AgentsHarnessWait.include:354`, read at `:359`.
+- `AgentsTranscriptReplyFloor` puts what is new beside a long tool reply. `sh-lib/session/AgentsTools.SessionTranscript.include:759`, read at `:813`.
 
 ## What a message for a member whose run has ended meets
 
@@ -71,6 +81,14 @@ The thread keeps a `dead` file with one line per death, written whole by one ren
 
 So a death is neither silent nor automatic. It is told, it is asked about, and it is settled by a word written back to the same line.
 
+### The other watchers, and what each owns
+
+Three more processes watch a session, and each owns one thing.
+
+- The communications thread keeps the chat files level with Slack both ways. `sh-lib/session/AgentsTools.SessionComms.include:7`, run by `--intern-session-comms` (`AgentsTools.InternSessionComms.include:6`).
+- The advance pass closes what a dead spawn left open. `AgentsToolsAdvanceSpawnHousekeeping` at `sh-lib/board/AgentsTools.BoardHousekeeping.include:95`, called at `sh-lib/magic/AgentsTools.InternMainLoop.include:302`.
+- The supervisor's scan reports what needs a coordinator's hand on the rigs. `sh-lib/supervise/AgentsTools.SuperviseScan.include:5`.
+
 ## Whether a tool call can return before it finishes
 
 Yes, and the dispatch that decides it is `AgentsHarnessRun`. `sh-lib/harness/AgentsHarnessRun.include:757` to `:800`.
@@ -93,6 +111,14 @@ Stopping it stops the same process, through the Bash stop of the handle. `Agents
 
 So a caller's three moves are one handle each: read it with `TaskOutput`, watch it with `Wait sources=process:<N>`, and end it with `TaskStop`.
 
+## The three moments a message can arrive in
+
+Each moment has its own path to the run.
+
+- During a call, the task's own watcher reads the floor every `MDAT_TOOL_TASK_RECHECK` seconds, 20 by default, and signals the waiting shell when it finds one. `sh-lib/session/AgentsTools.ToolTask.include:126` to `:133`.
+- At the turn's end, a run that is a work-duty, or is not the last one of its session running, makes an idle wait instead of ending. `sh-lib/harness/AgentsUniversalHarness.sh:2415` to `:2422`.
+- While the run sleeps, the idle wait holds outside the model and wakes on an arrival or on its keepalive round. `sh-lib/harness/AgentsHarnessCheckpoint.include:172`, and `:176` to `:182`.
+
 ## The one address a message carries
 
 One value names a channel on one comms service: `<service>:<address>[:<ts>]`. `sh-lib/comms/AgentsTools.CommsChannel.include:10`.
@@ -103,6 +129,8 @@ One value names a channel on one comms service: `<service>:<address>[:<ts>]`. `s
 - `printback:<session>` is that session's root-native printback channel, with no network at all.
 
 The same value reaches a board item, an inbox item and the chat file unchanged. A message's own id is `<service>:<container>:<message-id>`, which is what a reply targets.
+
+The comms cache keeps that same id as a folder name, with the service repeated as its partition: `slack:<channel>` is `.local/cache/comms/slack/slack-<channel>`. `sh-lib/comms/AgentsTools.CommsCache.include:2` to `:5`, built at `:24` to `:27`. Inside it, one line a message in its UTC month's `messages.txt`, the ts in the first field. `AgentsTools.CommsCache.include:14`, `:302`.
 
 ## Which sources a wait watches
 
@@ -134,6 +162,7 @@ A wake is a signal that makes a sleeping wait look.
 
 - A poke is one newline into a nap fifo, so a waiter wakes on the arrival rather than on its next costly look. `sh-lib/wait/AgentsTools.WakeMarker.include:95`.
 - The wake marker is the file per member a writer touches, watched as a local source. `AgentsTools.WakeMarker.include:5` to `:10`.
+- The thread signal is the session's own chat file, watched as `chat:<session>`. `sh-lib/wait/AgentsTools.MemberWaitSources.include:206` to `:210`.
 
 A rewind is a return to an earlier point of the conversation.
 

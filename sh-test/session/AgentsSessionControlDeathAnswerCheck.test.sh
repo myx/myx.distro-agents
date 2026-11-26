@@ -138,9 +138,13 @@ rigMethod="" ; rigPrevArg="" ; rigBody="" ; rigThreadTs=""
 for rigArg in "$@" ; do
 	case "$rigArg" in https://slack.com/api/*) rigMethod="${rigArg#https://slack.com/api/}" ; rigMethod="${rigMethod%%\?*}" ;; esac
 	[ "$rigPrevArg" != "--data-binary" ] || rigBody="${rigArg#@}"
-	## A form field is one argument, `name=value`: the ts of a thread is the one this answers for.
-	case "$rigArg" in ts=*) rigThreadTs="${rigArg#ts=}" ;; esac
 	rigPrevArg="$rigArg"
+	## A form field reaches curl as `<name>=<value>` for a short value and `<name>@<file>` for a long one
+	## (`AgentsTools.InternOpSlackCall.include`), so the ts of a thread is read in both shapes.
+	case "$rigArg" in
+		ts=*) rigThreadTs="${rigArg#ts=}" ;;
+		ts@*) rigThreadTs="$( cat "${rigArg#ts@}" 2> /dev/null )" ;;
+	esac
 done
 rigKeep(){ [ -z "$rigBody" ] || { printf '%s ' "$rigMethod" ; cat "$rigBody" ; echo ; } >> "$rigDir/$1" ; }
 rigToken="${rigHeader#Authorization: Bearer }"
@@ -161,6 +165,10 @@ case "$rigMethod" in
 		printf '{"ok":true,"channel":"DRIG00001","ts":"%s","message":{"ts":"%s","user":"URIGBOT01"}}\n' "$rigTs" "$rigTs"
 	;;
 	reactions.add) [ ! -e "$rigDir/hang-react" ] || exec sleep 30 ; rigKeep bodies ; printf '{"ok":true}\n' ;;
+	## THE OWNER'S OWN DIRECT MESSAGE, as Slack answers it: `conversations.info` on his account names his IM,
+	## and `users.info` names him as a person. The send path asks both before it posts in his conversation.
+	conversations.info) printf '{"ok":true,"channel":{"id":"URIGOWNER","is_im":true,"user":"URIGOWNER"}}\n' ;;
+	users.info) printf '{"ok":true,"user":{"id":"URIGOWNER","name":"owner","real_name":"Rig Owner","is_bot":false}}\n' ;;
 	conversations.replies)
 		[ ! -e "$rigDir/hang-read" ] || exec sleep 30
 		## Slack answers a thread with its own root post first, always, and finds the thread by the `ts`
@@ -372,9 +380,9 @@ printf '%s\n' '#!/bin/sh' '## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli) -- 
 chmod +x "$rigWs/DistroAgentsConsole.sh"
 : > "$rigTmp/launches"
 rigLaunches(){ wc -l < "$rigTmp/launches" | LC_ALL=C tr -d ' ' ; }
-rigItemIn(){ ## item stem -- the board state that holds it
+rigItemIn(){ ## item stem -- the board state that holds it, in the order the board itself lists its states
 	local inState
-	for inState in running review processed pending ; do [ ! -f "$rigData/board/$inState/$1.md" ] || { printf '%s' "$inState" ; return 0 ; } ; done
+	for inState in $rigBoardOrder ; do [ ! -f "$rigData/board/$inState/$1.md" ] || { printf '%s' "$inState" ; return 0 ; } ; done
 	printf 'nowhere'
 }
 rigAskId(){ ## session id, run id -- the id of the question of that death that stands now: the last one its line keeps
@@ -385,8 +393,8 @@ rigMarks(){ ## session id, run id, name of a mark -- how many of them the line o
 }
 rigAsked(){ case "$( rigAskId "$1" "$2" )" in ''|none) return 1 ;; esac ; } ## session id, run id
 ## A death staged and asked: the run, dead from the start, with its item; ticks until its question is asked.
-rigDeath(){ ## run id, session id, member, review-by, more frontmatter lines of its record (may be empty)
-	rigItem "item-$1" "$1" "$4"
+rigDeath(){ ## run id, session id, member, review-by, more frontmatter lines of its record (may be empty), board state (running where not given)
+	rigItem "item-$1" "$1" "$4" "${6:-running}"
 	rigRec "$1" "$2" "$3" spawn-started "supervisor-process: $rigGoneShell
 spawns: item-$1
 ${5:-}"
@@ -420,6 +428,10 @@ rigLines(){ ## fixed text, run id -- the posts that hold both: `<conversation> <
 rigInside(){ ## lines of a script, run inside the tooling's own context in the rig workspace
 	printf '%s\n' "$@" | rigCall --intern-mcp-execute 2> "$rigTmp/inside.err"
 }
+## The board's own list of states, read from the tooling rather than typed here, so a state added to the board is
+## a state this check covers without an edit. A read that gave nothing is refused below, before any row leans on it.
+rigBoardOrder="$( rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"' 'echo "rig-states=$agentsBoardStates"' | LC_ALL=C sed -n 's/^rig-states=//p' )"
+[ -n "$rigBoardOrder" ] || rigRefuse "the board's own list of states could not be read from the tooling, so no state row below would measure anything"
 
 echo "-- 1. the review limit is held while a question about a death stands open --"
 rigNowEpoch="$( date +%s )"
@@ -468,12 +480,13 @@ rm -f "$rigSlack/replies.json"
 rigCarry d-wait d-wait
 rigAssert "a reply of the one who was asked, by the first word of an option, closes the record with that option, and the line of the death holds it and what was done" \
 	"$( LC_ALL=C sed -n 's/^verdict: //p' "$rigPending/closed/$( rigAskId d-wait d-wait ).md" ):$( rigDeadLine d-wait d-wait | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e 'answer=close' -e 'how=close' ):$( rigHeader d-wait status ):$( rigItemIn item-d-wait )" "close:2:spawn-ended-without-close:processed"
-## A question that was withdrawn.
+## A question that was withdrawn. Its question carries no thread of a session, so it stands in the owner's
+## own direct conversation, the one place the tooling posts a death nobody reviews there can answer.
 rigDeath d-wdrn d-wdrn keeper-rig human-owner
 rigCall --intern-op-pending-reply-close "$( rigAskId d-wdrn d-wdrn )" --if-open --status withdrawn --withdrawn-by magic-coordinator --withdraw-reason "the rig takes it back" --no-decision --context rig > /dev/null 2>&1 < /dev/null
 rigCarry d-wdrn d-wdrn
 rigAssert "a question that was withdrawn is not asked again: the line says so and the death is settled, one question was posted, and nothing was started" \
-	"$( rigDeadLine d-wdrn d-wdrn | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- 'how=withdrawn' ):$( rigQuestions d-wdrn ):$( rigLaunches )" "1:CRIG00001 - magic-coordinator;:0"
+	"$( rigDeadLine d-wdrn d-wdrn | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- 'how=withdrawn' ):$( rigQuestions d-wdrn ):$( rigLaunches )" "1:URIGOWNER - magic-coordinator;:0"
 ## The read of the thread, under a thread: on its period, and a read that hangs holds no tick.
 rigItem item-d-rdb d-rdb human-owner
 rigStand '' ; rigRdShell="$rigStandPid"
@@ -498,6 +511,23 @@ rigAssert "the thread of an open question is read on its period, three seconds h
 	"$( [ "$rigReads" -ge 2 ] && [ "$rigReads" -le 12 ] && echo on-its-period || echo "$rigReads" )" "on-its-period"
 
 echo "-- 3. the answer is carried out; 5. a true resume from a kept context --"
+## S6.34, EVERY STATE OF THE BOARD: a dead run's item is found wherever another closer, a grooming pass or an
+## accept left it standing, and the verdict on the run is a verdict on the item. One row a state of the board's own
+## list, `$rigBoardOrder`: the state the close itself leaves the item in (running, review, processed) is skipped,
+## because the rows above already hold those, and the other six are each measured here. A row passes only where
+## the verdict carried the answer out from that state: the member started again on the item, under a new run, and
+## the death settled. A state the fix does not cover reports `its item is in <state>, not in review` and starts
+## nothing, so its row is red on a tree without the fix and green with it.
+for rigStateName in $rigBoardOrder ; do
+	case "$rigStateName" in running|review|processed) continue ;; esac
+	rigBoardStates "$rigData" "$rigStateName" || rigRefuse "the board's own state $rigStateName could not be made in the rig"
+	rigDeath "d-$rigStateName" "d-$rigStateName" keeper-rig human-owner "" "$rigStateName"
+	rigAnswer "d-$rigStateName" "d-$rigStateName" resume ; rigCarry "d-$rigStateName" "d-$rigStateName"
+	rigStateNew="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/running/item-d-$rigStateName.md" 2> /dev/null | LC_ALL=C sed -n '1p' )"
+	rigAssert "a verdict on a dead run works on its item in $rigStateName: the item goes to review and on into running under a new run, and the death is settled" \
+		"$( rigItemIn "item-d-$rigStateName" ):$( [ -n "$rigStateNew" ] && [ "$rigStateNew" != "d-$rigStateName" ] && echo new-run ):$( rigDeadSettled "d-$rigStateName" "d-$rigStateName" && echo settled || echo unsettled ):$( rigMarks "d-$rigStateName" "d-$rigStateName" not )" \
+		"running:new-run:settled:0"
+done
 ## fresh: a participant of the session of the member that requested it.
 rigDeath d-fresh s-req keeper-rig human-owner "${rigAsked}session-thread: $rigReqThread
 "

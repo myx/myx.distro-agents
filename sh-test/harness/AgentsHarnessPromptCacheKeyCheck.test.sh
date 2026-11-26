@@ -71,10 +71,18 @@ rigRunStatus=0
 rigWorkspace="$rigTmp/ws-shared"
 mkdir -p "$rigWorkspace" "$rigTmp/ws-other"
 rigRun(){ ## leaf name, then the leaf arguments this scenario adds
-	local runLeaf="$1"
+	local runLeaf="$1" runLight="" runMain=""
 	shift
+	## THE LEAF'S OWN FAMILY NAMES, PINNED: each leaf refuses a model of no family it knows, and the ambient environment of a
+	## rig names one of its own (measured 2026-11-26: `deepseek-flash` reached the Grok leaf, which issued no request at all
+	## and so the check reported nothing). A leaf not named here keeps its own default.
+	case "$runLeaf" in
+		Grok) runLight="grok-4.3" ; runMain="grok-4.7" ;;
+		Scaleway) runLight="gemma-4-26b-a4b-it" ; runMain="deepseek-v4-flash-0731" ;;
+		Copilot) runLight="gpt-5.6-sol" ; runMain="claude-fable-5" ;;
+	esac
 	rigRunStatus=0
-	RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigWorkspace" \
+	RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigWorkspace" HARNESS_MODEL_LIGHT="$runLight" HARNESS_MODEL_MAIN="$runMain" \
 		env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT \
 		"$rigHere/harness/Agents${runLeaf}Harness.sh" --access-write-root "$rigScenarioDir" "$@" RIG-TASK-MARKER \
 		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err" || rigRunStatus=$?

@@ -6,7 +6,12 @@
 ##   3. a frame moved inside the bound reads no `frame-stall`, so a move clears the line
 ##   4. a frame held on an awaited contribution, an `awaited:` item pending on its own CheckList, is held and never stalled
 ##   5. every live run with a stack reads one `frame` line, with its open count
+##   6. a frame's age reads a constant 3600 seconds and never the run-silence bound: a frame unmoved 900 s with `open=1`
+##      reads no `frame-stall` at any `MDAT_SUPERVISE_STALL_SECONDS`, while that same setting still moves the run's own
+##      `stall` line, and a frame unmoved 7200 s reads `frame-stall` however far the run-silence bound is pushed out
+##   7. `frame-repeat`: a frame pushed twice reads one `frame-repeat` line with `repeat=2`, and a frame pushed once reads none
 ## Red before the base-frame ruling: 2 fails, since the scan printed `frame-stall` for every old base frame.
+## Red before the frame-bound ruling: 3 of 6's 5 assertions fail, since one bound of 600 s served both readings.
 ## Offline: a rig workspace, its spawn records and its team data are this rig's own temp tree; a run's process is a
 ## stand-in of this check, and every one of them is ended on the way out.
 set -u
@@ -73,6 +78,13 @@ rigScan(){
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		bash "$rigFn" --supervise-scan --workspace "$rigWs" 2>&1
 }
+## The same scan with settings of its own, handed to its environment as NAME=value words, so one reading can be taken under
+## two bounds at once. rigScan stays as it is, for the call sites that want the default bounds.
+rigScanWith(){ ## NAME=value words...
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" "$@" \
+		bash "$rigFn" --supervise-scan --workspace "$rigWs" 2>&1
+}
 rigKindOf(){ printf '%s\n' "$rigOut" | LC_ALL=C awk -v want="$1" -v run="$2" '$1 == want && $3 == run' ; } ## kind, run id -- its lines
 
 ## The rig's runs: a pushed frame unmoved for two hours above an open one; a base frame alone for two hours; a pushed
@@ -82,6 +94,16 @@ rigRun rigbase0 "rig-base.routine.md:current" ""
 rigRun rigmoved "rig-base.routine.md:open rig-top.routine.md:current" "$( rigPush rig-top.routine.md 60 )"
 rigRun righeld0 "rig-base.routine.md:open rig-top.routine.md:current" "$( rigPush rig-top.routine.md 7200 )"
 printf -- '- [ ] awaited: apply the corrections from magic-tester\n' > "$rigAgents/spawned/righeld0/magic-developer.checklist.md"
+## A frame unmoved 900 s above an open frame, past a run-silence bound of 600 s and inside a frame's own bound of 3600: the
+## run is silent on its Wait with one item pending, so its own `stall` line is in play beside the frame reading.
+rigRun rigframe "rig-base.routine.md:open rig-top.routine.md:current" "$( rigPush rig-top.routine.md 900 )"
+printf '1 %s tool Wait\n' "$(( rigNow - 900 ))" > "$rigAgents/sessions/rigframe/activity"
+printf -- '- [~] Read the design (in progress: Read the design)\n- [ ] Write the rows\n' > "$rigAgents/spawned/rigframe/magic-developer.checklist.md"
+## The same shape pushed twice, and pushed once: the repeat control.
+rigTwice="$( rigPush rig-top.routine.md 900 )
+$( rigPush rig-top.routine.md 800 )"
+rigRun rigtwice "rig-base.routine.md:open rig-top.routine.md:current" "$rigTwice"
+rigRun rigonce0 "rig-base.routine.md:open rig-top.routine.md:current" "$( rigPush rig-top.routine.md 800 )"
 sleep 2
 rigOut="$( rigScan )"
 
@@ -103,6 +125,28 @@ rigAssert "the four runs each read one frame line" \
 	"$( for rigOne in rigupper rigbase0 rigmoved righeld0 ; do rigKindOf frame "$rigOne" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ; done | LC_ALL=C tr '\n' ' ' )" "1 1 1 1 "
 rigAssert "the base frame's line reads open=0, the upper frame's open=1" \
 	"$( rigKindOf frame rigbase0 | LC_ALL=C grep -o 'open=[0-9]*' ):$( rigKindOf frame rigupper | LC_ALL=C grep -o 'open=[0-9]*' )" "open=0:open=1"
+
+echo "-- 6. a frame's age reads a constant bound, never the run-silence bound --"
+rigOut="$( rigScan )"
+rigAssert "a frame unmoved 900s, open=1, reads no frame-stall at the constant frame bound" \
+	"$( rigKindOf frame-stall rigframe | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
+rigOut="$( rigScanWith MDAT_SUPERVISE_STALL_SECONDS=100 )"
+rigAssert "the same frame reads no frame-stall with the run-silence bound at 100s" \
+	"$( rigKindOf frame-stall rigframe | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
+rigAssert "and the run's own stall line does fire at that 100s bound, so the setting took effect" \
+	"$( rigKindOf stall rigframe | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 1
+rigOut="$( rigScanWith MDAT_SUPERVISE_STALL_SECONDS=7200 )"
+rigAssert "a frame unmoved 7200s still reads frame-stall, however far the run-silence bound is pushed" \
+	"$( rigKindOf frame-stall rigupper | LC_ALL=C awk '{ print $5, $NF ; }' )" "rig-top.routine.md open=1"
+
+echo "-- 7. a frame pushed twice is frame-repeat, a frame pushed once is not --"
+rigOut="$( rigScan )"
+rigAssert "the twice-pushed frame reads one frame-repeat" \
+	"$( rigKindOf frame-repeat rigtwice | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 1
+rigAssert "naming its routine and repeat=2" \
+	"$( rigKindOf frame-repeat rigtwice | LC_ALL=C awk '{ print $5, $NF ; }' )" "rig-top.routine.md repeat=2"
+rigAssert "the frame pushed once reads none" \
+	"$( rigKindOf frame-repeat rigonce0 | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ SUPERVISE FRAME STALL CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2 ; exit 1

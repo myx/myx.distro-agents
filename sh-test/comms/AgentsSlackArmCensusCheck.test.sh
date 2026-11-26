@@ -205,7 +205,14 @@ rigAssert "the reader names the one word of a two-word label the file does not h
 	"$( rigUnanswered "$rigTmp/rig-one-word.include" '--intern-op-comms-slack-one|--intern-op-comms-slack-two' )" '--intern-op-comms-slack-two'
 rigAssert "the census names an operation arm whose body loads nothing" \
 	"$( rigCensusFaults "$rigTmp/rig-nothing.include" )" '--intern-op-comms-slack-rig-nothing: no include loaded'
-printf 'case "$1" in\n\t--intern-op-comms-slack-rig-absent)\n\t\t. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.RigAbsent.include"\n\t\treturn $?\n\t;;\nesac\n' > "$rigTmp/rig-absent.include"
+cat > "$rigTmp/rig-absent.include" <<'RIGABSENT'
+case "$1" in
+	--intern-op-comms-slack-rig-absent)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.RigAbsent.include"
+		return $?
+	;;
+esac
+RIGABSENT
 rigAssert "the census names an operation arm whose include is not there" \
 	"$( rigCensusFaults "$rigTmp/rig-absent.include" )" '--intern-op-comms-slack-rig-absent: AgentsTools.RigAbsent.include is not there'
 rigAssert "the census passes an arm of another family, which no include of this one serves" \

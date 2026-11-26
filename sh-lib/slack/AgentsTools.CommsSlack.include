@@ -239,7 +239,11 @@ AgentsToolsSlackReadBounded(){ ## output file, error file, then the command and 
 	## it is started disowned, so its parent is 1 by design once the shell that started it has gone, and no run waits on its
 	## answer but itself. For it the parent tests stand down, and the wall-clock bound below still applies. Any other shell
 	## whose parent is already 1 was started by one that has gone, and that is the incident this guard exists for.
+	## A CONTROL THREAD'S OWN WORKER IS ITS OWN ASKER TOO (--death, --request, --release, AgentsTools.InternSessionControl.include):
+	## each is started as a disowned subshell that execs the tool, so it asks as a process with no parent at all, and it
+	## posts and reads for the session that thread belongs to. Its mark is set where those three modes are parsed.
 	[ "${commsMode:-}" != "--run" ] || boundCaller=""
+	[ -z "${MDAT_SESSION_CONTROL_WORKER:-}" ] || boundCaller=""
 	## Already 1 means the read was started by a shell that has gone before it began: its
 	## answer has nobody to reach, and it is the exact incident this guard exists for.
 	if [ -n "$boundCaller" ] && [ "$boundCaller" = "1" ] ; then

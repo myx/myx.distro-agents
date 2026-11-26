@@ -1045,6 +1045,10 @@ case "$1" in
 			## And its third: the ending of one run its item no longer wants.
 			--release) controlMode='--release' ;;
 		esac
+		## The three modes above are started as a disowned subshell that execs the tool, so they ask as a process with no
+		## parent, and their Slack reads and posts stand down the guard that refuses such a caller (AgentsToolsSlackReadBounded).
+		## The mark is this shell's own and never exported: a console this worker starts asks for itself.
+		case "$controlMode" in --death|--request|--release) MDAT_SESSION_CONTROL_WORKER=yes ;; esac
 		if [ -z "$controlMode" ] ; then
 			printf '%s\n' "$MDSC_CMD --intern-session-control -- the control thread of one coworking session: a shell process of the tooling that watches the runs of the session and keeps its state. No agent: a tick reads local files and the process list, and nothing else." >&2
 			printf '%s\n' "" >&2

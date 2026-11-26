@@ -562,12 +562,13 @@ AgentsToolsRetestResult(){ ## operation, request id... -- where each request sta
 	return "$resultRc"
 }
 
-## The queue as one line, for a reader that asks once: `waiting=<n> oldest=<n>m holder=<alive|stale|none>`, the age counted
+## The queue as one line, for a reader that asks once: `waiting=<n> oldest=<n>m holder=<alive|stale|unknown|none>`, the age counted
 ## from the oldest request's own `asked:` stamp. Nothing printed where nothing waits and no drain lock stands, so a caller may
 ## print its line only where this one is not empty. The oldest is the first by name, and a request is named by the moment it was
-## asked in UTC, so the name order is the age order.
+## asked in UTC, so the name order is the age order. `unknown` is a probe that could not look at the pid, and it never reads as a
+## drain that ended.
 AgentsToolsRetestQueueState(){
-	local stateCount=0 stateAsked="" stateAge=0 stateHolder=none stateFile statePid stateEpoch stateNow stateDone="" stateFolder="" stateTotal=0 stateAnswered=0
+	local stateCount=0 stateAsked="" stateAge=0 stateHolder=none stateFile statePid stateProbe stateProbeRc stateEpoch stateNow stateDone="" stateFolder="" stateTotal=0 stateAnswered=0
 	for stateFile in "$retestStore"/waiting/*.request ; do
 		[ -f "$stateFile" ] || continue
 		stateCount=$(( stateCount + 1 ))
@@ -581,7 +582,15 @@ AgentsToolsRetestQueueState(){
 	if [ -d "$retestStore/drain.lock" ] ; then
 		stateHolder=stale
 		statePid="$( LC_ALL=C sed -n 's/^pid: //p' "$retestStore/drain.lock/holder" 2> /dev/null | LC_ALL=C sed -n 1p )"
-		[ -z "$statePid" ] || [ -z "$( AgentsToolsRetestProcess "$statePid" )" ] || stateHolder=alive
+		if [ -n "$statePid" ] ; then
+			## ps answers 1 for a pid that is not there, and above 1 where it could not look: a probe that never looked is no proof the drain ended.
+			stateProbe="$( LC_ALL=C ps -o lstart= -p "$statePid" 2> /dev/null )" ; stateProbeRc=$?
+			case "$stateProbeRc" in
+				0) stateHolder=alive ;;
+				1) ;;
+				*) stateHolder=unknown ;;
+			esac
+		fi
 	fi
 	[ "$stateCount" -gt 0 ] || [ "$stateHolder" != none ] || return 0
 	## WHAT THE RUNNING BATCH HAS DONE, from its own run folder: the tests it has answered, of the ones it took.

@@ -40,25 +40,18 @@ rigReasons(){
 ## THE LIST. One line a function: file under the package|function (empty for top-level code)|how many walks it holds|reason.
 rigList(){
 	printf '%s\n' \
-		'sh-lib/board/AgentsTools.BoardHousekeeping.include|AgentsToolsAdvanceSpawnHousekeeping|4|@housekeeping' \
+		'sh-lib/board/AgentsTools.BoardHousekeeping.include|AgentsToolsAdvanceSpawnHousekeeping|2|@housekeeping' \
 		'sh-lib/board/AgentsTools.BoardHousekeeping.include|AgentsToolsReviewUnseenEscalate|1|@housekeeping' \
 		'sh-lib/board/AgentsTools.BoardRoundScan.include|AgentsToolsBoardRecheckDueSection|1|@call-path' \
 		'sh-lib/board/AgentsTools.BoardStates.include|AgentsToolsBoardStateCounts|2|@one-off' \
 		'sh-lib/board/AgentsTools.ReviewFlow.include|AgentsReviewItemsForRoutine|1|@call-path' \
-		'sh-lib/harness/AgentsHarnessMessages.include|AgentsHarnessToolListAgents|1|@call-path' \
 		'sh-lib/run/AgentsTools.ManagerSessionKill.include|AgentsToolsManagerSessionKill|1|@one-off' \
 		'sh-lib/manager/AgentsTools.ManagerSessionRows.include|AgentsToolsManagerSessionScope|2|@one-off' \
+		'sh-lib/manager/AgentsTools.ManagerSessionRows.include|AgentsToolsManagerSessionRows|1|@kept' \
 		'sh-lib/session/AgentsTools.SessionStore.include|AgentsSessionRowsInto|1|@rebuild' \
 		'sh-lib/manager/AgentsTools.OpManagerSessionControlStart.include||1|@rebuild' \
-		'sh-lib/member/AgentsTools.InternOpMorningReview.include||1|@one-off' \
 		'sh-lib/wait/AgentsTools.MemberWaitSources.include||1|@call-path' \
 		'sh-lib/inbox/AgentsTools.OpUpsertInboxInquiry.include||1|@call-path' \
-		'sh-lib/questions/AgentsTools.PendingReplyCollect.include|AgentsToolsPendingReplySessionsRunning|1|@rebuild' \
-		'sh-lib/schedule/AgentsTools.Dispatcher.include|AgentsToolsDispatcherHistory|1|@one-off' \
-		'sh-lib/schedule/AgentsTools.DispatcherSchedule.include|AgentsToolsSchedulePaceText|1|@kept' \
-		'sh-lib/schedule/AgentsTools.DispatcherStats.include|AgentsToolsStatsDerive|2|@one-off' \
-		'sh-lib/schedule/AgentsTools.DispatcherStats.include|AgentsToolsStatsRecords|1|@one-off' \
-		'sh-lib/session/AgentsTools.InternSessionControl.include|AgentsToolsSessionControlRows|1|@call-path' \
 		'sh-lib/session/AgentsTools.SessionChat.include|AgentsToolsSessionChatThreadSessions|1|@call-path' \
 		'sh-lib/session/AgentsTools.SessionComms.include|AgentsToolsSessionCommsSessions|1|@call-path' \
 		'sh-lib/session/AgentsTools.SessionComms.include|AgentsToolsSessionCommsTakeAll|1|@call-path' \
@@ -73,14 +66,17 @@ rigList(){
 		'sh-lib/session/AgentsTools.SessionControlStart.include|AgentsSessionControlPidRows|1|@one-off' \
 		'sh-lib/session/AgentsTools.SessionControlStart.include|AgentsSessionControlRowsInto|1|@one-off' \
 		'sh-lib/session/AgentsTools.SessionTranscript.include|AgentsSessionTokensRowsInto|1|@one-off' \
+		'sh-lib/session/AgentsTools.SessionTranscript.include|AgentsSessionTokensRollupRows|1|@kept' \
+		'sh-lib/spawn/AgentsTools.CleanupSweep.include|AgentsToolsCleanupSweep|1|@housekeeping' \
+		'sh-lib/session/AgentsTools.SessionStore.include|AgentsSpawnedRecords|1|@one-off' \
 		'sh-lib/spawn/AgentsTools.SpawnSandbox.include|AgentsSessionRigControlRows|1|@kept' \
 		'sh-lib/board/AgentsTools.BoardDependencies.include|AgentsToolsBoardDependencies|1|@housekeeping' \
 		'sh-lib/session/AgentsTools.SessionChat.include|AgentsToolsSessionChatMessagesToSince|1|@one-off' \
 		'sh-lib/inbox/AgentsTools.InternTeamDataReflectionSweep.include||1|@one-off' \
 		'sh-lib/inbox/AgentsTools.InboxPlace.include|AgentsToolsInboxFilesInto|1|@call-path' \
-		'sh-lib/board/AgentsTools.BoardRoundScan.include|AgentsToolsBoardRoundSections|1|@one-off' \
 		'sh-lib/session/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistryRenderSpawnedSessions|1|@rebuild' \
-		'sh-lib/session/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistrySpawnedSessionsRebuild|1|@rebuild' \
+		'sh-lib/session/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistryRenderSpawnedSessionsKept|5|@rebuild' \
+		'sh-lib/session/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistrySpawnedSessionsRebuild|2|@rebuild' \
 		'sh-lib/session/AgentsTools.RegistrySpawnedSessions.include|AgentsToolsRegistrySpawnedSessionsRows|2|@rebuild' \
 		'sh-lib/team-data/AgentsTools.StrayStore.include|AgentsToolsStrayStoreList|1|@one-off' \
 		'sh-lib/board/AgentsTools.BoardDispatchRuns.include|AgentsToolsBoardDispatchRunsTableInto|1|@one-off' \

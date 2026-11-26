@@ -14,6 +14,8 @@ rigOrigin="$( cd "$MDLT_ORIGIN" && pwd -P )" || exit 1
 rigPackage="$rigOrigin/myx/myx.distro-agents"
 [ -d "$rigPackage/sh-lib" ] || { echo "⛔ ERROR: not found at the origin this workspace resolves: $rigPackage/sh-lib -- refusing to report a result" >&2 ; exit 1 ; }
 command -v python3 > /dev/null 2>&1 || { echo "⛔ ERROR: python3 is not on PATH, so the last byte of a file cannot be read -- refusing to report a result" >&2 ; exit 1 ; }
+rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsPackageConventionsCheck.XXXXXX" )" || { echo "⛔ ERROR: no scratch folder under $MMDAPP/.local/temp -- refusing to report a result" >&2 ; exit 1 ; }
+trap 'rm -rf -- "$rigTmp"' EXIT
 
 rigPassCount=0
 rigFailCount=0
@@ -62,9 +64,17 @@ rigBash4="$( LC_ALL=C grep -rn -E 'mapfile|readarray|declare -A|local -A|\$\{[A-
 rigAssert "no bash-4 construct stands in a bash 3.2 file"            "$( rigCount "$rigBash4" )" 0
 
 echo "-- 3. no unguarded GNU-only flag --"
-rigGnu="$( LC_ALL=C grep -rn -E 'sed -i|readlink -f|ls --color|grep -P|xargs -r' \
-	--include=*.sh --include=*.include "$rigPackage/sh-lib" "$rigPackage/sh-scripts" 2> /dev/null | LC_ALL=C grep -v -E ':[[:space:]]*#' || : )"
+## A SITE IS A CALL, NOT A WORD: the flag is matched where a command starts it and where it ends at a space, an `=` or the
+## line's end. `pgrep -P` carries `grep -P` inside another word, and `sed -i|xargs/` inside an awk pattern is an alternation,
+## so each was read as a site and neither runs anything (measured 2026-11-26: the two hits of this rule were exactly those).
+rigGnuScan(){ ## files or directories...
+	LC_ALL=C grep -rn -E '(^|[^A-Za-z0-9_-])(sed -i|readlink -f|ls --color|grep -P|xargs -r)([[:space:]=]|$)' "$@" 2> /dev/null | LC_ALL=C grep -v -E ':[[:space:]]*#' || :
+}
+rigGnu="$( rigGnuScan --include=*.sh --include=*.include "$rigPackage/sh-lib" "$rigPackage/sh-scripts" )"
 rigAssert "a GNU-only flag is used, or named only in a comment"       "$( rigCount "$rigGnu" )" 0
+mkdir -p "$rigTmp/gnu"
+printf 'sed -i "" -e "s/a/b/" "$1"\nfor c in $( pgrep -P "$$" ) ; do : ; done\nif ( all ~ /sed -i|xargs/ ) exit 1\nreadlink -f "$1"\n' > "$rigTmp/gnu/probe.sh"
+rigAssert "control: a call is a site, and the word inside pgrep's flag or an awk alternation is not" "$( rigCount "$( rigGnuScan "$rigTmp/gnu/probe.sh" )" )" 2
 
 if [ "$rigFailCount" != 0 ] ; then
 	printf 'RESULT: FAIL (%s passed, %s failed)\n' "$rigPassCount" "$rigFailCount"

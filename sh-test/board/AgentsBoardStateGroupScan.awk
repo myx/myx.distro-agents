@@ -3,9 +3,10 @@
 ##
 ## A GROUP is two or more different states of the one list written as one set, in either of two
 ## forms: a family of `|`-joined alternatives whose every member is a state, and a run of states
-## joined by single spaces. A `|`-family holding one word that is no state is a vocabulary of its
-## own, no row: the harness's run states and the wait's `board:<state>` source list are two. A
-## comment line is skipped, and so is the states include itself (skipPath).
+## joined by single spaces. The `board:` prefix of a wait source is dropped before the atoms are
+## read, so `board:review|board:parked` is the same group as `review|parked`. A `|`-family holding
+## one word that is no state is a vocabulary of its own, no row: the harness's run states are one.
+## A comment line is skipped, and so is the states include itself (skipPath).
 BEGIN {
 	scanCount = split( states, scanState, " " )
 	for ( scanAt = 1 ; scanAt <= scanCount ; scanAt++ ) { scanIs[scanState[scanAt]] = 1 }
@@ -15,6 +16,8 @@ BEGIN {
 	scanLine = $0
 	scanProbe = scanLine ; sub( /^[ \t]+/, "", scanProbe )
 	if ( scanProbe ~ /^#/ ) next
+	## The `board:` prefix of a wait source is no part of the state's name.
+	for ( scanAt = 1 ; scanAt <= scanCount ; scanAt++ ) { gsub( "board:" scanState[scanAt], scanState[scanAt], scanLine ) }
 	## The atoms: each word, and the characters that follow it up to the next word.
 	scanLen = length( scanLine ) ; scanAtoms = 0 ; scanWordNow = ""
 	for ( scanAt = 1 ; scanAt <= scanLen ; scanAt++ ) {

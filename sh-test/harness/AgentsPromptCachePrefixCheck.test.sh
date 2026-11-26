@@ -41,8 +41,10 @@ export HARNESS_HOST="harness-prompt-cache-prefix.invalid"
 export HARNESS_WIRE="AnthropicMessages"
 export HARNESS_EXTRA_HEADERS="anthropic-version: 2023-06-01"
 export HARNESS_CREDENTIAL_NAMES="none -- this check never reads one"
-export HARNESS_MODEL_LIGHT="rig-light"
-export HARNESS_MODEL_MAIN="rig-main"
+## THE LEG'S OWN FAMILY NAMES: a rig name of no family is refused by the limits table before any request is made, so the
+## check reported nothing at all (2026-11-26). The names are read from no assertion; the wire is what this check holds.
+export HARNESS_MODEL_LIGHT="claude-sonnet-5-5"
+export HARNESS_MODEL_MAIN="claude-opus-5-5"
 export HARNESS_TOKEN_LIGHT="rig-not-a-credential"
 export HARNESS_TOKEN_MAIN="rig-not-a-credential"
 export HARNESS_OUTPUT_TOKENS_LIGHT="4101"

@@ -7345,3 +7345,11 @@ This table is a pointer, never a copy. Where a mechanism needs its detail, the o
 - **What is left is command count, not I/O.** One scan of that rig traced about 73,000 shell commands: 7,814 `[` tests, 5,332
   `case`s and 4,160 `read`s. The record extraction itself is one awk over 1,171 files and costs 4 s. A cut here is fewer commands
   in the per-record walks, and `PS4='+${SECONDS} ' bash -x` is how the walk is read.
+
+## No known failures are carried
+
+No failing check is carried as known. A red check is a bug, fixed in the change that found it, or a check that is wrong and changes with its reason written.
+
+The runner refuses to run when a `known-failures.txt` sits beside it, and says so in one line. Its FAIL lines carry no owner and no excuse.
+
+This section supersedes the "Known failures:" paragraph under `# sh-test/AgentsRunTests.sh — the test runner`, which describes a list that no longer exists. This operation writes `## ` sections only, so that paragraph is corrected here rather than in place.

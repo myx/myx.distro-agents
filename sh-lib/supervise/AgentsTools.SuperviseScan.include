@@ -131,6 +131,7 @@ AgentsToolsSuperviseScan(){
 	## A CONTROL THREAD IS NO RUN, and it is left out here rather than trusted to the run-word reader alone: a thread started through a
 	## wrapper carries the wrapper's words before the tooling script's, and the reader then answers that session id as a live run.
 	scanPs="$( ps -A -ww -o pid=,args= 2> /dev/null | LC_ALL=C grep -v -- '--intern-session-control' )"
+	## A REFUSED PROCESS TABLE NAMES NO RUN DEAD: an empty one is the instrument's own failure, and it is reported, never read as a quiet machine.
 	## The one reading of liveness the tooling keeps (AgentsToolsLivenessOf, S23.6): a process of this host runs as the spawn, or the
 	## process its record names as its launch still lives. Neither reading is the record's status.
 	type AgentsToolsRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
@@ -142,6 +143,7 @@ AgentsToolsSuperviseScan(){
 		scanRigOwner="$( AgentsToolsSuperviseRigOwner "$scanWs" )" || scanRigOwner=""
 		scanAgents="$scanWs/.local/agents"
 		[ -d "$scanAgents" ] || { printf 'error %s - no .local/agents here\n' "${scanWs##*/}" ; continue ; }
+		[ -n "$scanPs" ] || printf 'ps-refused %s\n' "${scanWs##*/}"
 		## EVERY RECORD'S FIELDS IN ONE READ OF THEM ALL, before any question is read, since the asks below answer from it:
 		## `<sandbox> <name> <written> <spawn-id> <session-id> <owner> <status> <run-process> <parent-session-id> <agent-less>`, TAB-separated.
 		scanTable="$( MDAT_RECORD_ROWS_MAX_AGE_SECONDS="${MDAT_SCAN_RECORD_MAX_AGE_SECONDS:-172800}" AgentsToolsSpawnedRecordRows "$scanWs" spawn-id session-id owner status run-process parent-session-id agent-less routine 2> /dev/null )" || scanTable=""
@@ -307,7 +309,7 @@ AgentsToolsSuperviseScan(){
 			done
 			[ "$scanSetAside" = no ] || continue
 			if [ -z "$scanRuns" ] ; then
-				[ "$scanAgentLess" = true ] || printf 'dead %s %s %s\n' "${scanWs##*/}" "${scanSpid:0:8}" "$scanMember"
+				[ -z "$scanPs" ] || [ "$scanAgentLess" = true ] || printf 'dead %s %s %s\n' "${scanWs##*/}" "${scanSpid:0:8}" "$scanMember"
 				continue
 			fi
 			scanPaused=no

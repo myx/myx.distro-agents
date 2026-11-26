@@ -74,7 +74,7 @@ AgentsToolsSurfaceFlags(){ ## the operation, its arguments...
 
 ## --tasks: the board as the coordinator reads it: the count of each state and the active items with their tokens, the board's own readers.
 AgentsToolsSurfaceTasks(){ ## the operation, its arguments...
-	local tasksKept="$MMDAPP/.local/agents/tasks.ready" tasksAt tasksNow tasksOut tasksRc=0 tasksTemp
+	local tasksKept="$MMDAPP/.local/agents/tasks.ready" tasksAt tasksNow tasksMark tasksMarkAt
 	[ $# -eq 1 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: takes no option: $2" >&2 ; return 1 ; }
 	## KEPT THE PACE WINDOW, FIVE MINUTES: the token roll-up walks every board item and every run record, so a tick that asks again pays
 	## that walk again, and a duty's round is longer than the half minute this once kept (2026-11-25: 7 s a walk, nearly every round).
@@ -85,18 +85,40 @@ AgentsToolsSurfaceTasks(){ ## the operation, its arguments...
 		tasksNow="$( date +%s )" || tasksNow=""
 		case "$tasksAt$tasksNow" in
 			''|*[!0123456789]*) ;;
-			*) [ "$(( tasksNow - tasksAt ))" -ge 300 ] || { cat "$tasksKept" 2> /dev/null ; return 0 ; } ;;
+			*)
+				[ "$(( tasksNow - tasksAt ))" -ge 300 ] || { cat "$tasksKept" 2> /dev/null ; return 0 ; }
+				## A STALE COPY IS ANSWERED AT ONCE AND THE READING IS MADE BESIDE IT, the rule the session lists keep: the cold
+				## walk measured 27 s on 2026-11-26, and a tick that waits on it holds the supervisor. The copy stands one tick
+				## behind its store at worst, which the pace gate's own window already allows here.
+				## ONE REFRESH AT A TIME: its mark is taken with `set -C`, so two callers cannot both start the walk, and a mark
+				## left older than two minutes is a refresh that died and is taken over.
+				tasksMark="$tasksKept.refreshing" tasksMarkAt=""
+				[ ! -f "$tasksMark" ] || tasksMarkAt="$( LC_ALL=C stat -f '%m' "$tasksMark" 2> /dev/null || LC_ALL=C stat -c '%Y' "$tasksMark" 2> /dev/null )" || tasksMarkAt=""
+				case "$tasksMarkAt" in ''|*[!0123456789]*) tasksMarkAt="" ;; esac
+				if [ -n "$tasksMarkAt" ] && [ "$(( $( date +%s ) - tasksMarkAt ))" -gt 120 ] ; then rm -f "$tasksMark" 2> /dev/null ; fi
+				if [ ! -e "$tasksMark" ] && ( set -C ; : > "$tasksMark" ) 2> /dev/null ; then
+					( AgentsToolsSurfaceTasksText "$tasksKept" ; rm -f "$tasksMark" 2> /dev/null ) < /dev/null > /dev/null 2>&1 &
+				fi
+				cat "$tasksKept" 2> /dev/null
+				return 0
+			;;
 		esac
 	fi
+	AgentsToolsSurfaceTasksText "$tasksKept"
+}
+
+## THE TASK LINES, read and kept in one place: the counts of each state, then the active items with their tokens. Its one argument is
+## the kept path to write, empty where the caller keeps no copy.
+AgentsToolsSurfaceTasksText(){ ## kept path, or empty
+	local tasksTextKept="${1:-}" tasksTextOut tasksTextRc=0 tasksTextTemp
 	type AgentsToolsBoardCounts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.CoordinatorReads.include"
-	type AgentsToolsBoardCounts > /dev/null 2>&1 || { echo "$MDSC_CMD: ⛔ ERROR: $1: the board's readers could not be loaded" >&2 ; return 1 ; }
-	tasksOut="$( printf '# board\n' ; AgentsToolsBoardCounts ; printf '# active\n' ; AgentsToolsBoardActiveItems )" || tasksRc=$?
-	printf '%s\n' "$tasksOut"
-	if [ -n "$tasksKept" ] && [ "$tasksRc" = 0 ] ; then
-		tasksTemp="$( mktemp "$tasksKept.XXXXXX" 2> /dev/null )" || tasksTemp=""
-		if [ -n "$tasksTemp" ] ; then printf '%s\n' "$tasksOut" > "$tasksTemp" 2> /dev/null && mv -f "$tasksTemp" "$tasksKept" 2> /dev/null || rm -f "$tasksTemp" 2> /dev/null ; fi
-	fi
-	return "$tasksRc"
+	type AgentsToolsBoardCounts > /dev/null 2>&1 || { echo "$MDSC_CMD: ⛔ ERROR: the board's readers could not be loaded" >&2 ; return 1 ; }
+	tasksTextOut="$( printf '# board\n' ; AgentsToolsBoardCounts ; printf '# active\n' ; AgentsToolsBoardActiveItems )" || tasksTextRc=$?
+	printf '%s\n' "$tasksTextOut"
+	[ -n "$tasksTextKept" ] && [ "$tasksTextRc" = 0 ] || return "$tasksTextRc"
+	tasksTextTemp="$( mktemp "$tasksTextKept.XXXXXX" 2> /dev/null )" || return "$tasksTextRc"
+	if [ -n "$tasksTextTemp" ] ; then printf '%s\n' "$tasksTextOut" > "$tasksTextTemp" 2> /dev/null && mv -f "$tasksTextTemp" "$tasksTextKept" 2> /dev/null || rm -f "$tasksTextTemp" 2> /dev/null ; fi
+	return "$tasksTextRc"
 }
 
 ## --contacts [--organisation <slug>] [--reached-by <member>]: the contacts, Contacts' rows. --contact <id>: one, its record and its access.

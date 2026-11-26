@@ -48,6 +48,7 @@ cat > "$rigTmp/bin/curl" <<- 'EOF'
 		conversations.info)
 			case "$rigChannel" in
 				CRIG00001) printf '{"ok":true,"channel":{"id":"CRIG00001"}}\n' ;;
+				CRIG00002) printf '{"ok":true,"channel":{"id":"CRIG00002"}}\n' ;;
 				*) printf '{"ok":false,"error":"channel_not_found"}\n' ;;
 			esac
 		;;
@@ -58,7 +59,8 @@ cat > "$rigTmp/bin/curl" <<- 'EOF'
 			esac
 		;;
 		chat.postMessage)
-			if [ "$rigWho" = user ] ; then printf '{"ok":false,"error":"channel_not_found"}\n'
+			if [ "$rigWho" = user ] && [ "${RIG_ACCEPT_USER:-0}" = 1 ] ; then printf '{"ok":true,"channel":"%s","ts":"1700000001.000200","message":{"ts":"1700000001.000200","user":"URIGUSER1"}}\n' "$rigChannel"
+			elif [ "$rigWho" = user ] ; then printf '{"ok":false,"error":"channel_not_found"}\n'
 			else printf '{"ok":true,"channel":"%s","ts":"1700000000.000100","message":{"ts":"1700000000.000100","user":"URIGBOT1"}}\n' "$rigChannel" ; fi
 		;;
 		*) printf '{"ok":false,"error":"channel_not_found"}\n' ;;
@@ -81,7 +83,7 @@ rigAssert(){ ## what is asserted, got, want
 rigRc=0
 rigRun(){ ## the tool arguments -- one dispatcher call from the rig workspace; rc in rigRc, calls in calls
 	: > "$rigTmp/calls" ; rigRc=0
-	( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_THREAD RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
+	( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_THREAD RIG_SCENARIO="$rigTmp" RIG_ACCEPT_USER="${rigAcceptUser:-0}" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
 }
 rigCalls(){ ## method -- the identities that method was called under, in order, comma-separated
 	LC_ALL=C awk -v want="$1" '$1 == want { printf "%s%s", sep, $2 ; sep = "," ; }' "$rigTmp/calls"
@@ -100,6 +102,18 @@ rigAssert "control: the folder the send resolved holds the post's own line alrea
 rigAssert "that one folder holds both the line and its link, two lines together" "$( rigLines "$rigUserDir" )" "2"
 rigAssert "the link line, whose first field is the ts Slack gave, sits in that same folder" "$( cat "$rigUserDir"/[0-9][0-9][0-9][0-9][0-9][0-9]/messages.txt 2> /dev/null | LC_ALL=C grep -c '^1700000000\.000100 |' || : )" "1"
 rigAssert "and no folder named by the second resolve holds a line of this post" "$( LC_ALL=C grep -rc 'RIG-SWAP-REPLY' "$rigWrongDir" 2> /dev/null | LC_ALL=C awk -F: '{ n += $2 ; } END { print n + 0 ; }' )" "0"
+
+echo "-- 2. a post the user identity reaches, so no swap happens --"
+rigAcceptUser=1
+rigRun --slack-send-message --team-member magic-coordinator CRIG00002 "RIG-PLAIN-REPLY"
+rigAcceptUser=0
+rigPlainDir="$rigWs/.local/cache/comms/slack/slack-CRIG00002"
+rigPlainWrongDir="$rigWs/.local/cache/comms/slack/slack-CRIG00002-1700000001.000200"
+rigAssert "control: the send posts under the user identity and does not swap" "$rigRc $( rigCalls chat.postMessage )" "0 user"
+rigAssert "control: the folder the send resolved holds the unswapped post's own line" "$( [ -z "$( LC_ALL=C grep -rl 'RIG-PLAIN-REPLY' "$rigPlainDir" 2> /dev/null | head -1 )" ] && echo absent || echo present )" "present"
+rigAssert "an unswapped post's folder holds both the line and its link, two lines together" "$( rigLines "$rigPlainDir" )" "2"
+rigAssert "its link line, whose first field is the ts Slack gave, sits in that same folder" "$( cat "$rigPlainDir"/[0-9][0-9][0-9][0-9][0-9][0-9]/messages.txt 2> /dev/null | LC_ALL=C grep -c '^1700000001\.000200 |' || : )" "1"
+rigAssert "and no folder named by the second resolve holds a line of the unswapped post" "$( LC_ALL=C grep -rc 'RIG-PLAIN-REPLY' "$rigPlainWrongDir" 2> /dev/null | LC_ALL=C awk -F: '{ n += $2 ; } END { print n + 0 ; }' )" "0"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SLACK SWAP POST FOLDER CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

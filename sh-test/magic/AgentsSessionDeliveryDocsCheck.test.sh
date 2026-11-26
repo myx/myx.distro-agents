@@ -10,6 +10,7 @@
 ##   6. every `path` citation of every page is present in the tree
 ##   7. every `path:NN` citation of every page is in range for that file
 ##   8. every `Function` citation of every page is found in sh-lib or sh-scripts
+##   9. every bare `Name.include:NN` citation resolves to exactly one file, and its line is in range there
 ## Offline: the pages and the source tree under the origin. No network, no store, no tooling state.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -53,6 +54,20 @@ rigCitations(){ ## page
 rigLineCitations(){ ## page
 	LC_ALL=C grep -oE '`(sh-lib|sh-scripts)/[A-Za-z0-9._/-]+:[0-9]+`' "$rigPackage/$1" \
 		| tr -d '`' | LC_ALL=C sort -u
+}
+
+## Every backticked `:NN` citation of one page that is neither a path nor a `:NN` continuation of the path before it -- the bare
+## `Name.include:NN` form, which the two assertions above read past.
+rigBareCitations(){ ## page
+	LC_ALL=C grep -oE '`[^`]+:[0-9]+`' "$rigPackage/$1" | tr -d '`' \
+		| LC_ALL=C grep -vE '^((sh-lib|sh-scripts)/[A-Za-z0-9._/-]+)?:[0-9]+$' | LC_ALL=C sort -u
+}
+
+## The files of the tree a bare citation's name matches, relative to the package, one a line.
+rigNamed(){ ## bare name
+	find "$rigPackage/sh-lib" "$rigPackage/sh-scripts" -name "$1" 2>/dev/null | while IFS= read -r namedPath ; do
+		printf '%s\n' "${namedPath#$rigPackage/}"
+	done
 }
 
 ## Every backticked function name of one page that begins Agents, sorted and unique.
@@ -106,6 +121,16 @@ for rigPage in $rigPages ; do
 		[ "$( rigInRange "$rigPath" "$rigNumber" )" = "in-range" ] || rigOut="$rigOut $rigCited"
 	done
 	rigAssert "every line citation is in range" "${rigOut:-none}" "none"
+
+	rigBare=""
+	for rigCited in $( rigBareCitations "$rigPage" ) ; do
+		rigPath="$( rigNamed "${rigCited%%:*}" )"
+		case "$( printf '%s' "$rigPath" | LC_ALL=C grep -c . )" in
+			1) [ "$( rigInRange "$rigPath" "${rigCited##*:}" )" = "in-range" ] || rigBare="$rigBare $rigCited" ;;
+			*) rigBare="$rigBare $rigCited" ;;
+		esac
+	done
+	rigAssert "every bare citation names one file, and is in range there" "${rigBare:-none}" "none"
 
 	rigGone=""
 	for rigCited in $( rigFunctions "$rigPage" ) ; do

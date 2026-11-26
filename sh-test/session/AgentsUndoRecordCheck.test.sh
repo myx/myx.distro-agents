@@ -15,8 +15,11 @@
 ##     session is refused, a change naming no epic item and feature id is refused, the epic's own
 ##     path keeps the pair and lands the verdict, a change every part of which is settled closes
 ##     settled and releases its hold, and a second settle does nothing.
+## 12. THE HELP PAIR: every `--undo-*` operation the help include echoes stands in the manual, which
+##     is the file `--help-syntax` reads and every run's tool declaration is built from.
 ## Red recipe: take AgentsToolsUndoPartDirs out of AgentsTools.UndoRecord.include and case 10
-## fails; take the state branch out of AgentsToolsUndoSettleCore and case 11 fails.
+## fails; take the state branch out of AgentsToolsUndoSettleCore and case 11 fails; drop a row from
+## the manual's roster and case 12 fails.
 ## Offline: a Slack-shaped fake curl is first on PATH, and no tree but this check's own rig.
 set -u
 : "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
@@ -317,6 +320,20 @@ rigAssert "a change every part of which is settled closes settled, and its hold 
 rigEpicSettle "$rigId" S13.19 "judged again"
 rigAssert "a second settle on a closed change does nothing, and says so" \
 	"$rigRc:$( LC_ALL=C grep -c 'the change is settled already' "$rigTmp/call.out" )" "0:1"
+
+echo "-- 12. every undo operation the help echoes stands in the manual --"
+rigHelpInc="$rigPackage/sh-lib/help/Help.DistroAgentsTools.include"
+rigHelpMan="$rigPackage/sh-lib/help/Help.DistroAgentsTools.help.md"
+## The manual is what `--help-syntax` reads and what each run's tool declaration is built from, so an
+## operation absent from it cannot be found by either.
+rigUndoOps="$( LC_ALL=C sed -n 's/^echo "📘 syntax: DistroAgentsTools\.fn\.sh \(--undo-[a-z-]*\).*/\1/p' "$rigHelpInc" | LC_ALL=C sort -u )"
+[ -n "$rigUndoOps" ] || rigRefuse "no --undo-* syntax line was read from $rigHelpInc, so case 12 would pass on nothing"
+rigAssert "the include's undo operations were read, one a line" "$( printf '%s\n' "$rigUndoOps" | LC_ALL=C tr '\n' ' ' )" "--undo-plan --undo-purge --undo-record --undo-rework --undo-run --undo-settle "
+rigUndoMissing=""
+for rigUndoOp in $rigUndoOps ; do
+	LC_ALL=C grep -q -E "^📘 syntax: DistroAgentsTools\.fn\.sh ${rigUndoOp}( |$)" "$rigHelpMan" || rigUndoMissing="$rigUndoMissing$rigUndoOp "
+done
+rigAssert "every one of them stands in the manual's roster" "$rigUndoMissing" ""
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ UNDO RECORD CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

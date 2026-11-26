@@ -456,10 +456,10 @@ AgentsToolsCommsCachePush(){ ## cache folder, now, most (optional; 0 or none: no
 }
 
 ## Every channel's outbox that holds a post, pushed: the shell's own expansion finds them, so a pass with none starts no process. `most`
-## is the posts of the whole pass, spent channel by channel in turn: a backlog of one channel never spends it all, and a workspace with
-## many channels still makes only that many posts, so the pass that drains them still takes the console's messages and reads the threads.
+## is the posts of the whole pass, spent channel by channel from the cursor: each folder's turn ends when its own outbox is empty, so a
+## backlog drains by the pass's whole bound, and the cursor carries the walk on so every folder is still reached in turn.
 AgentsToolsCommsCachePushAll(){ ## now, most (optional; 0 or none: no bound)
-	local allOut allSeen=" " allMost="${2:-0}" allLeft allMade=0 allDir allCount=0 allShare allRound allBound allCursor="" allLast=""
+	local allOut allSeen=" " allMost="${2:-0}" allLeft allMade=0 allDir allCount=0 allCursor="" allLast=""
 	agentsCommsCachePushAllMade=0
 	[ -n "${MMDAPP:-}" ] || return 0
 	case "$allMost" in ''|*[!0123456789]*) allMost=0 ;; esac
@@ -475,22 +475,16 @@ AgentsToolsCommsCachePushAll(){ ## now, most (optional; 0 or none: no bound)
 	## folders, spent from the first folder on every pass, serves the same few folders for ever and the others never post.
 	[ "$allMost" = 0 ] || { IFS= read -r allCursor < "$MMDAPP/.local/agents/comms/push-cursor" ; } 2> /dev/null || :
 	[ -z "$allCursor" ] || case "$allSeen" in *" $allCursor "*) allSeen=" ${allSeen#*" $allCursor "}${allSeen%%" $allCursor "*} $allCursor " ;; esac
-	## THE BOUND IS SHARED, NEVER SPENT IN FOLDER ORDER: each outbox first gets its share of the pass (at least one post), then what is left
-	## goes round again in order, so a full folder ahead of a small one never starves it.
-	allShare=0
-	[ "$allMost" = 0 ] || allShare=$(( ( allMost + allCount - 1 ) / allCount ))
-	for allRound in share rest ; do
-		[ "$allRound" = share ] || [ "$allMost" != 0 ] || break
-		for allDir in $allSeen ; do
-			[ -f "$allDir/outbox.pushing.txt" ] || [ -f "$allDir/outbox.messages.txt" ] || continue
-			[ "$allMost" = 0 ] || [ "$allLeft" -gt 0 ] || break 2
-			allBound="$allLeft"
-			[ "$allMost" = 0 ] || [ "$allRound" != share ] || [ "$allShare" -ge "$allLeft" ] || allBound="$allShare"
-			AgentsToolsCommsCachePush "$allDir" "$1" "$allBound"
-			allLast="$allDir"
-			allMade=$(( allMade + agentsCommsCachePushMade ))
-			[ "$allMost" = 0 ] || allLeft=$(( allLeft - agentsCommsCachePushMade ))
-		done
+	## A FOLDER'S TURN ENDS WHEN ITS OUTBOX IS EMPTY, never at a share of the pass: a share of one post on a rig of many folders drains a
+	## backlog a record a pass, and the ask queued behind it waits hours. The cursor above carries the walk, so the folders after a full one
+	## are served first next pass.
+	for allDir in $allSeen ; do
+		[ -f "$allDir/outbox.pushing.txt" ] || [ -f "$allDir/outbox.messages.txt" ] || continue
+		[ "$allMost" = 0 ] || [ "$allLeft" -gt 0 ] || break
+		AgentsToolsCommsCachePush "$allDir" "$1" "$allLeft"
+		allLast="$allDir"
+		allMade=$(( allMade + agentsCommsCachePushMade ))
+		[ "$allMost" = 0 ] || allLeft=$(( allLeft - agentsCommsCachePushMade ))
 	done
 	[ "$allMost" = 0 ] || [ -z "$allLast" ] || printf '%s\n' "$allLast" >| "$MMDAPP/.local/agents/comms/push-cursor" 2> /dev/null || :
 	## What the pass posted in all, for the thread's own end: a thread that is posting is at work.

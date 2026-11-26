@@ -9,6 +9,10 @@
 ##      label a person put on the issue survives the write.
 ##   4. A same-state edit is no move, so it reaches the site not at all.
 ##   5. A Jira write that cannot be made never fails the board move that already landed, and says so.
+##   6. A move reaches the site not at all, and leaves the item and its state in the kept queue
+##      under $MMDAPP/.local/agents/board-jira-reflect/.
+##   7. One drain sends the queued entry, and a second drain sends nothing more.
+##   8. A create queued for a running item ends with its issue In Progress after the drain.
 ## Offline: a fake `curl` first on PATH answers every call and records it, so no socket opens and no
 ## real site is reached. Temp stores only, in a temp workspace.
 set -u
@@ -98,6 +102,38 @@ rigCalls(){ ## -- the calls the site saw, on one line
 	LC_ALL=C awk '{ printf "%s%s", (n++ ? " | " : ""), $0 ; }' "$rigLog"
 }
 rigCallsReset(){ : > "$rigLog" ; rm -f "$rigBodies"/* ; }
+rigDid(){ ## "METHOD path" -- how many such calls the site saw since the log was last cleared
+	[ -s "$rigLog" ] || { printf '0' ; return 0 ; }
+	local rigCount
+	rigCount="$( LC_ALL=C grep -c -x -F -- "$1" "$rigLog" 2> /dev/null )" || rigCount=0
+	case "$rigCount" in ''|*[!0123456789]*) rigCount=0 ;; esac
+	printf '%s' "$rigCount"
+}
+rigBodiesHold(){ ## text -- how many request bodies sent since the log was last cleared hold it
+	local rigBodyHit=0 rigBodyOne
+	for rigBodyOne in "$rigBodies"/* ; do
+		[ -f "$rigBodyOne" ] || continue
+		LC_ALL=C grep -q -F -- "$1" "$rigBodyOne" 2> /dev/null && rigBodyHit=$(( rigBodyHit + 1 ))
+	done
+	printf '%s' "$rigBodyHit"
+}
+
+## The kept queue the board write hands an item to, and the drain that sends it later.
+rigQueueFolder(){ printf '%s' "$rigDir/ws/.local/agents/board-jira-reflect" ; }
+rigQueueFiles(){ ## -- the entries sitting directly in the kept queue, one on a line
+	local rigQueue
+	rigQueue="$( rigQueueFolder )"
+	[ -d "$rigQueue" ] || return 0
+	find "$rigQueue" -maxdepth 1 -type f 2> /dev/null
+}
+rigQueueHits(){ ## text -- how many queue entries hold it, case folded
+	local rigQueueHit=0 rigQueueOne
+	while IFS= read -r rigQueueOne ; do
+		[ -z "$rigQueueOne" ] && continue
+		LC_ALL=C grep -q -i -F -- "$1" "$rigQueueOne" 2> /dev/null && rigQueueHit=$(( rigQueueHit + 1 ))
+	done <<< "$( rigQueueFiles )"
+	printf '%s' "$rigQueueHit"
+}
 
 rigScenario(){ ## name
 	rigDir="$rigTmp/$1" ; rigStore="$rigDir/store"
@@ -116,6 +152,23 @@ rigOp(){ ## result file, then the operation and its arguments; stdin is the call
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MDAT_DATA_ROOT outside the rig tree" >&2 ; exit 99 ;; esac
 			cd "$MMDAPP" && exec bash "$RIG_FN" "$@"
 		' rig "$@" > "$rigResult" 2> "$rigResult.err"
+	printf '%s' "$?" > "$rigResult.rc"
+}
+## THE DRAIN: one pass of the kept queue, sending what the board write left there. This line is the
+## entry point the implementation names, and the one call the cases below make.
+rigDrainCmd="${rigDrainCmd:-bash \"\$RIG_FN\" --intern-op-board-jira-reflect-drain}"
+rigDrain(){ ## result file; stdin is the caller's
+	local rigResult="$1"
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigStore" \
+		MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_SPAWN_AGENT=magic-coordinator \
+		JIRA_SITE=rig.invalid JIRA_USER=us@rig.invalid JIRA_API_TOKEN=rig-token \
+		REFLECT_MODELS="$rigModels" REFLECT_JIRA_PROJECT=RIGP \
+		RIG_LOG="$rigLog" RIG_BODIES="$rigBodies" RIG_SITE="$rigSite" RIG_TMP="$rigTmp" RIG_FN="$rigFn" RIG_DRAIN="$rigDrainCmd" \
+		bash -c '
+			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
+			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MDAT_DATA_ROOT outside the rig tree" >&2 ; exit 99 ;; esac
+			cd "$MMDAPP" && eval "exec $RIG_DRAIN"
+		' rig > "$rigResult" 2> "$rigResult.err"
 	printf '%s' "$?" > "$rigResult.rc"
 }
 rigSeed(){ ## state -- one item already on the board, in that state
@@ -187,6 +240,54 @@ rigOp "$rigDir/e" --intern-op-board-upsert-move-edit blocked "$rigItem" --from-s
 rigAssert "the board move stands"                            "$( cat "$rigDir/e.rc" ):$( [ -f "$rigStore/board/blocked/$rigItem" ] && printf yes || printf no )" "0:yes"
 rigAssert "the item left the state it was in"                 "$( [ -e "$rigStore/board/parked/$rigItem" ] && printf left || printf gone )" gone
 rigAssert "and the warning names the item and its issue"     "$( LC_ALL=C grep -c -F "its issue RIGP-900 was not" "$rigDir/e.err" || : )" 1
+
+echo "-- 6. a move reaches the site not at all, and hands the item to the kept queue --"
+rigScenario queued
+rigModels="jira+none"
+rigSeed parked
+rigOp "$rigDir/f" --intern-op-board-upsert-move-edit running "$rigItem" --from-state:parked --context rig
+rigAssert "the board move lands"                            "$( cat "$rigDir/f.rc" )" 0
+rigAssert "and the move itself reaches the site not at all"  "$( rigCalls )" "none"
+rigAssert "and the queue holds the item"                     "$( rigQueueHits 'task-20261014T0201Z-Rig-Mirror' )" 1
+rigAssert "and the state it moved to"                        "$( rigQueueHits 'running' )" 1
+
+echo "-- 7. one drain sends the queued move, and a second drain sends nothing more --"
+rigScenario drained
+rigModels="jira+none"
+rigSeed parked
+rigAnswer GET /rest/api/3/search/jql '{"startAt":0,"maxResults":1,"total":1,"isLast":true,"issues":[{"key":"RIGP-900","fields":{"status":{"name":"Backlog"},"summary":"rig","issuetype":{"name":"Task"}}}]}'
+rigAnswer GET /rest/api/3/issue/RIGP-900/transitions '{"transitions":[{"id":"31","name":"To Do","to":{"name":"Backlog"}},{"id":"41","name":"Start","to":{"name":"In Progress"}}]}'
+rigCallsReset
+rigOp "$rigDir/g" --intern-op-board-upsert-move-edit running "$rigItem" --from-state:parked --context rig
+rigAssert "the board move lands"                            "$( cat "$rigDir/g.rc" )" 0
+rigAssert "and the move itself reaches the site not at all"  "$( rigCalls )" "none"
+rigAssert "and it leaves its entry in the queue"              "$( rigQueueHits 'task-20261014T0201Z-Rig-Mirror' )" 1
+rigCallsReset
+rigDrain "$rigDir/g.drain1"
+rigAssert "one drain runs"                                   "$( cat "$rigDir/g.drain1.rc" )" 0
+rigAssert "and it transitions the issue"                     "$( rigDid 'POST /rest/api/3/issue/RIGP-900/transitions' )" 1
+rigAssert "by the transition leading to In Progress"         "$( rigBodiesHold '\"id\":\"41\"' )" 1
+rigAssert "and the update carries this state's label"        "$( rigBodiesHold '\"magic-state-running\"' )" 1
+rigDrainSaw="$( rigCalls )"
+rigDrain "$rigDir/g.drain2"
+rigAssert "a second drain runs"                               "$( cat "$rigDir/g.drain2.rc" )" 0
+rigAssert "and sends nothing more"                            "$( rigCalls )" "$rigDrainSaw"
+
+echo "-- 8. a create queued for a running item ends with its issue In Progress after the drain --"
+rigScenario createdrained
+rigModels="jira+none"
+rigAnswer GET /rest/api/3/issue/RIGP-900/transitions '{"transitions":[{"id":"31","name":"To Do","to":{"name":"Backlog"}},{"id":"41","name":"Start","to":{"name":"In Progress"}}]}'
+rigCallsReset
+printf -- '---\ntype: task\n---\nrig body\n' | rigOp "$rigDir/h" --intern-op-board-upsert-move-edit running "$rigItem" --create --upsert-from-stdin --context rig
+rigAssert "the create lands on the board"                    "$( cat "$rigDir/h.rc" ):$( [ -f "$rigStore/board/running/$rigItem" ] && printf yes || printf no )" "0:yes"
+rigAssert "and the create itself reaches the site not at all" "$( rigCalls )" "none"
+rigAssert "and the queue holds the item"                      "$( rigQueueHits 'task-20261014T0201Z-Rig-Mirror' )" 1
+rigCallsReset
+rigDrain "$rigDir/h.drain1"
+rigAssert "one drain runs"                                    "$( cat "$rigDir/h.drain1.rc" )" 0
+rigAssert "and it creates the issue"                          "$( rigDid 'POST /rest/api/3/issue' )" 1
+rigAssert "and moves it to In Progress"                       "$( rigDid 'POST /rest/api/3/issue/RIGP-900/transitions' )" 1
+rigAssert "by the transition leading there"                   "$( rigBodiesHold '\"id\":\"41\"' )" 1
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ BOARD JIRA REFLECT CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2 ; exit 1

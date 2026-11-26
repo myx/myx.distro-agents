@@ -17,9 +17,12 @@ rigAssert "the control: an empty queue with no lock reads no line" "$( rigKindHa
 
 rigRetestRequest retest-20261118T010000Z-rig00001 "$( rigIso $(( rigNow - 1800 )) )"
 rigRetestRequest retest-20261118T012000Z-rig00002 "$( rigIso $(( rigNow - 600 )) )"
+## The scan reads its own clock, and this machine's check line can hold it for minutes: the expected age is the span the scan takes.
+rigAgeLow=$(( ( $( date +%s ) - rigNow + 1800 ) / 60 ))
 rigOut="$( rigScan )"
+rigAgeHigh=$(( ( $( date +%s ) - rigNow + 1800 ) / 60 ))
 rigAssert "two waiting requests read retest-queue" "$( rigKindHas retest-queue 'waiting=2' )" "1"
-rigAssert "and the oldest of them sets the age" "$( rigKindHas retest-queue 'oldest=30m' )" "1"
+rigAssert "and the oldest of them sets the age" "$( LC_ALL=C awk -v got="$( rigKind retest-queue | LC_ALL=C sed -n 's/.*oldest=\([0-9][0-9]*\)m .*/\1/p' )" -v low="$rigAgeLow" -v high="$rigAgeHigh" 'BEGIN { print ( got ~ /^[0-9]+$/ && got + 0 >= low + 0 && got + 0 <= high + 0 ) ; }' )" "1"
 rigAssert "and no lock reads holder=none" "$( rigKindHas retest-queue 'holder=none' )" "1"
 
 mkdir -p "$rigHome/.agents/magic-team/retest-queue/drain.lock"
@@ -32,5 +35,13 @@ printf 'pid: %s\nstarted: %s\nsince: %s\n' 999999 "Wed Nov 18 01:00:00 2026" "$(
 	> "$rigHome/.agents/magic-team/retest-queue/drain.lock/holder"
 rigOut="$( rigScan )"
 rigAssert "a lock left by an ended drain reads holder=stale" "$( rigKindHas retest-queue 'holder=stale' )" "1"
+
+## A PROBE THAT CANNOT LOOK IS NOT A DRAIN THAT ENDED: `ps` refusing reads `unknown`, never `stale`.
+rigProbePath="$( rigScratch probe-bin )"
+printf '#!/usr/bin/env bash\nexit 126\n' > "$rigProbePath/ps" ; chmod +x "$rigProbePath/ps"
+printf 'pid: %s\nstarted: %s\nsince: %s\n' "$$" "$( LC_ALL=C ps -o lstart= -p $$ 2> /dev/null )" "$( date '+%Y-%m-%d %H:%M %z' )" \
+	> "$rigHome/.agents/magic-team/retest-queue/drain.lock/holder"
+rigProbeState="$( HOME="$rigHome" PATH="$rigProbePath:$PATH" ; . "$rigPkg/sh-lib/member/AgentsTools.RetestQueue.include" ; AgentsToolsRetestQueueState )"
+rigAssert "a probe that cannot look reads holder=unknown" "$( printf '%s\n' "$rigProbeState" | LC_ALL=C grep -c 'holder=unknown' )" "1"
 
 rigScanDone

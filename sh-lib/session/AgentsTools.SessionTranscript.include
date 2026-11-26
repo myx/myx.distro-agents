@@ -624,7 +624,7 @@ AgentsSessionTokensRollupRows(){ ## item name...
 	## summed makes them stale, and the walk is paid then, not on every read.
 	if [ -f "$rollupCache" ] \
 		&& [ -z "$( find "$MDAT_DATA_ROOT/board" -type f -name '*.md' -newer "$rollupCache" 2> /dev/null | LC_ALL=C head -1 )" ] \
-		&& [ -z "$( find "${MMDAPP%/}/.local/agents/spawned" -type f -name '*.spawn.md' -newer "$rollupCache" 2> /dev/null | LC_ALL=C head -1 )" ] ; then
+		&& [ -z "$( find "${MMDAPP%/}/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.spawn.md' -newer "$rollupCache" 2> /dev/null | LC_ALL=C head -1 )" ] ; then
 		for rollupWant in "$@" ; do
 			rollupWant="${rollupWant##*/}" ; rollupWant="${rollupWant%.md}"
 			LC_ALL=C awk -F'\t' -v item="$rollupWant" '$1 == item { print ; exit ; }' "$rollupCache" 2> /dev/null

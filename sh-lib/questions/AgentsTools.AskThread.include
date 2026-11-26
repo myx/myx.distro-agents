@@ -46,8 +46,16 @@ AgentsToolsAskThreadStanding(){ ## channel, question ts
 ## The accounts that answer an ask: the ones it was addressed to, then the human-owner's own, whose direct word wins at once (magic-team.basic.md).
 AgentsToolsAskAnsweringAccountsInto(){ ## variable, the ask's addressees
 	local answeringOwner=""
-	type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
-	answeringOwner="$( AgentsSlackIdentityId human-owner 2> /dev/null )" || answeringOwner=""
+	type AgentsToolsConfigOption > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ConfigOption.include"
+	answeringOwner="$( AgentsToolsConfigOption magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" || answeringOwner=""
+	## THE CONFIGURED VALUE IS AN ACCOUNT ONLY WHEN IT IS ONE: the same setting names his conversation, whose id is a channel
+	## (`D…`) on some rigs and an account (`U…`) on others, and an ask's answer is matched on an account. A value of another
+	## shape falls back to his identity, never to a channel compared against a user id.
+	case "$answeringOwner" in U*) ;; *) answeringOwner="" ;; esac
+	if [ -z "$answeringOwner" ] ; then
+		type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
+		answeringOwner="$( AgentsSlackIdentityId human-owner 2> /dev/null )" || answeringOwner=""
+	fi
 	case " $2 " in
 		*" ${answeringOwner:-$2} "*) printf -v "$1" '%s' "$2" ;;
 		*) printf -v "$1" '%s' "$2${2:+ }$answeringOwner" ;;

@@ -780,49 +780,14 @@ AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn,
 		AgentsRunQueueNap "$turnSleep"
 	done
 }
-## THE FAILURES HAVE OWNERS. A red test of the suite is what a regression run cannot protect, so each one carries the
-## member who owns it and the reason it is red, in a list beside this runner. THE LIST IS READ HERE, BEFORE ANY TEST
-## RUNS, so a row that is not exactly three filled fields stops the run rather than letting a failure stand with no
-## owner: a summary whose owners cannot be trusted is worth less than no run. A missing list is no error, since a rig
-## holding the runner alone has none, and every failure then counts as unowned. Shell builtins alone read it, so a run
-## of 843 tests pays no process for it.
+## NO KNOWN FAILURES ARE CARRIED (the human-owner's word, 2026-11-26: "NO known-failures ALLOWED ... THOSE ARE TO FIX"). A red
+## check is a bug, fixed in the change that found it, or a check that is wrong and changes with its reason written. The list this
+## runner used to read is gone, and a list reappearing beside this runner stops the run rather than let a failure stand excused.
 runKnownFile="$testDir/known-failures.txt"
-runKnownTab=$'\t'
-runKnownDetail="" runKnownBad="" runKnownLine=0
 if [ -f "$runKnownFile" ] ; then
-	while IFS= read -r runKnownText ; do
-		runKnownLine=$(( runKnownLine + 1 ))
-		case "$runKnownText" in ''|'#'*) continue ;; esac
-		case "$runKnownText" in *"$runKnownTab"*) ;; *) runKnownBad="$runKnownBad $runKnownLine" ; continue ;; esac
-		runKnownTest="${runKnownText%%"$runKnownTab"*}" runKnownRest="${runKnownText#*"$runKnownTab"}"
-		case "$runKnownRest" in *"$runKnownTab"*) ;; *) runKnownBad="$runKnownBad $runKnownLine" ; continue ;; esac
-		runKnownOwner="${runKnownRest%%"$runKnownTab"*}" runKnownReason="${runKnownRest#*"$runKnownTab"}"
-		case "$runKnownTest" in ''|*' '*) runKnownBad="$runKnownBad $runKnownLine" ; continue ;; esac
-		case "$runKnownOwner$runKnownReason" in *"$runKnownTab"*|' ') runKnownBad="$runKnownBad $runKnownLine" ; continue ;; esac
-		case "$runKnownOwner" in '') runKnownBad="$runKnownBad $runKnownLine" ; continue ;; esac
-		case "$runKnownReason" in '') runKnownBad="$runKnownBad $runKnownLine" ; continue ;; esac
-		runKnownDetail="$runKnownDetail$runKnownTest$runKnownTab$runKnownOwner$runKnownTab$runKnownReason"$'\n'
-	done < "$runKnownFile"
-fi
-if [ -n "$runKnownBad" ] ; then
-	echo "⛔ ERROR: AgentsRunTests.sh: $runKnownFile holds a row that is not three filled fields -- the test, its owner and the reason it is red, TAB between them; the line(s):$runKnownBad" >&2
+	echo "⛔ ERROR: AgentsRunTests.sh: $runKnownFile is present: known failures are not accepted here, so nothing ran -- fix the checks, or correct the check that is wrong, and delete that file" >&2
 	exit 1
 fi
-AgentsRunKnownOf(){ ## test name -- sets runKnown to ` owner=<owner> reason=<reason>`, or to nothing for a test the list does not hold
-	local knownRest="$runKnownDetail" knownLine knownTest knownOwner knownReason
-	runKnown=""
-	while [ -n "$knownRest" ] ; do
-		knownLine="${knownRest%%$'\n'*}"
-		if [ "$knownLine" = "$knownRest" ] ; then knownRest="" ; else knownRest="${knownRest#*$'\n'}" ; fi
-		knownTest="${knownLine%%"$runKnownTab"*}"
-		if [ "$knownTest" = "$1" ] ; then
-			knownLine="${knownLine#*"$runKnownTab"}"
-			knownOwner="${knownLine%%"$runKnownTab"*}" knownReason="${knownLine#*"$runKnownTab"}"
-			runKnown=" owner=$knownOwner reason=$knownReason" ; return 0
-		fi
-	done
-	return 0
-}
 
 ## Every run waits its turn, a run of named tests as the whole suite does (WAITING IN THE LINE, above).
 AgentsRunQueueTurn $( AgentsRunNames "$@" )
@@ -1238,23 +1203,17 @@ done < "$runList"
 exec 8<&- 9<&-
 
 {
-	runPass=0 runNoteBlock="" runOwned=0 runUnowned=0 runFixed=0
+	runPass=0 runOwned=0 runUnowned=0 runFixed=0
 	runAssert=0 runRefused=0 runTimedOut=0
 	runRows="" runUnownedRows=""
 	for runName in $( cut -d' ' -f1 "$runList" ) ; do
 		runRc="$( sed -n 's/^rc=//p' "$runDir/$runName.receipt" 2>/dev/null )"
 		runEnded="$( sed -n 's/^ended-by=//p' "$runDir/$runName.receipt" 2>/dev/null | LC_ALL=C sed -n 1p )"
-		runKnown="" ; AgentsRunKnownOf "$runName"
 		if [ "${runRc:-x}" = 0 ] ; then
 			runPass=$(( runPass + 1 ))
-			if [ -n "$runKnown" ] ; then
-				runFixed=$(( runFixed + 1 ))
-				runNoteBlock="$runNoteBlock""FIXED $runName -- it was listed as failing and it passed: take its row out of $runKnownFile"$'\n'
-			else
-				runRows="$runRows""PASS $runName"$'\n'
-			fi
+			runRows="$runRows""PASS $runName"$'\n' 
 		else
-			if [ -n "$runKnown" ] ; then runOwned=$(( runOwned + 1 )) ; else runUnowned=$(( runUnowned + 1 )) ; runUnownedRows="$runUnownedRows$runName"$'\n' ; fi
+			runUnowned=$(( runUnowned + 1 )) ; runUnownedRows="$runUnownedRows$runName"$'\n' 
 			## THREE FINDINGS, NEVER ONE: a check ended at its time limit by the stall keeper's own note, a check that
 			## refused ended a line on the refusal wording every check of the suite writes, and the rest failed an assertion.
 			runKind=""
@@ -1270,14 +1229,13 @@ exec 8<&- 9<&-
 					runAssert=$(( runAssert + 1 ))
 				fi
 			fi
-			runRows="$runRows""FAIL $runName rc=${runRc:-none}${runEnded:+ $runEnded}$runKind$runKnown"$'\n'
+			runRows="$runRows""FAIL $runName rc=${runRc:-none}${runEnded:+ $runEnded}$runKind"$'\n'
 		fi
 	done
 	printf '%s' "$runRows" | sort -k1,1 -k2,2
-	printf '%s' "$runNoteBlock"
-	## A RED NOBODY OWNS IS NAMED HERE, with the one action that makes it owned: the totals line counts them, and a count alone
-	## sent nobody to the list -- an unowned red (`AgentsCoordinatorStateNoteCheck`, 2026-11-26 10:20) sat in a summary no one
-	## could route. The names are the run's own, sorted, one a line.
+	## EVERY RED IS NAMED HERE, since none is excused: the totals line counts them, and a count alone sent nobody to the work --
+	## an unnamed red (`AgentsCoordinatorStateNoteCheck`, 2026-11-26 10:20) sat in a summary no one could route. The names are
+	## the run's own, sorted, one a line.
 	if [ "$runUnowned" -gt 0 ] ; then
 		printf 'UNOWNED-TESTS %s\n' "$runUnowned"
 		printf '%s' "$runUnownedRows" | LC_ALL=C sort | LC_ALL=C sed 's/^/  /'

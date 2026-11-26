@@ -89,7 +89,7 @@ AgentsToolsRegistrySpawnedSessionsRebuild(){
 	## tracking name, for one), so comparing the store's count with the registry's rows rebuilt the whole registry on every call --
 	## `--spawns --active` measured 25.5 s at 08:20. The count is written beside the registry by the rebuild that saw it, so equal
 	## counts mean one registry for one store, and one added record means exactly one rebuild.
-	rebuildRecords="$( find "$MMDAPP/.local/agents/spawned" -type f -name '*.spawn.md' 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
+	rebuildRecords="$( find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.spawn.md' -type f 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
 	rebuildRows="$( LC_ALL=C sed -n 1p "$MMDAPP/.local/agents/spawned-sessions.records.stamp" 2> /dev/null )" || rebuildRows=""
 	if [ -n "$rebuildStamp" ] && [ "$rebuildOwn" = "$rebuildStamp" ] && [ -n "$rebuildRows" ] && [ "${rebuildRecords:-x}" = "$rebuildRows" ] ; then
 		AgentsToolsLocalLockGive "$rebuildLock"
@@ -422,7 +422,7 @@ AgentsToolsRegistryRenderSpawnedSessionsKept(){ ## view, seconds the copy may st
 	## the count moves when one is added or removed even where the writer gave it an older date (a rig does exactly that to
 	## model a run that failed an hour ago). One find a call, no process a record.
 	if [ -f "$MMDAPP/.local/agents/spawned-sessions.registry" ] ; then
-		keptStamp="$( { LC_ALL=C cksum < "$MMDAPP/.local/agents/spawned-sessions.registry" 2> /dev/null ; find "$MMDAPP/.local/agents/spawned" -type f -name '*.spawn.md' 2> /dev/null | LC_ALL=C wc -l ; } | LC_ALL=C tr -d ' ' | LC_ALL=C tr '\n' '-' )" || keptStamp=""
+		keptStamp="$( { LC_ALL=C cksum < "$MMDAPP/.local/agents/spawned-sessions.registry" 2> /dev/null ; find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.spawn.md' -type f 2> /dev/null | LC_ALL=C wc -l ; } | LC_ALL=C tr -d ' ' | LC_ALL=C tr '\n' '-' )" || keptStamp=""
 	else
 		keptStamp="none"
 	fi
@@ -436,7 +436,7 @@ AgentsToolsRegistryRenderSpawnedSessionsKept(){ ## view, seconds the copy may st
 			## failed run inside the TTL and read no row for it). One find over the sandbox root, no process per record.
 			if [ "$(( keptNow - keptAt ))" -lt "$keptTtl" ] && [ -n "$keptStamp" ] && [ -f "$keptStampFile" ] \
 				&& [ "$( LC_ALL=C sed -n 1p "$keptStampFile" 2> /dev/null )" = "$keptStamp" ] \
-				&& [ -z "$( find "$MMDAPP/.local/agents/spawned" -type f -name '*.spawn.md' -newer "$keptFile" 2> /dev/null | LC_ALL=C head -1 )" ] ; then
+				&& [ -z "$( find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.spawn.md' -newer "$keptFile" 2> /dev/null | LC_ALL=C head -1 )" ] ; then
 				cat "$keptFile" 2> /dev/null && return 0
 			fi
 		;;

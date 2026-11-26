@@ -333,8 +333,19 @@ case "$1" in
 						set +e ; return 1
 					fi
 					if AgentsToolsRecheckConditionUnmet "$closeCondition" ; then
-						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: ${itemName%.md} is not closed: its condition stands, and only an answer to it clears that -- $closeCondition" >&2
-						set +e ; return 1
+						## AN ITEM ALREADY CLOSED BY ITS RECORD IS FILED, WITH ITS STALE CONDITION NAMED: a groom's block reason that names
+						## no ask can never be answered, so such an item could not close at all though its work is behind it (measured
+						## 2026-11-26: five dispatch items carried `resolved-at` and an unmet "no live run carries this item" condition,
+						## and the tooling refused every close of them). A condition naming an ask still refuses: only its answer clears it.
+						case "$( printf '%s\n' "$body" | LC_ALL=C grep -c '^resolved-at: ' )" in
+							0)
+								echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: ${itemName%.md} is not closed: its condition stands, and only an answer to it clears that -- $closeCondition" >&2
+								set +e ; return 1
+							;;
+							*)
+								echo "$MDSC_CMD: board-upsert-move-edit: ⚠️ WARNING: ${itemName%.md} carries resolved-at, so it is filed with its condition standing: $closeCondition" >&2
+							;;
+						esac
 					fi
 				fi
 			;;
