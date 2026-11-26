@@ -1473,10 +1473,16 @@ blocks|verbatim|caller|stdin file"
 				echo "SENT_MESSAGE_CHANNEL=$sentChannel" >&2
 				echo "SENT_MESSAGE_TS=$sentTs" >&2
 				echo "SENT_MESSAGE_THREAD_TS=$sentThreadTs" >&2
-				## The reply the member owed here is answered (AgentsTools.OwedReplies.include).
+				## The reply the member owed here is answered (AgentsTools.OwedReplies.include). THE MESSAGE ANSWERED IS
+				## THE ONE THE SEND AIMED AT, never the thread Slack answered with: Slack flattens a reply under a
+				## message inside a thread to that thread's ROOT, so a clear on the answer leaves the message's own
+				## line owed for ever, and a clear on the root would answer a message nobody replied to.
 				type AgentsToolsOwedRepliesClear > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include"
-				type AgentsToolsOwedRepliesClear > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include"
-				AgentsToolsOwedRepliesClear "$memberName" slack "$channel" "${sentThreadTs:-$threadTs}"
+				if [ -n "${threadTs:-}" ] ; then
+					AgentsToolsOwedRepliesClear "$memberName" slack "$channel" "$threadTs"
+				else
+					AgentsToolsOwedRepliesClear "$memberName" slack "$channel" "$sentThreadTs"
+				fi
 			else
 				echo "SENT_MESSAGE_CHANNEL=" >&2
 				echo "SENT_MESSAGE_TS=" >&2

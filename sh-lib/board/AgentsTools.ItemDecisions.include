@@ -1212,6 +1212,7 @@ AgentsToolsDecisionsStrike(){ ## who, item, the exact line, the reason, source (
 	case "$strikeLine" in
 		*"(readback "*", confirmed by "*) ;;
 		*"(his message slack:"*", by "*) ;;
+		*", with "*) ;;
 		*) printf 'NEXT: the struck line had no confirmed readback, so it was never a decision. Where it still binds, ask it again: --record-decision %s --kind <clarification|resolved|dismissed> --text "<its text>" --with <the one it was made with>\n' "${strikeName%.md}" ;;
 	esac
 	return 0

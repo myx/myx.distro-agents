@@ -94,13 +94,24 @@ def scheduleCell(flag, size):
 def scheduleGridLines(held, width=60):
     perLine, size = scheduleLayout(width)
     nowDay, nowHour = (held["now"][0], held["now"][1][:2]) if held["now"] else ("", "")
+    ## OVERTIME IS THE HOURS OUTSIDE WORKTIME (the owner's rule): while the flag runs, its hours are painted where the week is
+    ## not worktime, across the days its seconds reach. It is set off-hours work, not a second coat on the workday.
+    overtimeLeft = 0
+    for name, answer, note in held["flags"]:
+        if name == "overtime" and answer.startswith("yes"):
+            overtimeLeft = int("".join(ch for ch in note if ch.isdigit()) or 0)
+    overtimeFrom = SCHEDULE_DAYS.index(nowDay) * 24 + int(nowHour) if nowDay in SCHEDULE_DAYS and nowHour.isdigit() else -1
     lines = []
     for first in range(0, 24, perLine):
         lines.append(looked(" " * SCHEDULE_LEAD + "".join(("%02d" % hour).ljust(size) for hour in range(first, first + perLine)).rstrip(), DIM))
         for day in SCHEDULE_DAYS:
             texts, spans = [], []
             for position, hour in enumerate(range(first, first + perLine)):
-                text, look = scheduleCell(scheduleCellFlag(held["cells"].get((day, "%02d" % hour), "-")), size)
+                flag = scheduleCellFlag(held["cells"].get((day, "%02d" % hour), "-"))
+                overtimeAt = SCHEDULE_DAYS.index(day) * 24 + int(hour)
+                if overtimeLeft and flag == "-" and 0 <= (overtimeAt - overtimeFrom) * 3600 < overtimeLeft:
+                    flag = "overtime"
+                text, look = scheduleCell(flag, size)
                 texts.append(text)
                 spans.append((SCHEDULE_LEAD + position * size, size - 1, REVERSE if day == nowDay and "%02d" % hour == nowHour else look))
             lines.append(lookedAt(day.ljust(SCHEDULE_LEAD) + "".join(texts).rstrip(), spans))

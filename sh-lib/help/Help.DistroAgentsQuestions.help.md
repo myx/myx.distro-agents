@@ -52,13 +52,11 @@
 
 		--record-decision <item-filename> --kind <clarification|resolved|dismissed> --text <one line> (--with <party> [--wait]|--readback <pending-id>)
 			One line onto that item's own Decisions, where a ruling on the work belongs.
-			It lands only through its confirmed readback, on the same item: `yes` lands the text it confirmed, word for word,
-			and `edit` lands the words of the edit. A `no` lands nothing. The line names who confirmed it and when. A readback lands once.
-			`--with <party>` asks that readback: the text goes to the party it was made with, and their answer lands it by itself,
-			whoever reads the answer and whether or not the asking run still lives. It returns at once with `DECISION-ASKED`, the
-			readback joins your waits, and its answer reaches your session floor. `--wait` waits for the answer instead and ends
-			with `DECISION-RECORDED` or `DECISION-NOT-RECORDED`.
-			`--readback <pending-id>` records through a readback already confirmed.
+			`--with <party>` records the line at once, and its provenance is that party and the time. No readback is asked.
+			`--readback <pending-id>` records through a readback already confirmed, on the same item: `yes` lands the text
+			it confirmed, word for word, and `edit` lands the words of the edit. A `no` lands nothing. The line names who
+			confirmed it and when. A readback lands once.
+			A line holds 300 bytes, and one over that is refused rather than cut.
 			A line that tells a decision by the human-owner lands only with the message or the ask's verdict it came from,
 			named in `--source`, or from a readback he confirmed.
 			`--clears-blocker` clears what the line settles, with `--readback` only.

@@ -102,7 +102,7 @@ case "$1" in
 						if ( ! start ) { exit ; }
 						last = decisionsEnd( NR, start ) ;
 						for ( i = start + 1 ; i <= last ; i++ ) {
-							if ( line[i] !~ /^- / || decisionsMarkState( line[i] ) == "handled" || index( line[i], "(readback " ) > 0 || index( line[i], "(his message slack:" ) > 0 ) { continue ; }
+							if ( line[i] !~ /^- / || decisionsMarkState( line[i] ) == "handled" || index( line[i], "(readback " ) > 0 || index( line[i], "(his message slack:" ) > 0 || index( line[i], ", with " ) > 0 ) { continue ; }
 							lineKind = line[i] ; sub( /^- [^ ]+ [^ ]+ /, "", lineKind ) ; sub( /:.*$/, "", lineKind ) ;
 							if ( lineKind != "clarification" && lineKind != "resolved" && lineKind != "dismissed" ) { continue ; }
 							## The tail is read off the line with its trailing mark taken off, so a bracket inside that mark decides nothing.
@@ -130,11 +130,19 @@ case "$1" in
 				AgentsToolsDecisionReadbackOpen "$decWho" "$decItem" review "$revList" "$decSource" "$decWith" "$decWait" "$revPlan" || { set +e ; return 1 ; }
 				return 0
 			fi
-			## A DECISION LANDS ONLY THROUGH ITS CONFIRMED READBACK: the one it was made with confirmed its exact text (yes), or edited it (edit).
-			## The line takes its text, its approver and its time from that readback's own record, never from the caller.
-			## --with asks that readback (AgentsToolsDecisionReadbackOpen), and its answer lands the decision, or the strike, by itself.
+			## A RECORDED LINE LANDS AT ONCE AND ASKS NOTHING (): --with names the party the decision was made with,
+			## and that party and the time are the line's provenance. No readback is opened for it (task 2026-11-25T2218Z).
+			## --readback still records through a readback already confirmed, and a strike still goes through its own.
 			if [ -n "$decWith" ] && [ -n "$decReadback" ] ; then
-				echo "$MDSC_CMD: ⛔ ERROR: --with asks a new readback and --readback names one already answered, so give one of them; nothing was asked or recorded" >&2
+				echo "$MDSC_CMD: ⛔ ERROR: --with names the party a decision was made with, and --readback names one already answered, so give one of them; nothing was asked or recorded" >&2
+				set +e ; return 1
+			fi
+			## The line holds 300 bytes. Over that it would be cut inside its own words, so it is refused before either path writes it.
+			local decCapName="--text" decCapText="$decText" decCapBytes
+			[ -z "$decStrike" ] || { decCapName="--reason" ; decCapText="$decReason" ; }
+			decCapBytes="$( AgentsToolsDecisionsOneLine "$decCapText" 1000000 | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' )"
+			if [ "${decCapBytes:-0}" -gt 301 ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: $decCapName holds $(( decCapBytes - 1 )) bytes and a decision line holds 300, so the line would be cut inside its words. Shorten it to one decision. Nothing was recorded." >&2
 				set +e ; return 1
 			fi
 			## HIS OWN MESSAGE IS HIS DECISION (): a source that is his own Slack message, its author read from the comms cache,
@@ -154,84 +162,83 @@ case "$1" in
 					return 0
 				fi
 			fi
-			if [ -z "$decReadback" ] ; then
+			## A --with LINE IS WRITTEN HERE: its provenance is that party and this moment, so it enters the owner-ruling guard below like any other line.
+			if [ -z "$decReadback" ] && [ -z "$decStrike" ] ; then
 				[ -n "$decWith" ] || {
-					echo "$MDSC_CMD: ⛔ ERROR: a decision is recorded only through its confirmed readback: name the one it was made with by --with <party>, and its exact text is read back to them and recorded once they confirm or edit it; or name a readback they already confirmed by --readback <pending id>" >&2
+					echo "$MDSC_CMD: ⛔ ERROR: a decision is recorded with the party it was made with, by --with <party>, or through a readback they already confirmed, by --readback <pending id>" >&2
 					set +e ; return 1 ; }
-				[ -z "$decClear" ] || { echo "$MDSC_CMD: ⛔ ERROR: --clears-blocker is not carried through a readback still to answer; record the decision, then clear the blocker" >&2 ; set +e ; return 1 ; }
-				## The readback quotes the text the line records. Over the cap it would be cut inside the words the person confirms, so it is refused.
-				local decCapName="--text" decCapText="$decText" decCapBytes
-				[ -z "$decStrike" ] || { decCapName="--reason" ; decCapText="$decReason" ; }
-				decCapBytes="$( AgentsToolsDecisionsOneLine "$decCapText" 1000000 | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' )"
-				if [ "${decCapBytes:-0}" -gt 301 ] ; then
-					echo "$MDSC_CMD: ⛔ ERROR: $decCapName holds $(( decCapBytes - 1 )) bytes and a decision line holds 300, so the readback would cut it inside the quote. Shorten it to one decision, then ask again. Nothing was asked or recorded." >&2
-					set +e ; return 1
-				fi
-				if [ -n "$decStrike" ] ; then
-					AgentsToolsDecisionReadbackOpen "$decWho" "$decItem" strike "$( AgentsToolsDecisionsOneLine "$decReason" 300 )" "$decSource" "$decWith" "$decWait" "$decStrike" || { set +e ; return 1 ; }
-				else
-					AgentsToolsDecisionReadbackOpen "$decWho" "$decItem" "$decKind" "$( AgentsToolsDecisionsOneLine "$decText" 300 )" "$decSource" "$decWith" "$decWait" || { set +e ; return 1 ; }
-				fi
+				[ -z "$decClear" ] || { echo "$MDSC_CMD: ⛔ ERROR: --clears-blocker is not carried on a line recorded by --with; record the decision, then clear the blocker" >&2 ; set +e ; return 1 ; }
+				decSource="${decSource:+$decSource, }with $decWith at $( date -u +%Y-%m-%dT%H:%MZ )"
+			fi
+			## A STRIKE STILL ASKS ITS READBACK: the party named by --with confirms the reason before the line is marked.
+			if [ -z "$decReadback" ] && [ -n "$decStrike" ] ; then
+				[ -n "$decWith" ] || {
+					echo "$MDSC_CMD: ⛔ ERROR: a strike is recorded with the party it is put to, by --with <party>, or through a readback they already confirmed, by --readback <pending id>" >&2
+					set +e ; return 1 ; }
+				AgentsToolsDecisionReadbackOpen "$decWho" "$decItem" strike "$( AgentsToolsDecisionsOneLine "$decReason" 300 )" "$decSource" "$decWith" "$decWait" "$decStrike" || { set +e ; return 1 ; }
 				return 0
 			fi
-			type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
-			local decRbFile decRbKind="" decRbStatus="" decRbItem="" decRbVerdict="" decRbEdit="" decRbBy="" decRbAt="" decRbUnderstood=""
-			decRbFile="$( AgentsToolsPendingRecordPath "$decReadback" )" || { echo "$MDSC_CMD: ⛔ ERROR: no readback $decReadback in the ask store, so nothing was recorded" >&2 ; set +e ; return 1 ; }
-			IFS=$'\037' read -r decRbKind decRbStatus decRbItem decRbVerdict decRbEdit decRbBy decRbAt decRbUnderstood < <( LC_ALL=C awk '
-				$0 == "---" { dashes++ ; next ; }
-				dashes == 1 { colon = index( $0, ": " ) ; if ( colon > 1 ) { field[ substr( $0, 1, colon - 1 ) ] = substr( $0, colon + 2 ) ; } next ; }
-				## A record asked again, changed, keeps one understanding a version under `## Revision <n>`:
-				## the latest block is the one its answer was given to, so each heading starts the value afresh.
-				dashes >= 2 && index( $0, "**📥 What I understood**" ) == 1 { inside = 1 ; understood = "" ; next ; }
-				inside && $0 ~ /^[ \t]*$/ { if ( understood != "" ) { inside = 0 ; } next ; }
-				inside { understood = ( understood == "" ? $0 : understood " " $0 ) ; }
-				END { printf "%s\037%s\037%s\037%s\037%s\037%s\037%s\037%s\n", field["kind"], field["status"], field["item"], field["verdict"], field["verdict-text"], field["answered-by"], field["resolved-at"], understood ; }
-			' "$decRbFile" 2> /dev/null )
-			if [ "$decRbKind" != readback ] || [ "$decRbStatus" != reply-received ] ; then
-				echo "$MDSC_CMD: ⛔ ERROR: $decReadback is no answered readback (kind ${decRbKind:-none}, status ${decRbStatus:-none}), so nothing was recorded" >&2
-				set +e ; return 1
-			fi
-			if [ "${decRbItem%.md}" != "${decItem%.md}" ] ; then
-				echo "$MDSC_CMD: ⛔ ERROR: readback $decReadback is on ${decRbItem:-no item}, not on ${decItem%.md}, so nothing was recorded" >&2
-				set +e ; return 1
-			fi
-			case "$decRbVerdict" in
-				yes)
-					## A strike's readback is about the line, so it confirms the reason given for it.
-					if [ -n "$decStrike" ] ; then
-						[ "$( AgentsToolsDecisionsOneLine "$decReason" 300 )" = "$( AgentsToolsDecisionsOneLine "$decRbUnderstood" 300 )" ] || {
-							echo "$MDSC_CMD: ⛔ ERROR: the reason differs from what readback $decReadback confirmed, so nothing was struck: confirmed was: $decRbUnderstood" >&2
-							set +e ; return 1 ; }
-					else
-						[ "$( AgentsToolsDecisionsOneLine "$decText" 300 )" = "$( AgentsToolsDecisionsOneLine "$decRbUnderstood" 300 )" ] || {
-							echo "$MDSC_CMD: ⛔ ERROR: the text differs from what readback $decReadback confirmed, so nothing was recorded: confirmed was: $decRbUnderstood" >&2
-							set +e ; return 1 ; }
-					fi
-				;;
-				edit|correct)
-					[ -n "$decRbEdit" ] || { echo "$MDSC_CMD: ⛔ ERROR: readback $decReadback was edited with no words of the edit, so nothing was recorded" >&2 ; set +e ; return 1 ; }
-					if [ -n "$decStrike" ] ; then decReason="$decRbEdit" ; else decText="$decRbEdit" ; fi
-				;;
-				*)
-					echo "$MDSC_CMD: ⛔ ERROR: readback $decReadback was not confirmed (verdict ${decRbVerdict:-none}), so nothing was recorded" >&2
-					set +e ; return 1
-				;;
-			esac
-			## A strike is confirmed by the line's own confirmer, the human-owner, or a contact at tier-admin or tier-owner.
-			if [ -n "$decStrike" ] ; then
-				local strBy=""
-				strBy="$( printf '%s\n' "$decStrike" | LC_ALL=C sed -n 's/.*(readback [^,]*, confirmed by \([^ ,)]*\) at .*/\1/p' | head -1 )"
-				type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
-				if { [ -z "$strBy" ] || [ "${decRbBy:-}" != "$strBy" ] ; } && ! AgentsToolsPermissionIsHumanOwner "${decRbBy:-}" && ! AgentsToolsDecisionAccountDecides "${decRbBy:-}" "${strPath:-}" ; then
-					echo "$MDSC_CMD: ⛔ ERROR: readback $decReadback was answered by ${decRbBy:-nobody}, who did not confirm that line${strBy:+ ($strBy did)}, is not the human-owner, and holds no tier-admin or tier-owner, so nothing was struck: put the strike to ${strBy:+$strBy, }the human-owner or a contact with those rights" >&2
+			## A READBACK ALREADY CONFIRMED IS READ HERE, and the line takes its text, its confirmer and its time from it.
+			if [ -n "$decReadback" ] ; then
+				type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
+				local decRbFile decRbKind="" decRbStatus="" decRbItem="" decRbVerdict="" decRbEdit="" decRbBy="" decRbAt="" decRbUnderstood=""
+				decRbFile="$( AgentsToolsPendingRecordPath "$decReadback" )" || { echo "$MDSC_CMD: ⛔ ERROR: no readback $decReadback in the ask store, so nothing was recorded" >&2 ; set +e ; return 1 ; }
+				IFS=$'\037' read -r decRbKind decRbStatus decRbItem decRbVerdict decRbEdit decRbBy decRbAt decRbUnderstood < <( LC_ALL=C awk '
+					$0 == "---" { dashes++ ; next ; }
+					dashes == 1 { colon = index( $0, ": " ) ; if ( colon > 1 ) { field[ substr( $0, 1, colon - 1 ) ] = substr( $0, colon + 2 ) ; } next ; }
+					## A record asked again, changed, keeps one understanding a version under `## Revision <n>`:
+					## the latest block is the one its answer was given to, so each heading starts the value afresh.
+					dashes >= 2 && index( $0, "**📥 What I understood**" ) == 1 { inside = 1 ; understood = "" ; next ; }
+					inside && $0 ~ /^[ \t]*$/ { if ( understood != "" ) { inside = 0 ; } next ; }
+					inside { understood = ( understood == "" ? $0 : understood " " $0 ) ; }
+					END { printf "%s\037%s\037%s\037%s\037%s\037%s\037%s\037%s\n", field["kind"], field["status"], field["item"], field["verdict"], field["verdict-text"], field["answered-by"], field["resolved-at"], understood ; }
+				' "$decRbFile" 2> /dev/null )
+				if [ "$decRbKind" != readback ] || [ "$decRbStatus" != reply-received ] ; then
+					echo "$MDSC_CMD: ⛔ ERROR: $decReadback is no answered readback (kind ${decRbKind:-none}, status ${decRbStatus:-none}), so nothing was recorded" >&2
 					set +e ; return 1
 				fi
+				if [ "${decRbItem%.md}" != "${decItem%.md}" ] ; then
+					echo "$MDSC_CMD: ⛔ ERROR: readback $decReadback is on ${decRbItem:-no item}, not on ${decItem%.md}, so nothing was recorded" >&2
+					set +e ; return 1
+				fi
+				case "$decRbVerdict" in
+					yes)
+						## A strike's readback is about the line, so it confirms the reason given for it.
+						if [ -n "$decStrike" ] ; then
+							[ "$( AgentsToolsDecisionsOneLine "$decReason" 300 )" = "$( AgentsToolsDecisionsOneLine "$decRbUnderstood" 300 )" ] || {
+								echo "$MDSC_CMD: ⛔ ERROR: the reason differs from what readback $decReadback confirmed, so nothing was struck: confirmed was: $decRbUnderstood" >&2
+								set +e ; return 1 ; }
+						else
+							[ "$( AgentsToolsDecisionsOneLine "$decText" 300 )" = "$( AgentsToolsDecisionsOneLine "$decRbUnderstood" 300 )" ] || {
+								echo "$MDSC_CMD: ⛔ ERROR: the text differs from what readback $decReadback confirmed, so nothing was recorded: confirmed was: $decRbUnderstood" >&2
+								set +e ; return 1 ; }
+						fi
+					;;
+					edit|correct)
+						[ -n "$decRbEdit" ] || { echo "$MDSC_CMD: ⛔ ERROR: readback $decReadback was edited with no words of the edit, so nothing was recorded" >&2 ; set +e ; return 1 ; }
+						if [ -n "$decStrike" ] ; then decReason="$decRbEdit" ; else decText="$decRbEdit" ; fi
+					;;
+					*)
+						echo "$MDSC_CMD: ⛔ ERROR: readback $decReadback was not confirmed (verdict ${decRbVerdict:-none}), so nothing was recorded" >&2
+						set +e ; return 1
+					;;
+				esac
+				## A strike is confirmed by the line's own confirmer, the human-owner, or a contact at tier-admin or tier-owner.
+				if [ -n "$decStrike" ] ; then
+					local strBy=""
+					strBy="$( printf '%s\n' "$decStrike" | LC_ALL=C sed -n 's/.*(readback [^,]*, confirmed by \([^ ,)]*\) at .*/\1/p' | head -1 )"
+					type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+					if { [ -z "$strBy" ] || [ "${decRbBy:-}" != "$strBy" ] ; } && ! AgentsToolsPermissionIsHumanOwner "${decRbBy:-}" && ! AgentsToolsDecisionAccountDecides "${decRbBy:-}" "${strPath:-}" ; then
+						echo "$MDSC_CMD: ⛔ ERROR: readback $decReadback was answered by ${decRbBy:-nobody}, who did not confirm that line${strBy:+ ($strBy did)}, is not the human-owner, and holds no tier-admin or tier-owner, so nothing was struck: put the strike to ${strBy:+$strBy, }the human-owner or a contact with those rights" >&2
+						set +e ; return 1
+					fi
+				fi
+				if [ -n "$decPath" ] && LC_ALL=C grep -q -F -- "(readback $decReadback," "$decPath" 2> /dev/null ; then
+					echo "$MDSC_CMD: ⛔ ERROR: readback $decReadback is already recorded on ${decPath##*/}, so it records nothing twice" >&2
+					set +e ; return 1
+				fi
+				decSource="readback $decReadback, confirmed by ${decRbBy:-unknown} at ${decRbAt:-unknown}${decSource:+, $decSource}"
 			fi
-			if [ -n "$decPath" ] && LC_ALL=C grep -q -F -- "(readback $decReadback," "$decPath" 2> /dev/null ; then
-				echo "$MDSC_CMD: ⛔ ERROR: readback $decReadback is already recorded on ${decPath##*/}, so it records nothing twice" >&2
-				set +e ; return 1
-			fi
-			decSource="readback $decReadback, confirmed by ${decRbBy:-unknown} at ${decRbAt:-unknown}${decSource:+, $decSource}"
 			## A RULING HE NEVER GAVE IS NOT A MEMBER'S TO RECORD (task-20261117T2332Z): text that tells a decision by the
 			## human-owner is recorded only with the message, or the ask's verdict, it came from.
 			if printf '%s\n' "$decText" | LC_ALL=C awk '{ if ( $0 ~ /(^|[^A-Za-z])([Hh]is|[Hh]er|[Hh]e|[Ss]he|human-owner|the owner)(\047s)?[ \t]+(ruling|rulings|verdict|verdicts|decision|decisions|decided|ruled|said|says|words|answer|answered|order|ordered|wants|wanted|asked|approval|approved)([^A-Za-z]|$)/ ) { hit = 1 ; } ; } END { exit ( hit ? 0 : 1 ) ; }' ; then

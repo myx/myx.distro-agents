@@ -113,8 +113,10 @@ rigAsk(){ ## result prefix, arguments of the queue operation... -- one request; 
 	rigOp "$askOut" --retest-queue "$@"
 	rigId="$( LC_ALL=C sed -n 1p "$askOut.out" )"
 }
-rigUntil(){ ## fixed text, file -- waits for a line of the file to hold the text, however long a busy host takes, up to four minutes; rc 1 when it never does
-	local untilLeft=1200
+rigUntil(){ ## fixed text, file, seconds (default 240) -- waits for a line of the file to hold the text, however long a busy host takes, up to that many seconds; rc 1 when it never does
+	local untilSeconds="${3:-240}" untilLeft
+	case "$untilSeconds" in ''|*[!0123456789]*) untilSeconds=240 ;; esac
+	untilLeft=$(( untilSeconds * 5 ))
 	while ! LC_ALL=C grep -q -F -- "$1" "$2" 2> /dev/null ; do
 		[ "$untilLeft" -gt 0 ] || return 1
 		sleep 0.2 ; untilLeft=$(( untilLeft - 1 ))

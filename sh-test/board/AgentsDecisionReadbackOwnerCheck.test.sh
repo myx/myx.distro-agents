@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-## Behavioural check on the readback of a decision asked of the human-owner (--record-decision --with):
-## his own message, named in the source as `<channel>:<ts>` as every post and log writes it, is his decision
-## and is recorded at once, asking him nothing; a text over the 300 bytes of a decision line is refused, never cut
-## inside the quote he is asked to confirm; his own Slack account, named as the party, is the human-owner, so
-## the readback is the team bot's and its record says so; and a readback is one per correction: another source on
-## the same item is another readback, the same source asked again is the one still open, and an answered readback
-## of one correction is no answer to another.
+## Behavioural check on the record route of a decision (--record-decision): his own message, named in the source
+## as `<channel>:<ts>` as every post and log writes it, is his decision and is recorded at once, asking him
+## nothing; a `--with` line is recorded at once too, and its provenance is that party and the time; a text over
+## the 300 bytes of a decision line is refused, never cut; and a text that tells a decision by the human-owner is
+## refused where no source stands behind it.
 ## Offline: a temp workspace and data root under .local/temp, a Slack-shaped fake curl first on PATH, no Slack.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -98,8 +96,8 @@ rigAssert "the control, the prefixed reference, records it the same way" \
 rigItem3="task-20261125T1202Z-rig-other-message"
 rigNewItem "$rigItem3" "The rig keeps another wire"
 rigOp own3 --record-decision --team-member "$rigMember" "$rigItem3" --kind clarification --text "The rig keeps the blue wire." --source "DRIGDM01:1700000200.000100" --with human-owner
-rigAssert "a message of another person is not his decision: it is read back to him, and nothing is recorded" \
-	"$rigRc:$( rigSection "$rigBoard/running/$rigItem3.md" | wc -l | tr -d ' ' ):$( rigRecords )" "0:0:1"
+rigAssert "a message of another person: a --with line, recorded at once with its provenance" \
+	"$rigRc:$( rigSection "$rigBoard/running/$rigItem3.md" | LC_ALL=C grep -c -E 'clarification: The rig keeps the blue wire\. \(DRIGDM01:1700000200\.000100, with human-owner at [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z\)$' ):$( rigRecords ):$( rigPosts )" "0:1:0:0"
 
 echo "-- a text over the line's 300 bytes is refused, and one within it is quoted whole --"
 rigItem4="task-20261125T1203Z-rig-long-text"
@@ -107,44 +105,35 @@ rigNewItem "$rigItem4" "The rig keeps a long text"
 rigLong="$( LC_ALL=C awk 'BEGIN { for ( i = 1 ; i <= 40 ; i++ ) printf "word%02d goes here. ", i ; }' )"
 rigBefore="$( rigRecords )"
 rigOp long1 --record-decision --team-member "$rigMember" "$rigItem4" --kind clarification --text "$rigLong" --with human-owner
-rigAssert "the long text: refused, naming the cap, with nothing asked and nothing recorded" \
-	"$( [ "$rigRc" -ne 0 ] && echo refused || echo taken ):$( LC_ALL=C grep -c 'a decision line holds 300' "$rigTmp/long1.err" ):$( rigRecords ):$( rigPosts )" "refused:1:$rigBefore:1"
+rigAssert "the long text: refused, naming the cap, with nothing recorded" \
+	"$( [ "$rigRc" -ne 0 ] && echo refused || echo taken ):$( LC_ALL=C grep -c 'a decision line holds 300' "$rigTmp/long1.err" ):$( rigRecords ):$( rigPosts )" "refused:1:$rigBefore:0"
 rigShort="$( LC_ALL=C awk 'BEGIN { for ( i = 1 ; i <= 14 ; i++ ) printf "word%02d goes here. ", i ; }' )"
 rigShort="${rigShort% }"
 rigOp long2 --record-decision --team-member "$rigMember" "$rigItem4" --kind clarification --text "$rigShort" --with human-owner
-rigIdLong="$( rigId long2 )"
-rigAssert "the text within the cap is quoted whole, with no cut mark" \
-	"$rigRc:$( rigSlot "$rigIdLong" understood | LC_ALL=C grep -c -F -- "$rigShort" ):$( rigSlot "$rigIdLong" understood | LC_ALL=C grep -c -F -- '...' )" "0:1:0"
+rigAssert "the text within the cap lands whole, with no cut mark" \
+	"$rigRc:$( rigSection "$rigBoard/running/$rigItem4.md" | LC_ALL=C grep -c -F -- "clarification: $rigShort (with human-owner at" ):$( rigSection "$rigBoard/running/$rigItem4.md" | LC_ALL=C grep -c -F -- '...' )" "0:1:0"
 
-echo "-- his own account is the human-owner: the readback is the bot's and the record says so --"
+echo "-- a --with line with no source: recorded, its provenance the party and the time --"
 rigItem5="task-20261125T1204Z-rig-account"
-rigNewItem "$rigItem5" "The rig asks by account"
-rigOp acc1 --record-decision --team-member "$rigMember" "$rigItem5" --kind clarification --text "The rig asks him by his account." --source "ref-account-1" --with URIGOWNER
-rigIdAcc="$( rigId acc1 )"
-rigAssert "asked by his account: addressed to the human-owner, as the bot, in his conversation" \
-	"$( rigField "$rigStore/$rigIdAcc.md" address-to ):$( rigField "$rigStore/$rigIdAcc.md" ask-identity ):$( rigField "$rigStore/$rigIdAcc.md" communication-channel-id )" "human-owner:bot:slack:human-owner"
-rigOp acc2 --record-decision --team-member "$rigMember" "$rigItem5" --kind clarification --text "The rig asks him by his account." --source "ref-account-1" --with human-owner
-rigAssert "asked again by the word human-owner: it is the one open readback, not a second" \
-	"$( rigId acc2 ):$( LC_ALL=C grep -c 'ALREADY-OPEN' "$rigTmp/acc2" )" "$rigIdAcc:1"
+rigNewItem "$rigItem5" "The rig records by party"
+rigOp acc1 --record-decision --team-member "$rigMember" "$rigItem5" --kind clarification --text "The rig names the party." --with URIGOWNER
+rigAssert "recorded at once, and nothing asked of anyone" \
+	"$rigRc:$( rigSection "$rigBoard/running/$rigItem5.md" | LC_ALL=C grep -c -E 'clarification: The rig names the party\. \(with URIGOWNER at [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z\)$' ):$( rigRecords ):$( rigPosts )" "0:1:0:0"
 
-echo "-- one readback per correction --"
+echo "-- two --with lines on one item are two lines, and neither asks anything --"
 rigItem6="task-20261125T1205Z-rig-corrections"
 rigNewItem "$rigItem6" "The rig keeps the corrections apart"
-rigOp cor1 --record-decision --team-member "$rigMember" "$rigItem6" --kind clarification --text "The rig keeps the green wire." --source "ref-correction-a" --with human-owner
-rigIdA="$( rigId cor1 )"
-rigOp cor2 --record-decision --team-member "$rigMember" "$rigItem6" --kind clarification --text "The rig keeps the green wire at the top." --source "ref-correction-b" --with human-owner
-rigIdB="$( rigId cor2 )"
-rigAssert "another source on the same item is another readback, and the first stays open" \
-	"$( [ -n "$rigIdA" ] && [ -n "$rigIdB" ] && [ "$rigIdA" != "$rigIdB" ] && echo two || echo one ):$( rigField "$rigStore/$rigIdA.md" status ):$( rigField "$rigStore/$rigIdB.md" status )" "two:reply-pending:reply-pending"
-rigBeforeCor3="$( rigRecords )"
-rigOp cor3 --record-decision --team-member "$rigMember" "$rigItem6" --kind clarification --text "The rig keeps the green wire." --source "ref-correction-a" --with human-owner
-rigAssert "the same source asked again is the readback still open" \
-	"$( rigId cor3 ):$( LC_ALL=C grep -c 'ALREADY-OPEN' "$rigTmp/cor3" ):$( [ "$( rigRecords )" = "$rigBeforeCor3" ] && echo same || echo grew )" "$rigIdA:1:same"
-rigOp cor4 --intern-op-pending-reply-close "$rigIdA" --if-open --status reply-received --verdict yes --answered-by URIGOWNER
-rigOp cor5 --record-decision --team-member "$rigMember" "$rigItem6" --kind clarification --text "The rig keeps the green wire at the bottom." --source "ref-correction-c" --with human-owner
-rigIdC="$( rigId cor5 )"
-rigAssert "the answer to one correction is no answer to another: a new readback is open for it" \
-	"$( [ -n "$rigIdC" ] && [ "$rigIdC" != "$rigIdA" ] && [ "$rigIdC" != "$rigIdB" ] && echo new || echo not-new ):$( rigField "$rigStore/$rigIdC.md" status ):$( LC_ALL=C grep -c 'NOT ASKED AGAIN' "$rigTmp/cor5" )" "new:reply-pending:0"
+rigOp cor1 --record-decision --team-member "$rigMember" "$rigItem6" --kind clarification --text "The rig keeps the green wire." --with human-owner
+rigOp cor2 --record-decision --team-member "$rigMember" "$rigItem6" --kind clarification --text "The rig keeps the green wire at the top." --with human-owner
+rigAssert "two lines land, and no readback is opened for either" \
+	"$rigRc:$( rigSection "$rigBoard/running/$rigItem6.md" | wc -l | tr -d ' ' ):$( rigRecords ):$( rigPosts )" "0:2:0:0"
+
+echo "-- a text that tells his decision still needs the source it came from --"
+rigItem7="task-20261125T1206Z-rig-owner-ruling"
+rigNewItem "$rigItem7" "The rig keeps his ruling"
+rigOp own7 --record-decision --team-member "$rigMember" "$rigItem7" --kind resolved --text "His ruling stands: the rig keeps the red wire." --with human-owner
+rigAssert "a ruling with no source behind it: refused, with nothing recorded" \
+	"$( [ "$rigRc" -ne 0 ] && echo refused || echo taken ):$( rigSection "$rigBoard/running/$rigItem7.md" | wc -l | tr -d ' ' ):$( rigRecords ):$( rigPosts )" "refused:0:0:0"
 
 echo
 printf 'DECISION_READBACK_OWNER: %s passed, %s failed\n' "$rigPassCount" "$rigFailCount"

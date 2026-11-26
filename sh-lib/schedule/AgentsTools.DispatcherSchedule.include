@@ -492,9 +492,8 @@ AgentsToolsScheduleOverride(){ ## the operation as it was called, its arguments.
 				overEnd="on"
 			;;
 			overtime)
-				if [ "$( AgentsToolsScheduleWorktime "$overName" "$overSeconds" "$overEpoch" )" = "yes" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD $overOp: overtime is for outside worktime, and worktime is on now" >&2 ; return 1
-				fi
+				## OVERTIME MAY BE SET DURING WORKTIME (the owner's ruling): it is the same commitment to keep working, and
+				## refusing it on the clock only stopped him using the flag when he wanted it.
 				overNext="$( AgentsToolsScheduleNextWorkStart "$overEpoch" "$overOffset" )"
 				if [ -n "$overDays" ] ; then
 					overCount=1
@@ -825,14 +824,11 @@ AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 			## Its read pointer into the tagged source is kept first (AgentsToolsDutyKeptTagFold).
 			type AgentsToolsDutyKeptStale > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 			## A KEPT SESSION THE OWNER KILLED, OR ONE THAT FINISHED, IS NO SESSION TO JOIN: it is dropped with an earlier
-			## day's below, and the start opens a session of its own. The kill mark is on a record of that session, and the
-			## given mark in the session folder a delivered handback writes it to.
+			## day's below, and the start opens a session of its own. The kill mark is on a record of that session.
 			if [ -n "$spawnDutySession" ] ; then
 				spawnDutyHeld=no
-				type AgentsSessionChecklistFileInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CheckListSeed.include"
-				spawnDutyGiven=""
-				AgentsSessionChecklistFileInto spawnDutyGiven "$spawnDutySession" "${spawnKey#work-duty.}" || spawnDutyGiven=""
-				[ -z "$spawnDutyGiven" ] || [ ! -f "${spawnDutyGiven%/*}/handback.given" ] || spawnDutyHeld=yes
+				## A RUN THAT ENDED WITHOUT A HANDBACK IS RESUMED IN ITS OWN SESSION (the sketch's resume rule): only a killed or
+				## finished session is dropped below, so no handback mark is read here.
 				if [ "$spawnDutyHeld" = no ] ; then
 					while IFS= read -r spawnDutyRecord ; do
 						[ -n "$spawnDutyRecord" ] || continue
@@ -1024,7 +1020,7 @@ AgentsToolsScheduleAutorun(){
 ## `.local/agents/schedule/pace.measure` as `<epoch> <window> <median> <count>`. A caller reads that file, one read and no walk; the verdict is worked out
 ## from the measure on each call, so a threshold of the caller's own (MDAT_TOOL_PACE_MS) still applies. 0 takes the measure on every call, as the checks do.
 AgentsToolsSchedulePaceText(){ ## -- one line: what was read, and what it decides
-	local paceLimit="${MDAT_TOOL_PACE_MS:-4000}" paceWindow="${MDAT_TOOL_PACE_WINDOW_SECONDS:-300}" paceTtl="${MDAT_TOOL_PACE_CACHE_SECONDS:-300}" paceFile paceCount paceMedian paceRecord paceRegistry paceRun
+	local paceRate=0 paceLimit="${MDAT_TOOL_PACE_MS:-4000}" paceWindow="${MDAT_TOOL_PACE_WINDOW_SECONDS:-300}" paceTtl="${MDAT_TOOL_PACE_CACHE_SECONDS:-300}" paceFile paceCount paceMedian paceRecord paceRegistry paceRun
 	local paceCache="$MMDAPP/.local/agents/schedule/pace.measure" paceNow="" paceAt="" paceWin="" paceHeld="" paceTemp
 	case "$paceLimit" in ''|*[!0123456789]*|0) paceLimit=4000 ;; esac
 	case "$paceWindow" in ''|*[!0123456789]*|0) paceWindow=300 ;; esac
@@ -1110,6 +1106,13 @@ AgentsToolsSchedulePaceText(){ ## -- one line: what was read, and what it decide
 	fi
 	if [ "$paceCount" -lt 3 ] ; then
 		printf 'pace: %s.%ss machinery a call, %s calls in %s minutes -- too few to judge, a duty start is allowed\n' "$(( paceMedian / 1000 ))" "$(( paceMedian % 1000 / 100 ))" "$paceCount" "$(( paceWindow / 60 ))"
+		return 0
+	fi
+	## A LIGHT LOAD IS NOT A BLOCKER: a slow call on a machine making few calls a minute is a slow machine,
+	## not contention, so the rate decides before the timing does (the owner's rule).
+	paceRate=$(( paceCount * 60 / paceWindow ))
+	if [ "$paceRate" -lt "${MDAT_TOOL_PACE_RATE_PER_MINUTE:-60}" ] ; then
+		printf 'pace: %s.%ss machinery a call, %s calls in %s minutes (%s a minute) -- a light load, a duty start is allowed\n' "$(( paceMedian / 1000 ))" "$(( paceMedian % 1000 / 100 ))" "$paceCount" "$(( paceWindow / 60 ))" "$paceRate"
 		return 0
 	fi
 	if [ "$paceMedian" -lt "$paceLimit" ] ; then
@@ -2423,8 +2426,8 @@ AgentsToolsScheduleStartPending(){
 	## The pace gate holds this start as it holds a duty start: a slow machine gets no new session. An urgent or emergency item starts
 	## whatever the pace (the owner's ruling), so the hold is read once here and applied per item, at its mark.
 	case "$( AgentsToolsSchedulePaceText 2> /dev/null )" in *' is held'*) pendHeld=yes ;; esac
-	## ONE START PER PASS: a duty started in this pass is the pass's one start; the pending items wait for the next pass, when the pace shows it.
-	[ -z "${agentsSchedulePassStarted:-}" ] || { printf 'start-pending: %s started this pass, nothing more is started until the next\n' "$agentsSchedulePassStarted" ; return 0 ; }
+	## ONE START PER PASS STILL HOLDS A ROUTINE DUTY OUT: an approved urgent or emergency item takes the pass's start, and the rest wait.
+	local pendPassTaken="${agentsSchedulePassStarted:-}"
 	pendNow="${agentsSchedulePassNow:-$( date +%s )}"
 	## OUT OF WORKTIME ONLY THE COORDINATOR RUNS (the team's plan): with worktime, overtime and emergency all off, an approved pending item starts a session
 	## only when it is marked urgent or emergency. Without this, ending the night duties (AgentsToolsScheduleDutyLifetime) took away the duty each
@@ -2519,6 +2522,8 @@ AgentsToolsScheduleStartPending(){
 		## (the order below). Only an emergency item starts whatever the pace.
 		[ -z "$pendHeld" ] || case "$pendMark" in emergency) ;; *) pendHeld=said ; continue ;; esac
 		[ "$pendOpen" = yes ] || case "$pendMark" in urgent|emergency) ;; *) continue ;; esac
+		## A pass whose one start was a duty still starts an urgent or emergency item: the queue outranks the routine restart.
+		[ -z "$pendPassTaken" ] || case "$pendMark" in urgent|emergency) ;; *) continue ;; esac
 		case "$pendMark" in
 			urgent|emergency) ;;
 			*)

@@ -115,6 +115,21 @@ show s
 RIGSCRIPT
 rigAssert "twelve hours to a line, each cell four columns where the pane was wide enough for six" "$( rigHolds s '00  01  02  03' ) $( rigHolds s '12  13  14  15' ) $( rigHolds s 'sat  E░░ E░░ E░░ E░░' ) $( rigHolds s 'sat  E░░░░ E░░░░' )" "1 1 2 0"
 
+echo "-- overtime paints the hours outside worktime, and none of its own worktime --"
+rigCase overtime
+LC_ALL=C awk -F'\t' 'BEGIN{OFS="\t"} $1=="flag" && $2=="overtime" {$3="yes" ; $4="(50043 seconds left)"} {print}' \
+	"$MANAGER_SCREEN_RIG/rows.--manager-schedule-read" > "$MANAGER_SCREEN_RIG/rows.next" && mv "$MANAGER_SCREEN_RIG/rows.next" "$MANAGER_SCREEN_RIG/rows.--manager-schedule-read"
+rigSize="120 50"
+rigScript <<'RIGSCRIPT'
+at @schedule
+turn
+wait list 30
+turn
+show s
+RIGSCRIPT
+rigAssert "the flag now: overtime yes with its time left" "$( rigHolds s 'yes (50043 seconds left)' )" "1"
+rigAssert "one row carries the painted off-hours, the day the window reaches" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F '▓' )" "1"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN SCHEDULE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi
