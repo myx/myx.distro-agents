@@ -468,6 +468,35 @@ AgentsToolsSessionChatLiveRun(){ ## workspace root, session, member
 	return 1
 }
 
+## The member a session's own newest record names: its executor, one file read and never a walk of the store. Prints nothing, rc 1,
+## for a session this host keeps no record of, which is a thread of someone else's session and none of our wakes.
+AgentsToolsSessionChatSessionMember(){ ## workspace root, session
+	local memberRecord="$1/.local/agents/spawned/$2/$2.spawn.md"
+	## The session's OWN record first: the newest record in its folder is a child a member was spawned as, whose
+	## owner is that child. A session folder that keeps no record of its own falls back to the one it holds.
+	[ -f "$memberRecord" ] || memberRecord="$( ls -t "$1/.local/agents/spawned/$2/"*.spawn.md 2> /dev/null | head -1 )"
+	[ -n "$memberRecord" ] && [ -f "$memberRecord" ] || return 1
+	LC_ALL=C awk -F': ' '$1 == "owner" { print $2 ; exit }' "$memberRecord" 2> /dev/null
+	return 0
+}
+
+## The runs that took a copy of a message are woken at once (AgentsTools.WakeMarker.include): a post into a session's own thread is
+## that run's mail, and a run napping on its next look at the costly source reads it only when that look comes -- minutes, on the
+## backoff. A copy's row names the workspace root and the session, and the session's own record names its member, so this reads one
+## file a copy and walks no store. A thread of no session here takes no copy and wakes nobody.
+AgentsToolsSessionChatWakeCopies(){ ## copies' rows, who wrote it
+	local wakeRoot="" wakeSession="" wakeBlock="" wakeThread="" wakeMember=""
+	[ -n "${1:-}" ] || return 0
+	type AgentsToolsWakeTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.WakeMarker.include"
+	while IFS=$'\t' read -r wakeRoot wakeSession wakeBlock wakeThread ; do
+		[ -n "$wakeRoot" ] && [ -n "$wakeSession" ] || continue
+		wakeMember="$( AgentsToolsSessionChatSessionMember "$wakeRoot" "$wakeSession" )" || continue
+		[ -n "$wakeMember" ] || continue
+		MMDAPP="$wakeRoot" AgentsToolsWakeTouch "$wakeMember" "${2:-}" || :
+	done <<< "$1"
+	return 0
+}
+
 ## The copies of one message sent into the thread of another session (above): appended to the chat file of each session that keeps
 ## <conversation:thread>, from the sender, to the addressees, origin `delivered`. Where the sender is among the addressees, one run
 ## of a member dismissing another of the same member, the header names both runs (S27.8, AgentsHarnessWaitDismissed.awk): the

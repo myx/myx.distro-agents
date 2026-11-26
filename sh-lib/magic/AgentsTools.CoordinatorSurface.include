@@ -18,6 +18,7 @@
 ## which is IN FORCE while its expires-at is none or has not passed. A spawn is given the ones in force (--standing-directives, in the spawn brief).
 ##
 
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 agentsSurfaceNote="note-20260809T155000Z-heartbeat-state-and-lock.md"
 agentsSurfaceHeading="# Standing directives"
 
@@ -73,13 +74,29 @@ AgentsToolsSurfaceFlags(){ ## the operation, its arguments...
 
 ## --tasks: the board as the coordinator reads it: the count of each state and the active items with their tokens, the board's own readers.
 AgentsToolsSurfaceTasks(){ ## the operation, its arguments...
+	local tasksKept="$MMDAPP/.local/agents/tasks.ready" tasksAt tasksNow tasksOut tasksRc=0 tasksTemp
 	[ $# -eq 1 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: takes no option: $2" >&2 ; return 1 ; }
+	## KEPT THE PACE WINDOW, FIVE MINUTES: the token roll-up walks every board item and every run record, so a tick that asks again pays
+	## that walk again, and a duty's round is longer than the half minute this once kept (2026-11-25: 7 s a walk, nearly every round).
+	## A status surface may lag its store by as long as the pace gate's own window; a decision reads its own item, never this.
+	[ -z "${MDAT_TASKS_REBUILD:-}" ] || tasksKept=""
+	if [ -n "$tasksKept" ] && [ -s "$tasksKept" ] ; then
+		tasksAt="$( LC_ALL=C date -r "$tasksKept" +%s 2> /dev/null )" || tasksAt=""
+		tasksNow="$( date +%s )" || tasksNow=""
+		case "$tasksAt$tasksNow" in
+			''|*[!0123456789]*) ;;
+			*) [ "$(( tasksNow - tasksAt ))" -ge 300 ] || { cat "$tasksKept" 2> /dev/null ; return 0 ; } ;;
+		esac
+	fi
 	type AgentsToolsBoardCounts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.CoordinatorReads.include"
 	type AgentsToolsBoardCounts > /dev/null 2>&1 || { echo "$MDSC_CMD: ⛔ ERROR: $1: the board's readers could not be loaded" >&2 ; return 1 ; }
-	printf '# board\n'
-	AgentsToolsBoardCounts
-	printf '# active\n'
-	AgentsToolsBoardActiveItems
+	tasksOut="$( printf '# board\n' ; AgentsToolsBoardCounts ; printf '# active\n' ; AgentsToolsBoardActiveItems )" || tasksRc=$?
+	printf '%s\n' "$tasksOut"
+	if [ -n "$tasksKept" ] && [ "$tasksRc" = 0 ] ; then
+		tasksTemp="$( mktemp "$tasksKept.XXXXXX" 2> /dev/null )" || tasksTemp=""
+		if [ -n "$tasksTemp" ] ; then printf '%s\n' "$tasksOut" > "$tasksTemp" 2> /dev/null && mv -f "$tasksTemp" "$tasksKept" 2> /dev/null || rm -f "$tasksTemp" 2> /dev/null ; fi
+	fi
+	return "$tasksRc"
 }
 
 ## --contacts [--organisation <slug>] [--reached-by <member>]: the contacts, Contacts' rows. --contact <id>: one, its record and its access.
@@ -128,7 +145,7 @@ AgentsToolsSurfaceStanding(){ ## the operation, its arguments...
 	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $standingOp: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
 	local standingItems=()
 	type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-	for standingState in backlog pending running review blocked parked ; do
+	for standingState in $agentsBoardOpenStates ; do
 		AgentsToolsBoardItemsInto standingItems warning- "$standingState"
 		for standingFile in ${standingItems[@]+"${standingItems[@]}"} ; do
 			printf 'warning\t%s\t%s\n' "${standingFile##*/}" "$standingState"

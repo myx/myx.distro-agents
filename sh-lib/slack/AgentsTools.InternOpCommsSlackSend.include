@@ -111,7 +111,11 @@ case "$1" in
 				&& ! LC_ALL=C awk -F '\t' -v run="$MDAT_SPAWN_SESSION_ID" '$3 == "magic-team" && $NF == run { found = 1 ; exit ; } END { exit found ? 0 : 1 ; }' "$MMDAPP/.local/agents/comms-slack-send.$( date -u +%Y-%m ).log" 2> /dev/null ; then
 				dutyTold="day-first"
 			fi
-			if [ -z "$dutyTold" ] ; then
+			if [ -z "$dutyTold" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
+				## A CONSOLE MEMBER IS NO RUN: with no session, `magic-team` is the team channel and nothing is rerouted -- the
+				## check `AgentsSlackSendIdentityCheck` measured a member's channel send arriving as the bot in the human-owner's
+				## conversation, and this guard is what puts it on the channel (W2, task 2026-11-26T0605Z). A run keeps the
+				## reroute below, so it still posts in its session's thread and never at the channel root.
 				## The coordinator's duty-session thread comes before the human-owner's conversation: that is where it reads its runs.
 				local runDuty="" runDutyThread=""
 				runDuty="$( head -1 "${MMDAPP:-/nonexistent}/.local/agents/schedule/duty-session/magic-coordinator" 2> /dev/null )" || runDuty=""
@@ -1070,7 +1074,7 @@ blocks|verbatim|caller|stdin file"
 			local relayApplyFaults="" relayApplyRc=0
 			relayApplyFaults="$( printf '%s\n' "${messageText:-$sourceText}" | AgentsToolsApplyReportFaults )" || relayApplyRc=$?
 			if [ "$relayApplyRc" != 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --slack-send-message: this relay says a file was applied, and it does not give that file its absolute path and its read-back. Nothing was posted. A line names the file absolute path, the workspace it belongs to, and a read-back (cmp against the staged file, or its hash). What is missing:" >&2
+				echo "⛔ ERROR: $MDSC_CMD --slack-send-message: this relay says a file was applied, and it does not give that file its place path and its read-back. Nothing was posted. A line names the file as <place>:<path>, a registered place name, a colon and a path relative to that place, and a read-back (cmp against the staged file, or its hash). What is missing:" >&2
 				printf '%s\n' "$relayApplyFaults" >&2
 				set +e ; return 1
 			fi
@@ -1253,6 +1257,13 @@ blocks|verbatim|caller|stdin file"
 					## does (load incident: a coordinator post addressed to magic-tester in its thread never woke a
 					## 90-minute Wait).
 					for wakeAddressed in $addressedMembers ; do [ "$wakeAddressed" = "$wakeMember" ] || AgentsToolsWakeTouch "$wakeAddressed" "$memberName" || : ; done
+				fi
+				## EVERY RUN THAT TOOK A COPY IS WOKEN (S27.9): a post into a session's own thread is that run's mail, whether
+				## or not the text names a member. A run whose wait naps on its next look at the thread reads it minutes later
+				## otherwise, which is what the owner reported: a coordinator's message to a run sat unread.
+				if [ -n "$chatCopies" ] ; then
+					type AgentsToolsSessionChatWakeCopies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+					AgentsToolsSessionChatWakeCopies "$chatCopies" "$memberName" || :
 				fi
 				return 0
 			fi
@@ -1495,6 +1506,12 @@ blocks|verbatim|caller|stdin file"
 				type AgentsToolsWakeTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.WakeMarker.include"
 				[ -z "$wakeMember" ] || AgentsToolsWakeTouch "$wakeMember" "$memberName" || :
 				for wakeAddressed in $addressedMembers ; do [ "$wakeAddressed" = "$wakeMember" ] || AgentsToolsWakeTouch "$wakeAddressed" "$memberName" || : ; done
+			fi
+			## EVERY RUN THAT TOOK A COPY IS WOKEN (S27.9): a post into a session's own thread is that run's mail, whether or
+			## not the text names a member. A run whose wait naps on its next look at the thread reads it minutes later otherwise.
+			if [ -n "$chatCopies" ] && [ -z "$updateTs" ] ; then
+				type AgentsToolsSessionChatWakeCopies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+				AgentsToolsSessionChatWakeCopies "$chatCopies" "$memberName" || :
 			fi
 			printf '%s\n' "$response"
 			return 0

@@ -257,7 +257,8 @@
 		## What the other sources of this wait read, for the floor to leave to them (AgentsWaitCoveredSet).
 		agentsWaitCovered="?" ; agentsWaitCoverSources="$waitSources"
 		## The probe function of each source is resolved once, because it cannot change while this wait runs.
-		local waitRoundFn=() waitRoundIndex=0 waitRoundSource
+		## The TTL of a source cannot change while this wait runs: it is asked of the table the first time a round needs it, never again.
+		local waitRoundFn=() waitRoundTtl=() waitRoundIndex=0 waitRoundSource
 		for waitRoundSource in $waitSources ; do
 			waitRoundIndex=$(( waitRoundIndex + 1 ))
 			waitRoundFn[$waitRoundIndex]="$( AgentsWaitProbeFunctionName "${waitRoundSource%%:*}" )"
@@ -300,7 +301,8 @@
 				## While the previous check of a source is inside its TTL the source is skipped, and a source skipped so is not one never read.
 				case "$roundKind" in
 					tagged|scan|mentions|dms)
-						roundTtl="$( AgentsWaitTtlOf "$roundSource" )"
+						[ -n "${waitRoundTtl[$roundIndex]:-}" ] || waitRoundTtl[$roundIndex]="$( AgentsWaitTtlOf "$roundSource" )"
+						roundTtl="${waitRoundTtl[$roundIndex]}"
 						## A duty's DMs, mentions and tags are due at the poll, never at their own TTL.
 						[ -z "${waitDutyRun:-}" ] || ! AgentsWaitImmediateKind "$roundKind" || roundTtl="$agentsWaitImmediateGap"
 						## The TTL the caller gave the source when it added it, where it gave one (AgentsWaitTtlOwn).
@@ -318,7 +320,8 @@
 						*)
 							## A named Slack source has its own TTL floor too, kept inside this backoff-only branch, so a named poll interval still reads every round.
 							if [ "$roundKind" = "slack" ] ; then
-								roundTtl="$( AgentsWaitTtlOf "$roundSource" )"
+								[ -n "${waitRoundTtl[$roundIndex]:-}" ] || waitRoundTtl[$roundIndex]="$( AgentsWaitTtlOf "$roundSource" )"
+								roundTtl="${waitRoundTtl[$roundIndex]}"
 								## The TTL the caller gave the source when it added it, where it gave one (AgentsWaitTtlOwn).
 								case "$waitTtls" in *" $roundSource="*) roundTtl="${waitTtls#* $roundSource=}" ; roundTtl="${roundTtl%% *}" ;; esac
 								## The source backs off while it brings nothing, from its TTL to twenty times it -- quiet from its floor, or from this wait's start where the floor is older (S27.9).
@@ -532,7 +535,8 @@
 			local napIndex=0 napNext="" napGap
 			for roundPlanSource in $waitSources ; do
 				napIndex=$(( napIndex + 1 ))
-				napNext="$( AgentsWaitTtlOf "$roundPlanSource" )"
+				[ -n "${waitRoundTtl[$napIndex]:-}" ] || waitRoundTtl[$napIndex]="$( AgentsWaitTtlOf "$roundPlanSource" )"
+				napNext="${waitRoundTtl[$napIndex]}"
 				case "$napNext" in ''|*[!0-9]*|0) continue ;; esac
 				napGap=$(( ${waitProbedAt[$napIndex]:-0} + napNext - waitNow ))
 				[ "$napGap" -gt 0 ] || napGap=1

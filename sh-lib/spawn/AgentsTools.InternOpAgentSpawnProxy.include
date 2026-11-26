@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 type AgentsSettingsScopeHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
 ## The prose that stood here, fifteen paragraphs of it, is in the package's MAGIC.md, under
 ## "sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include".
@@ -153,8 +154,8 @@ case "$1" in
 					shift 2
 				;;
 				--board-state)
-					case "$2" in
-						backlog|pending|running|review|blocked|parked|processed|archived|retained)
+					case " $agentsBoardStates " in
+						*" $2 "*)
 							boardStates+=( "$2" )
 						;;
 						*)
@@ -941,7 +942,17 @@ case "$1" in
 			fi
 		fi
 
-		export MDAT_SPAWN_SESSION_ID="$( uuidgen 2>/dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
+		## THE RUN'S SESSION AND ITS OWN ID ARE TWO THINGS: a join or a restart keeps the session it names, and only a
+		## fresh start mints one. Milling a fresh id here made every restart a new session (measured 2026-11-25: session
+		## 8b066c82 where 00569208 was asked), and the run then held the old session's seat while its harness wrote to
+		## the new one, so nothing addressed to the session ever reached it.
+		local spawnRunId=""
+		if [ -n "${joinSessionId:-}" ] ; then
+			export MDAT_SPAWN_SESSION_ID="$joinSessionId"
+			spawnRunId="$( uuidgen 2>/dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
+		else
+			export MDAT_SPAWN_SESSION_ID="$( uuidgen 2>/dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
+		fi
 		if [ -z "$MDAT_SPAWN_SESSION_ID" ] ; then
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: uuidgen produced no session id, so the dispatch record and the agent's own session could not be joined -- refusing to spawn rather than recording a session nothing reports" >&2
 			set +e ; return 1
@@ -1464,7 +1475,7 @@ case "$1" in
 		{
 			printf '%s\n' "---"
 			printf 'session-id: %s\n' "$sessionId"
-			printf 'spawn-id: %s\n' "$MDAT_SPAWN_SESSION_ID"
+			printf 'spawn-id: %s\n' "${spawnRunId:-$MDAT_SPAWN_SESSION_ID}"
 			## The calling session's own id, so the registry can show which spawn
 			## belongs to which session -- computed above and until now only ever
 			## reaching the event-track post, never this durable record.

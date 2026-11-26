@@ -108,10 +108,11 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 	local rowsDated=()
 	[ "$rowsOp" != --schedule-learning ] || rowsLearn=1
 	## THE LIST IS PREPARED AND KEPT THIRTY SECONDS: a pass that asks for the whole history asks often, and deriving every
-	## session and run again each time is what made its first page seconds.
+	## session and run again each time is what made its first page seconds. The active and waiting lists keep their own copy
+	## too: the supervisor and the root read them at every tick, and each was a full derivation of the whole store.
 	local rowsKept="$MMDAPP/.local/agents/manager-sessions.ready.${rowsOp#--}${rowsActive:+.active}" rowsKeptAt rowsKeptNow rowsKeep
 	case "$rowsOp" in
-		--all-sessions|--manager-session-list) [ -n "$MMDAPP" ] || rowsKept="" ;;
+		--all-sessions|--manager-session-list|--active-sessions|--waiting-sessions) [ -n "$MMDAPP" ] || rowsKept="" ;;
 		*) rowsKept="" ;;
 	esac
 	if [ -n "$rowsKept" ] && [ -s "$rowsKept" ] && [ -z "${MDAT_ROWS_REBUILD:-}" ] ; then
@@ -120,7 +121,11 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 		case "$rowsKeptAt$rowsKeptNow" in
 			''|*[!0123456789]*) ;;
 			*)
-				if [ "$(( rowsKeptNow - rowsKeptAt ))" -lt 30 ] ; then
+				## THE AGE AND THE STORES: a copy is served only while no spawn record, ask or session file is newer than it.
+				## Age alone served a counters row that counted an ask the store no longer held (measured 2026-11-26 09:50: the
+				## withdraw check read 1 open after its own withdraw, inside the 30 s). One find over the three stores.
+				if [ "$(( rowsKeptNow - rowsKeptAt ))" -lt 30 ] \
+					&& [ -z "$( find "${MMDAPP%/}/.local/agents/spawned" "${MMDAPP%/}/.local/agents/pending" "${MMDAPP%/}/.local/agents/sessions" -type f -newer "$rowsKept" 2> /dev/null | LC_ALL=C head -1 )" ] ; then
 					cat "$rowsKept" 2> /dev/null
 					return 0
 				fi

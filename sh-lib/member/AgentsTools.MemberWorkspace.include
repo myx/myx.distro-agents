@@ -138,7 +138,7 @@ AgentsToolsMemberWorkspaceResolve(){ ## member, operation
 }
 
 AgentsToolsWorkspaceByName(){ ## name
-	local byName="$1" byHere="${MMDAPP%/}" byRoot byFound="" byCount=0
+	local byName="$1" byHere="${MMDAPP%/}" byRoot byFound="" byCount=0 bySeen=""
 	case "$byName" in
 		''|*/*|.|..) printf 'that is no workspace name, which is the last segment of its path' ; return 1 ;;
 	esac
@@ -146,8 +146,16 @@ AgentsToolsWorkspaceByName(){ ## name
 		printf '%s\n' "$byHere" ; return 0
 	fi
 	type LocalToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$( dirname $BASH_SOURCE )/../../../..}/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
+	## ONE PATH COUNTED ONCE: a workspace this machine knows is named by the places list AND by the known-workspaces
+	## registry, so the same path arrives twice and two rows of one path are no ambiguity -- the spellings are
+	## collapsed before they are counted (W2: --spawn-settings-workspace was refused for every workspace that is in
+	## both lists, which is every tracked one).
 	while IFS= read -r byRoot ; do
+		byRoot="${byRoot%/}"
+		[ -n "$byRoot" ] || continue
 		[ "${byRoot##*/}" = "$byName" ] || continue
+		case "|$bySeen|" in *"|$byRoot|"*) continue ;; esac
+		bySeen="$bySeen$byRoot|"
 		byCount=$(( byCount + 1 )) ; byFound="$byFound${byFound:+, }$byRoot"
 	done <<< "$( { LocalToolsPlacesWorkspaceRoots 2> /dev/null ; LC_ALL=C awk 'NF == 1 && $1 != "" { gsub( /\/+$/, "", $1 ) ; print $1 ; }' "${HOME:-}/.agents/magic-team/known-workspaces.registry" 2> /dev/null ; } )"
 	case "$byCount" in

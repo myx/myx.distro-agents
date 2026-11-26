@@ -26,7 +26,7 @@ AgentsToolsCleanupSweepLine(){ ## class age bytes path
 }
 
 AgentsToolsCleanupSweep(){ ## preview|apply
-	local sweepMode="${1:-preview}" sweepNow sweepHours sweepRetention sweepCount=0 sweepBytes=0 sweepRemoved=0 sweepStanding=0
+	local sweepMode="${1:-preview}" sweepNow sweepHours sweepRunDays sweepSessionDays sweepCount=0 sweepBytes=0 sweepRemoved=0 sweepStanding=0
 	local sweepList sweepPath sweepName sweepMtime sweepKb sweepSize sweepRoot="" sweepDir sweepOutput sweepOutputCount=0 sweepHeld sweepEntry sweepOutputHours sweepStagedHours sweepFloor
 	sweepNow="$( date +%s )" || return 0
 	sweepHours="${MDAT_CLEANUP_TEMP_AGE_HOURS:-24}"
@@ -38,8 +38,12 @@ AgentsToolsCleanupSweep(){ ## preview|apply
 	case "$sweepOutputHours" in ''|*[!0123456789]*) sweepOutputHours=168 ;; esac
 	sweepStagedHours="${MDAT_CLEANUP_STAGED_AGE_HOURS:-720}"
 	case "$sweepStagedHours" in ''|*[!0123456789]*) sweepStagedHours=720 ;; esac
-	sweepRetention="${MDAT_CLEANUP_RETENTION_DAYS:-14}"
-	case "$sweepRetention" in ''|*[!0123456789]*) sweepRetention=14 ;; esac
+	## THE RECORD STORES HAVE A DAY OF THEIR OWN, one setting each, as the sweep's four classes above have: a run folder is not a session
+	## folder, and neither store's age is the other's.
+	sweepRunDays="${MDAT_CLEANUP_RUN_STORE_DAYS:-30}"
+	case "$sweepRunDays" in ''|*[!0123456789]*) sweepRunDays=30 ;; esac
+	sweepSessionDays="${MDAT_CLEANUP_SESSION_STORE_DAYS:-30}"
+	case "$sweepSessionDays" in ''|*[!0123456789]*) sweepSessionDays=30 ;; esac
 	type AgentsToolsSpawnSandboxLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandboxSweep.include"
 	sweepList="$( find "$MMDAPP/.local/temp" -mindepth 1 -maxdepth 1 -mmin +$(( sweepHours * 60 )) 2> /dev/null )" || sweepList=""
 	while IFS= read -r sweepPath ; do
@@ -62,11 +66,15 @@ AgentsToolsCleanupSweep(){ ## preview|apply
 	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 	AgentsSpawnedStoreDirInto sweepRoot "$MMDAPP" || sweepRoot=""
 	[ -d "$sweepRoot" ] || sweepRoot=""
-	## The record folders past their retention, in the run store and in the session store, counted by one find. The sweep removes no record at all.
-	sweepStanding="$( find ${sweepRoot:+"$sweepRoot"} "$MMDAPP/.local/agents/sessions" -mindepth 1 -maxdepth 1 -type d -mtime +"$sweepRetention" 2> /dev/null | LC_ALL=C wc -l )" || sweepStanding=0
+	## The record folders past their own store's days, counted one store at a time. The sweep removes no record at all.
+	sweepStanding="$( find ${sweepRoot:+"$sweepRoot"} -mindepth 1 -maxdepth 1 -type d -mtime +"$sweepRunDays" 2> /dev/null | LC_ALL=C wc -l )" || sweepStanding=0
 	sweepStanding="${sweepStanding//[!0123456789]/}"
 	sweepStanding="${sweepStanding:-0}"
-	[ "$sweepMode" != preview ] || [ "$sweepStanding" -eq 0 ] || printf '# %s: %s record folders are past the retention of %s days, and are left alone\n' "${MDSC_CMD:-DistroAgentsTools}" "$sweepStanding" "$sweepRetention" >&2
+	[ "$sweepMode" != preview ] || [ "$sweepStanding" -eq 0 ] || printf '# %s: %s run folders are past the retention of %s days, and are left alone\n' "${MDSC_CMD:-DistroAgentsTools}" "$sweepStanding" "$sweepRunDays" >&2
+	sweepStanding="$( find "$MMDAPP/.local/agents/sessions" -mindepth 1 -maxdepth 1 -type d -mtime +"$sweepSessionDays" 2> /dev/null | LC_ALL=C wc -l )" || sweepStanding=0
+	sweepStanding="${sweepStanding//[!0123456789]/}"
+	sweepStanding="${sweepStanding:-0}"
+	[ "$sweepMode" != preview ] || [ "$sweepStanding" -eq 0 ] || printf '# %s: %s session folders are past the retention of %s days, and are left alone\n' "${MDSC_CMD:-DistroAgentsTools}" "$sweepStanding" "$sweepSessionDays" >&2
 	type AgentsToolsUndoHoldState > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/undo/AgentsTools.UndoHold.include"
 	sweepList=""
 	[ -z "$sweepRoot" ] || sweepList="$( find "$sweepRoot" -mindepth 2 -maxdepth 2 -name output -type d 2> /dev/null )" || sweepList=""

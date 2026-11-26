@@ -15,6 +15,7 @@ Rules of "Engineering & operating discipline" that a member needs only on occasi
 Git, scope and finishing:
 - The floor: the team tools and its session sandbox (read `input/`, write `output/`). Under `source/` it adds reading every `MAGIC.md`, `README.md` and `docs/**.md`, and writing `MAGIC.md`. Anything else under `source/` needs a grant. A member's own file may hold a wider standing grant tied to a place. magic-librarian's `.md`-edit of a team-member skill under `.skillset-shared` or `.skillset-.local` is one (`magic-librarian.armed.md`). Nobody approves what it does not hold: tooling routes that ask up, to a holder in the session or task, then to the human-owner. A holder may pass a permission on (`--pass-permission`) to a participant or a member it spawned for the work. It is never wider or longer than its own.
 - A routine may grant or refuse its participants permissions for its run (`access-control:` in its frontmatter, rows such as `participants:allow-tool:<tool>`).
+- A task's permission set does not reach a spawned run's write roots. A run's write roots are the paths its own spawn fixed, so a grant the task holds is refused in the run. The refusal carries its own ID, and one permission set with one entry answers it.
 
 Evidence:
 - A check you would act on is shown able to fail: its positive control runs in the same call. A count states its unit. A published number carries the instrument that produced it and any exclusion.

@@ -32,6 +32,15 @@ rigTmp="$( rigTempDir AgentsSlackSendIdentityCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin"
+## THE MEMBERS THIS RIG SENDS AS, in its own members root: the machine's own is not read, so the same check answers on
+## every host. It names `keeper-myx` for the member WITH an account of its own, and every host does not install a
+## keeper: on this one the suite's `MDAT_SKILLSET_ROOT` left every send refusing `no such member skill directory:
+## keeper-myx` before any identity was reached (measured 2026-11-26 06:00 +0200). `nobody-rig` stays absent, which the
+## negative case wants.
+for rigAsMember in magic-team keeper-myx magic-coordinator client-ndm ; do
+	mkdir -p "$rigWs/.local/agents/members/$rigAsMember"
+	printf '%s\n' "$rigAsMember" > "$rigWs/.local/agents/members/$rigAsMember/$rigAsMember.basic.md"
+done
 
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" \
 	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh"
@@ -47,7 +56,7 @@ printf 'SLACK_USER_TOKEN=rig-user-token-KEEPER\n' > "$rigWs/.local/.agents/keepe
 rigSend(){ ## member, target, send options...
 	: > "$rigTmp/calls"
 	local sendOut=""
-	sendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	sendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		bash "$rigTool" --slack-send-message --team-member "$1" "$2" "${@:3}" RIG-BODY-MARKER 2>&1 )" \
 		|| { printf 'send-failed: %s' "$( printf '%s\n' "$sendOut" | grep 'ERROR' | head -1 )" ; return 0 ; }
 	LC_ALL=C awk '$1 == "chat.postMessage" { print $2 ; exit ; }' "$rigTmp/calls"
@@ -86,7 +95,7 @@ rigAssert "no flag, the same member to a channel keeps its own token" \
 rigOwnerSend(){ ## member -- "<rc>:<tokens that posted>:<posts to the owner's account>:<lines naming magic-coordinator's account>"
 	local ownerOut="" ownerRc=0
 	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
-	ownerOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	ownerOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		bash "$rigTool" --slack-send-message --team-member "$1" human-owner RIG-BODY-MARKER 2>&1 )" || ownerRc=$?
 	printf '%s:%s:%s:%s' "$ownerRc" "$( LC_ALL=C awk '$1 == "chat.postMessage" { printf "%s%s", sep, $2 ; sep = "," ; }' "$rigTmp/calls" )" \
 		"$( LC_ALL=C grep -c -F '{"channel":"URIGOWNER",' "$rigTmp/bodies" )" "$( printf '%s\n' "$ownerOut" | LC_ALL=C grep -c "magic-coordinator's user account" )"
@@ -98,14 +107,14 @@ rigAssert "a routine's send to human-owner is the team bot's too" \
 ## HIS CONVERSATION IS THE BOT'S, NEVER A PERSONA'S: a member holding a user token of its own does not post to him under it; the
 ## send takes the bot and says so on its own line.
 rigAssert "a member with its own account to human-owner, no flag: the bot posts and the send says it took the bot" \
-	"$( rigOwnerSend magic-coordinator ):$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigTool" --slack-send-message --team-member magic-coordinator human-owner RIG-BODY-MARKER 2>&1 | LC_ALL=C grep -c 'sent as the bot' )" "0:rig-bot-token-TEAM:1:0:1"
+	"$( rigOwnerSend magic-coordinator ):$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigTool" --slack-send-message --team-member magic-coordinator human-owner RIG-BODY-MARKER 2>&1 | LC_ALL=C grep -c 'sent as the bot' )" "0:rig-bot-token-TEAM:1:0:1"
 ## A person at a console acts as user-<account> (F6.10, F11.6): no member, no skill folder and no account of its own, so its send is the team bot's,
 ## with the account as the sender it carries. A name that is none of a member, a routine and an account is refused as before.
 rigAssert "user-<account>, a person at a console, is let send: one post, the team bot's, to the owner's own account" \
 	"$( rigOwnerSend user-rigacct )" "0:rig-bot-token-TEAM:1:0"
 rigAssert "and the post carries the account as its sender" "$( LC_ALL=C grep -c -F '"sender":"user-rigacct"' "$rigTmp/bodies" )" "1"
 rigAssert "a name that is no member, no routine and no account is refused: its skill folder is not there" \
-	"$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigTool" --slack-send-message --team-member nobody-rig magic-team RIG-BODY-MARKER 2>&1 | LC_ALL=C grep -c 'no such member skill directory' )" "1"
+	"$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigTool" --slack-send-message --team-member nobody-rig magic-team RIG-BODY-MARKER 2>&1 | LC_ALL=C grep -c 'no such member skill directory' )" "1"
 mv "$rigWs/.local/.agents/magic-coordinator.agent.env" "$rigTmp/coordinator.env.aside"
 rigAssert "magic-coordinator with no account of its own: the team bot's as well, never an error for want of a relay" \
 	"$( rigOwnerSend magic-coordinator )" "0:rig-bot-token-TEAM:1:0"
@@ -122,7 +131,7 @@ rigAssert "a DNS failure (curl 6) is retried and the post goes out" \
 printf '28\n0\n' > "$rigTmp/post-exits"
 : > "$rigTmp/calls"
 rigSendRc=0
-rigSendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+rigSendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	bash "$rigTool" --slack-send-message --team-member keeper-myx magic-team --identity-bot RIG-BODY-MARKER 2>&1 )" || rigSendRc=$?
 rigAssert "a timeout after the request left (curl 28) is not retried" "$( rigPostCount )" 1
 rigAssert "and the send fails" "$rigSendRc" 1
@@ -137,7 +146,7 @@ rigAnswered(){ ## Slack's answers to the successive posts, one a line -- leaves 
 	printf '%s\n' "$@" > "$rigTmp/post-errors"
 	: > "$rigTmp/calls"
 	rigSendRc=0
-	rigSendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	rigSendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		bash "$rigTool" --slack-send-message --team-member keeper-myx CRIG00001:1700000000.000100 --identity-bot RIG-BODY-MARKER 2>&1 )" || rigSendRc=$?
 	rm -f "$rigTmp/post-errors"
 }
@@ -153,7 +162,7 @@ rigAssert "a rate limit is the one answer tried again: the second post goes out"
 rigAddressed(){ ## address -- "<rc>:<posts>:<lines of the refusal that hold the text given>"
 	local addressOut="" addressRc=0
 	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
-	addressOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	addressOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		bash "$rigTool" --slack-send-message --team-member keeper-myx "$1" --identity-bot RIG-BODY-MARKER 2>&1 )" || addressRc=$?
 	printf '%s:%s:%s' "$addressRc" "$( rigPostCount )" "$( printf '%s\n' "$addressOut" | LC_ALL=C grep -c -F -- "$2" )"
 }
@@ -172,7 +181,7 @@ rigAssert "control: a conversation id alone is posted at its top" \
 ## --member-* op; the tooling's --intern-op-* form and the coordinator's --magic-* form do not.
 rigOpAs(){ ## acting member (empty: none), op and arguments... -- stdout and stderr, then rc=<n>
 	: > "$rigTmp/calls"
-	( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		${1:+MDAT_SPAWN_AGENT="$1"} bash "$rigTool" "${@:2}" 2>&1 ; echo "rc=$?" )
 }
 rigSendAs(){ ## acting member, send op, member, target -- the token it posted under, or refused
@@ -225,7 +234,7 @@ rigMirror(){ ## parent visible (yes|no), Slack's answers to the posts, member, t
 	: > "$rigTmp/calls"
 	[ "$mirrorSee" != yes ] || : > "$rigTmp/replies-visible"
 	printf '%s\n' $mirrorErrors > "$rigTmp/post-errors"
-	mirrorOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" ${rigMirrorEnv[@]+"${rigMirrorEnv[@]}"} \
+	mirrorOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" ${rigMirrorEnv[@]+"${rigMirrorEnv[@]}"} \
 		bash "$rigTool" "${rigMirrorOp[@]}" "$mirrorMember" "$mirrorTarget" "$@" RIG-BODY-MARKER 2>&1 )" || mirrorRc=$?
 	rm -f "$rigTmp/post-errors" "$rigTmp/replies-visible"
 	printf '%s:%s:%s:%s:%s:%s' "$mirrorRc" \

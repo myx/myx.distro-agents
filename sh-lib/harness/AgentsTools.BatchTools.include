@@ -82,7 +82,7 @@ AgentsToolsBatchRun(){ ## runner, served test, raw arguments
 	type AgentsHarnessBashReadOnly > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsBash.include"
 	type AgentsHarnessToolRunMsKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessContext.include"
 	local batchRunner="$1" batchServes="$2" batchArgs="$3" batchMode batchWorkers batchFormat batchCount batchAt batchTool
-	local batchDir batchRunning batchStarted batchNext batchStatus batchOk=0 batchFound="" batchLine batchPid="" batchRunAt
+	local batchDir batchRunning batchStarted batchNext batchStatus batchOk=0 batchFound="" batchLine batchPid="" batchRunAt batchKeys
 	batchMode="$( AgentsToolsBatchArg "$batchArgs" mode )"
 	## NO MODE IS AUTO: every call that only reads (Read, Grep, Glob, a Bash command that is a pure read) runs at once, and any batch
 	## holding one call that may write runs one call after another, every one. A Bash call is a write unless it matches a known read.
@@ -114,6 +114,13 @@ AgentsToolsBatchRun(){ ## runner, served test, raw arguments
 		fi
 		batchAt=$(( batchAt + 1 ))
 	done
+	## A KEY OF A CALL OTHER THAN `tool` AND `arguments` IS REFUSED, NAMED, in one pass over the whole batch: the key would be dropped,
+	## and the tool would run with no arguments, failing as a call of its own that hides the cause.
+	batchKeys="$( printf '%s\n' "$batchArgs" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsBatchCallKeys.awk" 2> /dev/null )" || batchKeys=""
+	if [ -n "$batchKeys" ] ; then
+		batchKeys="${batchKeys%%$'\n'*}"
+		printf 'ERROR: BatchTools: call %s has the key %s. A call takes only "tool" and "arguments", the tool'"'"'s own arguments inside "arguments": {"tool": <name>, "arguments": {...}} -- nothing was run.\n' "${batchKeys%%$'\t'*}" "${batchKeys#*$'\t'}" ; return 0
+	fi
 	if [ -z "$batchMode" ] ; then
 		local batchAllReads=yes batchCommand=""
 		batchAt=0

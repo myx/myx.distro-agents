@@ -12,6 +12,7 @@
 ## number of asks waiting on an item, never the size of a board state.
 ##
 
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 AgentsToolsBoardWaitingRepliesIndexInto(){ ## variable, workspace
 	printf -v "$1" '%s' ""
 	case "${2:-}" in ''|/) return 1 ;; esac
@@ -23,7 +24,7 @@ AgentsToolsBoardWaitingRepliesIndexInto(){ ## variable, workspace
 ## item's own line and those two facts disagree: every other board write of the workspace costs one grep of a small file.
 AgentsToolsBoardWaitingRepliesIndexSet(){ ## state, item filename, "yes" where the item carries blocked-on
 	local setState="${1:-}" setItem="${2:-}" setHeld="${3:-}" setFile setLine setWanted="" setTemp
-	case "$setState" in running|blocked) ;; *) setHeld="" ;; esac
+	case " $agentsBoardWaitingReplyStates " in *" $setState "*) ;; *) setHeld="" ;; esac
 	case "$setItem" in ''|-|.|..|*/*) return 1 ;; esac
 	case "$setHeld" in yes) setWanted="$setState/$setItem" ;; esac
 	[ -n "${MMDAPP:-}" ] || return 1

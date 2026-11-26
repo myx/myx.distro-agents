@@ -31,7 +31,10 @@ rigFound(){ ## session id, started-at
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nowner: keeper-rig\nstatus: spawn-ended-without-close\nstarted-at: %s\n---\n' "$1" "$1" "$2" > "$rigWs/.local/agents/spawned/$1/$1.spawn.md"
 }
 rigStale(){ ## session id -> stale|today
-	MMDAPP="$rigWs" bash -c '. "$1" ; AgentsToolsDutyKeptStale "$2" && echo stale || echo today' rig "$rigPkg/sh-lib/schedule/AgentsTools.StartedRecords.include" "$1"
+	## THE FUNCTION IS THE SESSION STORE'S: `AgentsToolsDutyKeptStale` lives in sh-lib/session/AgentsTools.StartedRecords.include,
+	## and production's two readers source it there. This check's path named the schedule's older include, which loads and
+	## carries no such function, so every call was `command not found` and answered `today` (measured 2026-11-26 07:45).
+	MMDAPP="$rigWs" bash -c '. "$1" ; AgentsToolsDutyKeptStale "$2" && echo stale || echo today' rig "$rigPkg/sh-lib/session/AgentsTools.StartedRecords.include" "$1"
 }
 rigYesterday="$( date -v-1d '+%Y-%m-%d' 2> /dev/null || date -d yesterday '+%Y-%m-%d' )"
 rigToday="$( date '+%Y-%m-%d' )"

@@ -20,7 +20,7 @@ repository set (every namespace). At its final stage it rewrites the
 workspace's own `distro/` and `export/` trees wholesale (`rsync --delete`) —
 real, unrelated side effects, not just slow. Nothing in it carries either tree off the machine (`myxdistro-pipeline.md`, "What publish currently means").
 
-**The correct, narrow command for picking up a local source edit** is `DistroSourcePrepare.fn.sh --ingest-distro-index-from-source`. It is the same one the workspace's own "🛫 Ingest Source Changes..." VS Code task runs. It runs sync-from-source + index-publish in sequence, scoped to whatever actually changed. It prints `🔂 scan/sync: updated: <project>` per touched project. Use this first. Reach for the full pipeline only if this genuinely doesn't resolve the staleness.
+**The correct, narrow command for picking up a local source edit** is `DistroSourcePrepare.fn.sh --ingest-distro-index-from-source`. It is the same one the workspace's own "🛫 Ingest Source Changes..." VS Code task runs. It prints `🔂 scan/sync: updated: <project>` per touched project. Use this first. A value that still reads old afterwards goes to the workspace task `📥 Re-Build Source Index Snapshot (cached from source)...`, which is `BuildCachedFromSource.fn.sh`.
 
 ## This tooling family has multiple distinct, purpose-specific deploy tools — match the tool to the actual target category, don't assume one mechanism covers everything
 
@@ -54,16 +54,9 @@ owning namespace `keeper-*`'s domain knowledge, or in the relevant repo's own
 - **`--project` and `--select-projects` are two entrypoints, not two spellings.** The sourced caller calls `DeployProjectsSsh`, defined at `DeployProjectSsh.fn.sh:348`. Its `--*)` arm sends the arguments to `Distro ListDistroProjects` at `:380`, which refuses options after `--project`. So a direct `--project <p> --prepare-full --save-full-script` works only through the command-line caller. That caller runs `DeployProjectSsh.fn.sh`, whose executable tail at `:783` calls `DeployProjectSsh`, defined at `:488`.
 - By hand the tool is called as `DeployProjectSsh.fn.sh`. A deploy needs no knowledge of how the scripts work inside: read the command's `--help` and its examples, and run it.
 - Project selection takes the project selector with the project's own name: `DeployProjectSsh.fn.sh --select-projects <name> --prepare-full --deploy-full`. The `--help` example is an example, never a ceiling.
-- **Which workspace root (`MMDAPP`) the console runs from matters, independent of correct selection syntax.** A workspace whose own `.local/source-cache`/`.local/output-cache` index covers
+- **Which workspace root (`MMDAPP`) the console runs from matters, independent of correct selection syntax.** A console run from a workspace that does not hold the target project under its own `source/<namespace>/...` tree reports "no projects selected" for it, even with exactly correct `MDSC_SELECT_PROJECTS` syntax. Run the console from the workspace root that contains the target project.
 - The tool has two entrypoints and one worker. By hand, `DeployProjectSsh.fn.sh` takes a project selector and hands it to `ListDistroProjects`, which calls `DeployProjectsSsh --select-from-env` with the selection in `MDSC_SELECT_PROJECTS`. A console or piped script that sources the file calls `DeployProjectsSsh --select-from-env` directly, with the projects named in `MDSC_SELECT_PROJECTS`. `--select-from-env` is no selector, so copied into the executable form it is refused by `ListDistroProjects` before a deploy begins.
-  only the myx.common/myx.distro-* tooling's bootstrap projects reports "no
-  projects selected" for any real infra project. A small workspace kept for
-  tooling-only use is one such case, and its failure persists even with
-  exactly correct `MDSC_SELECT_PROJECTS` syntax. That project is simply not
-  indexed there, so the syntax is right. Run the console from the workspace root that actually contains the target
-  project under its own `source/<namespace>/...` tree. That root must also
-  have a populated `.local/roots/` covering that namespace.
-- A source edit reaches a deploy only after the index is brought current, by the one ingest command, `DistroSourcePrepare.fn.sh --ingest-distro-index-from-source`. No other command is used for ingesting changes.
+- A source edit reaches a deploy only after the workspace task `🛫 Ingest Source Changes...` has run, which is `DistroSourcePrepare.fn.sh --ingest-distro-index-from-source`. No other command ingests changes.
 - `--prepare-full` = `--prepare-sync` (upload files) + `--prepare-exec` (prepare the exec script) together. `--deploy-full` runs both stages against the real target. Real success looks like `>>> script end: ...` then `>>> script done: ...` with
   no `⛔ ERROR:` line anywhere, followed by `ImageDeploy: 🏁 task finished.` The
   `⛔ ERROR:` clause is the whole of that test. A failed fragment prints `⛔

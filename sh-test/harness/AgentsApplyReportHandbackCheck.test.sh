@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 ## Behavioural check on the apply-report gate at the handback (task-20261117T2241Z): a handback whose own words say a
-## file was applied is refused unless it gives that file's absolute path and its read-back, and nothing is posted.
+## file was applied is refused unless it gives that file's place path and its read-back, and nothing is posted.
 ## Through the real SubagentHandback tool, with a Slack-shaped fake curl that opens no socket. Held:
 ##   1. control: a handback claiming no apply is posted
 ##   2. a handback naming a bare file and a line number is refused, names both faults, and posts nothing
-##   3. a handback naming the absolute path with no read-back is refused, and names only that fault
+##   3. a handback naming the place path with no read-back is refused, and names only that fault
 ##   4. a handback naming the path and its read-back is posted
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -75,17 +75,17 @@ rigScene bare-name
 rigCall "Applied the Show Detail fix in style.css.tpl:1314 and the checks pass."
 rigAssert "refused and nothing posted" "$( LC_ALL=C sed -n '1s/:.*//p' "$rigScenarioDir/tool.out" ):$( rigPosts )" "REFUSED:0"
 rigAssert "and it names both faults" \
-	"$( LC_ALL=C grep -c -e '^applied-without-absolute-path: ' -e '^applied-without-read-back: ' "$rigScenarioDir/tool.out" )" "2"
+	"$( LC_ALL=C grep -c -e '^applied-without-place-path: ' -e '^applied-without-read-back: ' "$rigScenarioDir/tool.out" )" "2"
 
-echo "-- 3. the absolute path with no read-back is refused, and only that fault is named --"
+echo "-- 3. the place path with no read-back is refused, and only that fault is named --"
 rigScene no-readback
-rigCall "Applied /Users/myx/Workspaces/ws-myx.ae3-devel/source/myx/style.css.tpl and the checks pass."
+rigCall "Applied ws-myx.ae3-devel:source/myx/style.css.tpl and the checks pass."
 rigAssert "refused, one read-back fault, nothing posted" \
-	"$( LC_ALL=C sed -n '1s/:.*//p' "$rigScenarioDir/tool.out" ):$( LC_ALL=C grep -c '^applied-without-absolute-path: ' "$rigScenarioDir/tool.out" ):$( LC_ALL=C grep -c '^applied-without-read-back: ' "$rigScenarioDir/tool.out" ):$( rigPosts )" "REFUSED:0:1:0"
+	"$( LC_ALL=C sed -n '1s/:.*//p' "$rigScenarioDir/tool.out" ):$( LC_ALL=C grep -c '^applied-without-place-path: ' "$rigScenarioDir/tool.out" ):$( LC_ALL=C grep -c '^applied-without-read-back: ' "$rigScenarioDir/tool.out" ):$( rigPosts )" "REFUSED:0:1:0"
 
 echo "-- 4. the path and its read-back are posted --"
 rigScene named
-rigCall "Applied /Users/myx/Workspaces/ws-myx.ae3-devel/source/myx/style.css.tpl, cmp clean against the staged file."
+rigCall "Applied ws-myx.ae3-devel:source/myx/style.css.tpl, cmp clean against the staged file."
 rigAssert "not refused, and posted" "$( LC_ALL=C grep -c '^REFUSED: ' "$rigScenarioDir/tool.out" ):$( rigPosts )" "0:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then

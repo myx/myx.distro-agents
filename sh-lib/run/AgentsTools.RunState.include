@@ -54,12 +54,33 @@ AgentsToolsRunActivity(){ ## spawn id, live word
 	return 0
 }
 
+## THE MARK A KILLED RUN CARRIES, read off its own record: the console writes `killed-by` and `killed-at` there
+## before it signals (AgentsToolsManagerKillMark), and the run's supervising shell then closes that record with a
+## non-zero exit -- the very word, `spawn-failed`, a start that died on its own carries. So the status word cannot
+## tell the two apart, and the mark is the one fact that does. rc 0 where the record carries it.
+AgentsToolsRunKilled(){ ## session id, run id (may be empty)
+	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	local killedRun=""
+	case "${2:-}" in ''|-|.|..|*/*) ;; *) AgentsSessionRunRecordInto killedRun "$2" || : ;; esac
+	[ -n "$killedRun" ] || case "${1:-}" in ''|-|.|..|*/*) return 1 ;; *) AgentsSessionRunRecordInto killedRun "$1" || : ;; esac
+	[ -n "$killedRun" ] || return 1
+	LC_ALL=C awk '
+		NR == 1 { if ( $0 != "---" ) { exit ; } next ; }
+		$0 == "---" { exit ; }
+		/^killed-(by|at): ./ { killedHit = 1 ; }
+		END { exit ( killedHit ? 0 : 1 ) ; }
+	' "$killedRun" 2> /dev/null
+}
+
 AgentsToolsRunDeriveState(){ ## status, live, session-id, run id
 	type AgentsSessionRunClosed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
 	local dsStatus="$1" dsLive="$2" dsSession="$3" dsSpawn="${4:-}"
 	## A run not running that control/closed names is finished, before any other mark is read.
 	[ "$dsLive" = running ] || ! AgentsSessionRunClosed "$dsSession" "$dsSpawn" || { printf 'finished\n' ; return 0 ; }
+	## A SETTLED RUN THE CONSOLE ENDED IS FINISHED, NEVER FAILED (S12.15): the kill marks the record before it signals,
+	## and the shell that closes it leaves the same word a start that died on its own leaves. The mark decides.
+	if [ "$dsLive" != running ] && [ "$dsStatus" = spawn-failed ] && AgentsToolsRunKilled "$dsSession" "$dsSpawn" ; then printf 'finished\n' ; return 0 ; fi
 	## A PARKED RUN IS NEITHER RUNNING NOR FINISHED, BUT A LIVE RUN IS RUNNING (S27.2): the liveness
 	## check comes first, so a mark left by a run that started again is never the answer.
 	if [ "$dsLive" != running ] ; then
@@ -107,6 +128,8 @@ AgentsToolsRunDeriveStateFromSet(){ ## status, live, session-id, open-session se
 	type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
 	## A run not running that control/closed names is finished, before any other mark is read.
 	[ "$2" = running ] || ! AgentsSessionRunClosed "$3" "${5:-}" || { derivedState="finished" ; return 0 ; }
+	## A settled run the console ended is finished, never failed (S12.15): the same mark the forking form reads.
+	if [ "$2" != running ] && [ "$1" = spawn-failed ] && AgentsToolsRunKilled "$3" "${5:-}" ; then derivedState="finished" ; return 0 ; fi
 	## A parked run is neither running nor finished (S27.2), unless it is live: the liveness check
 	## comes first, so a mark left by a run that started again is never the answer.
 	if [ "$2" != running ] ; then

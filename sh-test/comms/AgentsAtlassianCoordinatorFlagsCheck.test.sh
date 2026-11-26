@@ -51,6 +51,7 @@ rigDeclared(){ ## the arm's own line
 		limit) declared="$declared --limit" ;;
 		commentRead) declared="$declared --format --start-at" ;;
 		commentReadConf) declared="$declared --inline --since" ;;
+		pageComment) declared="$declared --comment-id" ;;
 	esac
 	printf '%s' "$declared"
 }

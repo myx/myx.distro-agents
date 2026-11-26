@@ -213,6 +213,7 @@ A dispatch, a brief and a spawned session are one movement. The brief is the wor
 - An ambiguous go-ahead, such as `next` or `continue`, never approves a spawn or a mutation.
 - Read a file's `maintainers:` line before a brief names who agrees on that file. State the member's own route to the file, its `Skill` read or an `access:` line, and test that route with the invited member before relying on it.
 - Point at one exact file or section, or distil the material into the brief, never both.
+- **A dispatch carries what its worker needs, or it is not dispatched.** The worker has none of the conversation that produced it. So the brief names the deliverables, the conditions, the tests, the `blocked-by` edges, the permissions and the frontmatter the work needs. It carries nothing the work does not need.
 - A dispatch that starts work carries the sections `goal:`, `work:`, `facts:`, `tests:`, `floors:`, `boundary:` and `handback:`, defined in `magic-coordinator.armed.md`'s "The run-dispatch brief". Its floors are seeded onto the session's CheckList before the session starts.
 - A floor seeded onto a session's CheckList is a parent item, and it is mandatory. A rewrite of the list keeps it open. A hand back and an `idle-wait` are refused while it is open, and the refusal names the item.
 - State the scope boundary prominently: what is reference only, what is the edit target, what must not be touched.
@@ -288,6 +289,7 @@ What to read before acting, in order:
 5. The pending record, when a question is open.
 6. The roster or state note, when a fact about a member or a session is load-bearing.
 
+- **The item states the task, and source never settles what the item should state.** A fact the item should carry is a gap, sent to its owner, never read out of source as settled. A task whose subject is source reads it: `magic-team.investigate.routine`, `magic-team.research.routine`, `magic-team.public-documentation.routine`, and the code a builder or a reviewer works on.
 - Read a record whole before describing or acting on it. Resolve a quoted line against the file as it stands.
 - **A finding restated is a finding re-measured.** Name the version it was read at and the version now. Where they differ, measure again and say which findings closed.
 - Read a record that carries a number with its unit, its population and the date it was taken.
@@ -619,13 +621,16 @@ Any other type in an inbox is misfiled: report it to `magic-coordinator`. Handle
 - Before marking a note processed, name its reader. A reader that is this pass: mark it. A reader that is a later pass, or every pass: keep it in `incoming/`, unmarked, and state that reason.
 - **An open inbox item is not open work.** Before working what an item names, read the files it names as they stand. Read the last handback that names it. Where the work is there, close the item on that reading.
 - An inquiry's `Audience:` line names the inbox it landed in. The member named in the call is a request. The call's own routing line states where the inquiry landed.
+- A frontmatter `owner:` is intent, never a delivery record. Before asking for a delivery or a re-send, count the item in every recipient's `incoming/` and `processed/`.
 
 Read `reference/board-item-model.md` for the board types, the audit and vault types, and the tracking-document rule.
 
 **Frontmatter fields:**
 - `type` — required. The filename's type word (`task`, `note`, …). Never a genre.
 - A whole-item write replaces the file's headers, stamped ones included. Change a body with `--edit-patch-from-stdin`, and read the header block back after any whole-item write. `magic-team.armed.md:687` states the patch rule.
+- `--upsert-inbox-inquiry` appends an inquiry given whole as a file under a dated heading. It fires where its title shares 0.7 of its words with that sender's open inquiry. The filename plays no part, and the note writer has no such append. Name the block that governs, and read the call's own result line.
 - `from`, `date`, `owner` — author, creation `date-time`, current assignee. `owner` may be a non-acting owner, such as the human-owner or an external contact. That owner's inbox content lives in `magic-coordinator`'s inbox, handled by `magic-coordinator.external-inbox-handle-loop.routine`.
+- **A write's destination is the place its own call names, never `owner:`.** Where a call names none, it is the caller's own inbox. `owner` names the current assignee and routes nothing. An item filed to the wrong inbox still reads as correct in its own frontmatter. Read it from its addressee's inbox before calling it delivered.
 - `communication-channel-id` — the one external message the item traces to. A Slack message is `slack:<channel>:<thread root ts>`, and an email is `email:<…>`. `slack:<channel>` names a place and no thread. The tooling writes it at ingest, and a promoted item carries it unchanged.
 - `processed-at`, `resolved-at`, `started-at`, `groomed-at`, `groomed-from`, `track` — stamped by the tooling. A member never writes them.
 - `type`, `date`, `from` (and an inbox item's `owner`) — filled by inbox upsert and board create where missing. A member writes them only to set another value. `--from-member` only on another member's behalf.
@@ -683,7 +688,7 @@ Before reporting a negative or surprising result, establish that the test was va
 ## The tooling locates; a member keeps no environment facts
 
 - Routine maintenance (deploy, redeploy, sync) uses the tooling, its manuals and recipes, and the team's past runs of it. It needs no design or assessment of its own.
-- A given maintenance task is done, never offered back as options. Its known steps are part of it: pull back what changed on the target before overwriting it, and first bring the index current by the standard ingest, `DistroSourcePrepare.fn.sh --ingest-distro-index-from-source` (workspace task 'Ingest Source Changes'), the only command for ingesting changes.
+- A given maintenance task is done, never offered back as options. Its known steps are part of it. Pull back what changed on the target before overwriting it. First run the workspace task 'Ingest Source Changes' (`DistroSourcePrepare.fn.sh --ingest-distro-index-from-source`), the only command for ingesting changes. If a value still reads old afterwards, run the workspace task 'Re-Build Source Index Snapshot (cached from source)' (`BuildCachedFromSource.fn.sh`).
 - A deploy or maintenance task runs the tooling's commands, without knowing the scripts' insides. The check after a deploy covers every ticket it delivers. Its devel hosts are where the software is checked, never what is checked. Only a real fault the steps cannot handle is reported, with what was measured.
 - A team document names a path only rig-local (`$MMDAPP/...`) or machine-relative (`~/.agents/...`), never one computer's path.
 - Find a project with the project selector (`--select-projects <name>` and its family); most commands accept a plain name. Read the command's `--help` and examples first. `MDSC_SELECT_PROJECTS` is the scripts' form: select once, then work on that selection.
@@ -860,6 +865,7 @@ What a member tells the human-owner comes from what the team wrote down or a rep
 - `magic-team.proposal.routine.md` — propose, work out and approve with the human-owner in one thread.
 - `magic-team.public-documentation.routine.md` — build and keep improving a named target's own documents, one loop in three modes: the informational space, the `README.md` with its `docs/`, the `MAGIC.md`.
 - `magic-team.research.routine.md` — answer a question from sources, every claim sourced.
+- `magic-team.state-reflection.routine.md` — the external view: each estate page regenerated from its own source, and every difference it cannot close reported.
 - `magic-team.verify.routine.md` — check a claimed completion against its criteria and its ask; `magic-tester` for software.
 - `reference/skill-folder-model.md` — the routine and skill-folder model: Core idea, Routine, Nested-item grammar, Actor phrases.
 

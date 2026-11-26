@@ -7,7 +7,8 @@
 ## tokens usage-limit chapter), the pending-replies registry file, then the measured rows
 ## (measuredDated of AgentsToolsRegistryMeasureRows: eleven stored columns, live, state,
 ## started-at, resolved-at, session-comment, session-state, session-state-at). -v activeOnly=1
-## keeps the sessions whose phase, the last field of their row, is `active` or `ended`. -v loadAverage is
+## keeps the sessions whose phase, the last field of their row, is `active` or `ended` (a failed session inside its
+## ten-minute grace; a finished one is `closed` at once, S21.4). -v loadAverage is
 ## the figure of the counters row, and
 ## -v hostName the name of this host, which stands last in that row, `-` where none is given. In
 ## the environment, MDAT_MANAGER_CONTROL is a line `<session-id> <alive|gone> <pid>` for
@@ -60,9 +61,13 @@
 ## and not `unknown-foreign`, which is another host's: nothing can be done with it from here. `starting`, a run the main
 ## loop is still starting (its start marker has no result yet), whose process is not seen yet.
 ## A SESSION THAT ENDED IN THE LAST TEN MINUTES STAYS IN THE ACTIVE LIST, finished or failed, so a run that dies between two refreshes is seen (S7.29).
+## S21.4: A SESSION THAT FINISHED IS OUT OF THE ACTIVE ONES AT ONCE -- "it reads finished, and out of the active ones,
+## once nothing waits". A ten-minute grace for `finished` kept every cleanly ended session in --active, and the withdraw
+## check read it listed where the store said nothing waited (measured 2026-11-26 09:40). A FAILED session keeps the grace:
+## an unclean end is worth seeing on the screen for a while.
 function recentlyEnded(sessionKey) {
 	if (nowMinutes == "") { nowMinutes = ENVIRON["MDAT_MANAGER_NOW_MINUTES"] ; if (nowMinutes == "") { srand() ; nowMinutes = int(srand() / 60) ; } ; }
-	return ( ( sessionState[sessionKey] == "finished" || sessionState[sessionKey] == "failed" ) && sessionEnd[sessionKey] >= 0 && nowMinutes - sessionEnd[sessionKey] <= 10 ) ;
+	return ( sessionState[sessionKey] == "failed" && sessionEnd[sessionKey] >= 0 && nowMinutes - sessionEnd[sessionKey] <= 10 ) ;
 }
 
 function activeState(stateWord) {

@@ -9,10 +9,20 @@
 ##   2. An item whose frontmatter carries `mark: emergency` is confirmed with the owner (one post, once per item) and sets the emergency
 ##      flag, and the advance routine is started for it too.
 ##   3. A marked item that has been handled (moved out of incoming/) starts nothing again.
+##   4. TWO EMERGENCY ITEMS IN ONE PASS ARE BOTH CONFIRMED, each under its own name; the control is one item in one pass.
+##   5. AN EMERGENCY STILL PASSES `holding`: its confirmation and its advance start both happen under a hold, and the control
+##      is a pass with no hold, where an important item still starts the advance.
+## `RIG_PACKAGE` names the package the pass runs from, as AgentsScheduleHoldFloorCheck takes it. A package named inside a copy
+## of the source root runs that copy whole, its fixtures and its includes with it.
 ## Offline, rig tree only.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
+rigPackage="${RIG_PACKAGE:-$MDLT_ORIGIN/myx/myx.distro-agents}"
+## A STAGED ORIGIN: RIG_PACKAGE may name a package inside a copy of the source root, and then the copy's own origin is what
+## every fixture, every include and the pass read, so a staged tree is what runs. With no RIG_PACKAGE the origin stands.
+case "$rigPackage" in
+	*/myx/myx.distro-agents) MDLT_ORIGIN="${rigPackage%/myx/myx.distro-agents}" ;;
+esac
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -61,6 +71,17 @@ rigConfirmPosts(){ ## -- how many posted bodies hold the emergency-confirmation 
 rigMarkedItem(){ ## file name, mark -- one inbox item of magic-coordinator, marked
 	printf -- '---\ntype: note\nfrom: rig\nowner: magic-coordinator\nmark: %s\n---\n# Note: %s work\n\nwork\n' "$2" "$2" | rigStoreItem "$rigData" inbox magic-coordinator $1
 }
+rigConfirmPostsFor(){ ## item file name -- how many posted bodies name it as the confirmed item
+	LC_ALL=C grep -l -F "incoming ($1). Confirm the emergency" "$rigScn"/post.* 2> /dev/null | wc -l | LC_ALL=C tr -d ' '
+}
+rigHoldSetting(){ ## -- the stored holding override, `-` where none
+	[ -f "$rigWs/.local/.agents/magic-team.agent.env" ] || { printf -- '-\n' ; return 0 ; }
+	LC_ALL=C sed -n 's/^MDAT_SCHEDULE_HOLDING=//p' "$rigWs/.local/.agents/magic-team.agent.env"
+	LC_ALL=C grep -q '^MDAT_SCHEDULE_HOLDING=' "$rigWs/.local/.agents/magic-team.agent.env" || printf -- '-\n'
+}
+rigHeldSaid(){ ## name of a run -- how many lines of what it wrote say the pass is holding
+	cat "$rigDir/$1.out" "$rigDir/$1.err" 2> /dev/null | LC_ALL=C grep -c -F 'holding: no new work is started' || :
+}
 
 echo "-- 1. out of worktime, an important item starts the advance one-shot --"
 rigAt "$rigMon18"
@@ -82,6 +103,41 @@ rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20261019T1810Z-emergency
 rigAt $(( rigMon18 + 1202 ))
 rigOneRun after ; rigWaitStarts
 rigAssert "with the marked item gone, nothing new is started or said" "$( rigSaid after 'important-emergency:' ):$( rigRecordsOf magic-team.advance.routine.md )" "0:2"
+## THE EMERGENCY FLAG IS CLEARED before the two rows below, so what they see is the marked items alone.
+rigDispatch --override-flag --no emergency
+rigAssert "the emergency flag of row 2 is cleared, so the rows below see no emergency flag of their own" "$( rigEmergencySetting )" "-"
+
+echo "-- 4. two emergency items in one pass are both confirmed --"
+rigAt $(( rigMon18 + 1803 ))
+rigMarkedItem note-20261019T1830Z-emergency-a.md emergency
+rigMarkedItem note-20261019T1831Z-emergency-b.md emergency
+rigOneRun emg2 ; rigWaitStarts
+rigAssert "two emergency items in one pass are both confirmed, each under its own name" \
+	"$( rigConfirmPostsFor note-20261019T1830Z-emergency-a.md ):$( rigConfirmPostsFor note-20261019T1831Z-emergency-b.md )" "1:1"
+rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20261019T1830Z-emergency-a.md" "$rigData/inboxes/magic-coordinator/incoming/note-20261019T1831Z-emergency-b.md"
+rigAt $(( rigMon18 + 2404 ))
+rigMarkedItem note-20261019T1840Z-emergency-one.md emergency
+rigOneRun emg3 ; rigWaitStarts
+rigAssert "control: one emergency item in a pass is confirmed once" \
+	"$( rigConfirmPostsFor note-20261019T1840Z-emergency-one.md )" "1"
+
+echo "-- 5. an emergency still passes holding --"
+rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20261019T1840Z-emergency-one.md"
+rigDispatch --override-flag holding
+rigAssert "the rig is holding, on its own flag route, before the pass below runs" "$( rigHoldSetting )" "on"
+rigAt $(( rigMon18 + 3005 ))
+rigMarkedItem note-20261019T1850Z-emergency-held.md emergency
+rigOneRun held1 ; rigWaitStarts
+rigAssert "under a hold the pass says it holds, and the emergency is still confirmed and its advance still started" \
+	"$( rigHeldSaid held1 ):$( rigConfirmPostsFor note-20261019T1850Z-emergency-held.md ):$( rigSaid held1 'important-emergency: started the advance routine of magic-coordinator' )" "1:1:1"
+rigDispatch --override-flag --no holding
+rigAssert "the hold is cleared again, so the control is a pass with no hold at all" "$( rigHoldSetting )" "-"
+rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20261019T1850Z-emergency-held.md"
+rigAt $(( rigMon18 + 3606 ))
+rigMarkedItem note-20261019T1900Z-important-control.md important
+rigOneRun free1 ; rigWaitStarts
+rigAssert "control: with no hold an important item still starts the advance, and confirms nothing" \
+	"$( rigSaid free1 'important-emergency: started the advance routine of magic-coordinator' ):$( rigConfirmPostsFor note-20261019T1900Z-important-control.md )" "1:0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ IMPORTANT EMERGENCY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -29,7 +29,8 @@
 ##     The function runs in a subshell: nothing it sets in this shell survives, as with a $( ) capture. Its stderr is replayed here once it ends.
 ##     No session, or MDAT_TOOL_TASK_OFF=yes: the function runs here, as a capture. MDAT_TOOL_TASK_INNER does not bring that about: a harness
 ##     process that inherited it would otherwise run every call with no bound at all (Q102, owner).
-##   AgentsToolsTaskMessagePending <session> <member>   rc 0 where a message addressed to the member waits in the session chat (nothing is consumed)
+##   AgentsToolsTaskMessagePending <session> <member> <mark file> <seconds>   rc 0 where a message addressed to the member waits in the session chat (nothing is consumed)
+##     The floor is read when the chat was written since the mark was touched, and otherwise once every <seconds>: a poll that finds the chat as it was costs no process.
 ##
 
 agentsTaskOut="" agentsTaskRc=0 agentsTaskDetached="no" agentsTaskHandle=""
@@ -55,13 +56,16 @@ AgentsToolsTaskTick(){ ## seconds, pid served
 ## filter of `me` alone read a message addressed to `all` as nobody's, so a busy executor was told nothing until its next Wait.
 ## THE SESSION IS THE ONE THE RUN WORKS IN, never the id a caller guessed: a participant's chat is the coworking session's file, and a folder
 ## named for anything else holds no chat file (AgentsToolsSessionChatKey).
-AgentsToolsTaskMessagePending(){ ## session, member
+AgentsToolsTaskMessagePending(){ ## session, member, mark file, seconds between two reads of a chat nobody wrote
 	local pendingText pendingSession
 	[ -n "$2" ] || return 1
 	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
 	AgentsToolsSessionChatKeyInto ; pendingSession="$agentsSessionChatKey"
 	[ -n "$pendingSession" ] && [ -f "$MMDAPP/.local/agents/sessions/$pendingSession/session.chat" ] || pendingSession="$1"
 	AgentsToolsSessionChatWaiting "$pendingSession" 2> /dev/null || :
+	## The long tick is for a post held back by time alone (a pending post opens after its hold), which no write to the chat announces.
+	[ -z "${agentsTaskReadAt:-}" ] || [ "$(( SECONDS - agentsTaskReadAt ))" -ge "$4" ] || ! AgentsToolsSessionChatUnchangedSince "$pendingSession" "$3" || return 1
+	: >| "$3" ; agentsTaskReadAt="$SECONDS"
 	pendingText="$( AgentsToolsSessionChatFloor "$pendingSession" "$2" 2> /dev/null )" || pendingText=""
 	[ -n "$pendingText" ]
 }
@@ -123,7 +127,7 @@ AgentsToolsTaskCall(){ ## label, background, timeout, action, function, args...
 	( set +m
 	  while :; do
 		AgentsToolsTaskTick "$callPoll" "$callSelf" || break
-		if AgentsToolsTaskMessagePending "$callSession" "${callMember:-}" ; then
+		if AgentsToolsTaskMessagePending "$callSession" "${callMember:-}" "$callRun/floor.read" "${MDAT_TOOL_TASK_RECHECK:-20}" ; then
 			( set -C ; printf 'message\n' > "$callRun/flag" ) 2> /dev/null && kill -USR1 "$callSelf" 2> /dev/null
 			break
 		fi

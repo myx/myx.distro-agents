@@ -64,9 +64,11 @@ The Opening steps of the routine it inherits from run first (its session kind's,
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **readback-and-gaps**: Read the feature, its Settled lines, the ground rules that name it, and the code it touches. Where the epic is silent, send each gap with its proposed reading, before
+1. **readback-and-gaps**: Read the feature, its Settled lines and the ground rules that name it. Where the epic is silent, send each gap with its proposed reading, before
 building that part. Build only the parts the gap does not touch until it is
 answered.
+   - rule: the readback is taken from the item, never from source. A fact the build needs that the feature row does not state is a gap, sent with its proposed reading.
+   - rule: source is where the part is built, never where the item's state is settled. A reading taken from source is named as a gap, and never presented as settled.
 2. **sandbox**: Build and test in your own scratch, in the session sandbox. Write a test for each statement of the spec, red against live first for the stated reason, then green. `magic-tester` prepares each of these tests.
 3. **gate**: Send the coordinator the conformance gate, in the compact form (the
 gate's form, filled by the tooling). The gate carries the diff path, and each

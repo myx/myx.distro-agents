@@ -38,6 +38,7 @@
 ## THE TEAM FLOOR'S TOOLS are declared by the tooling origin's project.inf and read from there alone
 ## (AgentsToolsPermissionOriginFloorTools): no list of them is kept in code.
 ## The file tools a path permission speaks for, and the ones of them that only read.
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 agentsPermissionFileTools=" Read Edit Write Execute Grep Glob "
 agentsPermissionReadTools=" Read Grep Glob "
 ## THE TOOLS AN ENTRY OF A PERMISSION NAMES: the one place they are listed. Every name a gate
@@ -47,8 +48,6 @@ agentsPermissionReadTools=" Read Grep Glob "
 ## for, with WebSearch and Agent, each held by its name; cred and spend, the human-owner's
 ## unless granted. A tool a gate comes to ask about is one more word here.
 agentsPermissionEntryTools=" Read Grep Glob Edit Write MultiEdit NotebookEdit Execute Bash WebFetch WebSearch Agent Artifact cred spend "
-## The board states an item is still open in; a task grant lives only while its item does.
-agentsPermissionOpenStates="running review blocked pending backlog parked"
 ## HOW MANY CALLS ASKED ALONE the human-owner answers for one session and one task: the one
 ## place the number stands. Once he has answered that many, the next call of that session for
 ## that task is not asked alone: it goes back to its asker, to be asked with everything else
@@ -287,7 +286,7 @@ AgentsToolsPermissionOriginFloorTools(){ ## workspace holding the origin (option
 	fi
 	if [ -z "$agentsPermissionOriginFloorTools" ] ; then
 		[ -n "${1:-}" ] || agentsPermissionOriginFloorRead=0
-		echo "⛔ ERROR: the team floor tools were not read: the declares of ${originWs:-the tooling origin ${MDLT_ORIGIN:-unset}} hold no magic-team:permissions:workspace:*:allow-tool:*: row of myx/myx.distro-agents, so the floor grants nothing and every decision that needs it is refused. Check the tooling package's declares, and refresh the distro declares index of a workspace with no source." >&2
+		echo "⛔ ERROR: the team floor tools were not read: the declares of ${originWs:-the tooling origin ${MDLT_ORIGIN:-unset}} hold no magic-team:permissions:workspace:*:allow-tool:*: row of myx/myx.distro-agents, so the floor grants nothing and every decision that needs it is refused. Run the workspace task \"Ingest Source Changes\". For a value that still reads old afterwards, run the workspace task \"Re-Build Source Index Snapshot (cached from source)\"." >&2
 		return 1
 	fi
 	[ -n "${1:-}" ] || agentsPermissionOriginFloorRead=1
@@ -335,7 +334,7 @@ AgentsToolsPermissionStandingDenied(){ ## member, tool, natural target
 ## True while an item is on the board in an open state, asked of the board's own reader.
 AgentsToolsPermissionItemOpen(){ ## item name
 	type AgentsToolsBoardItemInStates > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-	AgentsToolsBoardItemInStates "${1:-}" $agentsPermissionOpenStates
+	AgentsToolsBoardItemInStates "${1:-}" $agentsBoardOpenStates
 }
 
 ## One front-matter field of a record, or empty.

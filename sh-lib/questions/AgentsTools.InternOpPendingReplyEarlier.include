@@ -15,10 +15,11 @@
 		MDSC_CMD="$MDSC_CMD --intern-op-pending-reply-earlier"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-		local earlyMember="${1:-}" earlySession="" earlyKey="" earlyKind="question" earlyRefusal="" earlyAddress="" earlyTaskRef="" earlyItem="" earlyQuestion
+		local earlyMember="${1:-}" earlySession="" earlyKey="" earlyKind="question" earlyRefusal="" earlyAddress="" earlyTaskRef="" earlyItem="" earlyQuestion earlyKeyOnly=""
 		shift || true
 		while [ $# -gt 0 ] ; do
 			case "$1" in
+				--key-only) earlyKeyOnly=1 ; shift ;;
 				--session-id|--question-key|--kind|--refusal-id|--address-to|--task-ref|--item|--context)
 					[ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1 requires a value" >&2 ; set +e ; return 1 ; }
 					case "$1" in
@@ -45,7 +46,7 @@
 		if [ -d "$MMDAPP/.local/agents/pending" ] ; then
 			while IFS= read -r earlyFile ; do
 				[ -f "$earlyFile" ] || continue
-				earlyBest="$( LC_ALL=C awk -v wantKey="$earlyKey" -v wantKind="$earlyKind" -v wantRefusal="$earlyRefusal" -v wantTo="$earlyAddress" -v best="$earlyBest" -v bestEpoch="$earlyBestEpoch" -v wantFirst="$earlyFirst" '
+				earlyBest="$( LC_ALL=C awk -v wantKey="$earlyKey" -v wantKind="$earlyKind" -v wantRefusal="$earlyRefusal" -v wantTo="$earlyAddress" -v best="$earlyBest" -v bestEpoch="$earlyBestEpoch" -v wantFirst="$earlyFirst" -v keyOnly="$earlyKeyOnly" '
 					function norm( text ) { text = tolower( text ) ; gsub( /[^a-z0-9]+/, " ", text ) ; sub( /^ /, "", text ) ; sub( / $/, "", text ) ; return text ; }
 					function jac( a, b,   na, nb, i, inter, uni, wa, wb, seenA ) { na = split( a, wa, " " ) ; nb = split( b, wb, " " ) ; if ( na < 5 || nb < 5 ) return 0
 						for ( i = 1 ; i <= na ; i++ ) seenA[wa[i]] = 1 ; uni = 0 ; for ( i in seenA ) uni++
@@ -56,7 +57,7 @@
 					dashes >= 2 && $0 !~ /^#/ && $0 !~ /^[ \t]*$/ { first = $0 ; exit ; }
 					END {
 						kind = ( val["kind"] == "" ? "question" : val["kind"] ) ;
-						same = ( wantKey != "" && val["question-key"] == wantKey ) || ( length( wantFirst ) >= 12 && norm( first ) == wantFirst ) || ( length( wantFirst ) >= 12 && jac( norm( first ), wantFirst ) >= 0.8 ) ;
+						same = ( wantKey != "" && val["question-key"] == wantKey ) || ( keyOnly == "" && length( wantFirst ) >= 12 && norm( first ) == wantFirst ) || ( keyOnly == "" && length( wantFirst ) >= 12 && jac( norm( first ), wantFirst ) >= 0.8 ) ;
 						taken = ( val["status"] == "reply-received" && kind == wantKind && same && ( wantTo == "" || val["address-to"] == wantTo ) ) ;
 						if ( taken && kind == "permission" && val["refusal-id"] != wantRefusal && val["verdict"] != "deny" ) { taken = 0 ; }
 						epoch = val["resolved-epoch"] + 0 ;
@@ -77,6 +78,7 @@
 			return 0
 		fi
 		[ "$earlyKind" != "permission" ] || return 0
+		[ -z "$earlyKeyOnly" ] || return 0
 		if [ -n "$earlyItem" ] ; then
 			earlyItem="${earlyItem##*/}" ; earlyItem="${earlyItem%.md}"
 		else

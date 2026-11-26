@@ -9,6 +9,7 @@
 
 ## Where an inbox item lives (F4.3).
 
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
 
 type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/items/AgentsTools.InternOpItem.include"
@@ -272,7 +273,7 @@ case "$1" in
 		printf '\n%s\n\n' "## board digest"
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
-			--state backlog --state pending --state running --state review --state blocked --state parked \
+			--state ${agentsBoardOpenStates// / --state } \
 			--all-types \
 			--do-inbox-inquiry-active --do-inbox-reflections \
 			--do-inbox-notes --do-inbox-other \

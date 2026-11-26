@@ -17,14 +17,45 @@
 ## constant the code carries for it.
 ##
 
-## THE ONE LIST of the states a board item can be in. A state added here has its folder
-## made by AgentsToolsBoardReady with no further code, and is one the item lookup searches, so a
-## state is named here and nowhere else.
+## THE ONE LIST of the states a board item can be in. A state added here has its folder made by
+## AgentsToolsBoardReady with no further code, and is one the item lookup searches. Every group of
+## states a reader needs is a named subset below, so no reader outside this file holds a state name
+## of its own, and a state added here is placed in the subsets it belongs to.
 agentsBoardStates="backlog pending running review blocked parked processed archived retained"
 
-## THE FIVE ACTIVE STATES: what a sweep gives a round or a recheck to, and no other. Backlog is
-## grooming's work, and a done state is nobody's.
+## THE OPEN STATES: an item whose work may still be done. THE CONCLUDED STATES: an item whose work is
+## over. THE SETTLED STATES: the concluded states an item does not leave again. Retained is concluded
+## and live, so a pointer may still bring it back to processed.
+agentsBoardOpenStates="backlog pending running review blocked parked"
+agentsBoardConcludedStates="processed archived retained"
+agentsBoardSettledStates="processed archived"
+
+## THE LIVE STATES: a state a `blocked-by` or `spawned-by` pointer may come from, so a concluded item
+## stays live while a live one points at it. Processed and retained are not live.
+agentsBoardLiveStates="backlog pending running review blocked parked archived"
+
+## THE ACTIVE STATES: what a sweep gives a round or a recheck to, and no other. Backlog is grooming's
+## work, and a done state is nobody's. THE UNDERWAY STATES: the four states a concern acts on an item
+## of an epic in.
 agentsBoardActiveStates="pending running review blocked parked"
+agentsBoardUnderwayStates="pending running review blocked"
+
+## THE AWAITING STATES: an item still to be acted on, with none set aside for a later condition.
+agentsBoardAwaitingStates="backlog pending running review blocked"
+
+## THE WORK STATES: an item a run is at work on. THE WAITING-REPLY STATES: an item a run may hold while
+## it waits for an answer. THE QUEUED STATES: what a start pass reads, pending to start and running
+## already started.
+agentsBoardWorkStates="running review"
+agentsBoardWaitingReplyStates="running blocked"
+agentsBoardQueuedStates="pending running"
+
+## THE MOVING STATES: what the morning review samples item by item, from the states an item moves out
+## of to the one it is filed in.
+agentsBoardMovingStates="running review blocked parked processed"
+
+## THE DISPLAY STATES: every state, in the order the console prints the board's counts.
+agentsBoardDisplayStates="running review blocked pending backlog parked retained processed archived"
 
 ## THE STALENESS WINDOW, in seconds: how long a document a round has visited stays out of the
 ## next sweep's set. Stated once, here, and every reader asks this name.

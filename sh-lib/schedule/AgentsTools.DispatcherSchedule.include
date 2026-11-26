@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
 
 ##
@@ -308,18 +309,28 @@ AgentsToolsScheduleCurrentFlags(){ ## the operation as it was called, its argume
 
 ## The members' own flags that hold now, a line each as `<flag>: <member> (<seconds left>)`, or `member flags: none` where there is none.
 AgentsToolsScheduleMemberFlagLines(){ ## epoch
-	local memberName memberDir memberFlag memberLeft memberShown=""
+	local memberName memberDir memberFlag memberKey memberLeft memberShown="" memberSettings
 	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	type AgentsSettingsScopeValues > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.Settings.include"
+	## THE SCOPE'S FLAGS ARE READ ONCE, as one `KEY=value` set, and each member's two keys are matched in memory: a read per member and
+	## flag was 38 reads of the same setting store, 7.3 s of a 7.4 s `--current-flags` on 2026-11-25.
+	memberSettings="$( AgentsSettingsScopeValues "$MMDAPP" magic-team MDAT_SCHEDULE_ 2> /dev/null )"
+	[ -z "$memberSettings" ] || memberSettings=$'\n'"$memberSettings"$'\n'
 	while IFS=$'\t' read -r memberName memberDir ; do
 		[ -n "$memberDir" ] || continue
 		case "$memberName" in human-owner|magic-team) continue ;; esac
 		for memberFlag in vacation overtime ; do
-			memberLeft="$( AgentsToolsScheduleMemberFlag "$memberFlag" "$memberName" "$1" 2> /dev/null )"
-			case "$memberLeft" in
-				'') ;;
-				on) printf '%s: %s\n' "$memberFlag" "$memberName" ; memberShown=yes ;;
-				*) printf '%s: %s (%s seconds left)\n' "$memberFlag" "$memberName" "$memberLeft" ; memberShown=yes ;;
+			AgentsToolsScheduleMemberKeyInto memberKey "$memberFlag" "$memberName"
+			case "$memberSettings" in
+				*$'\n'"$memberKey=on"$'\n'*) printf '%s: %s\n' "$memberFlag" "$memberName" ; memberShown=yes ; continue ;;
 			esac
+			case "$memberSettings" in *$'\n'"$memberKey=until "*) ;; *) continue ;; esac
+			memberLeft="${memberSettings#*$'\n'"$memberKey=until "}"
+			memberLeft="${memberLeft%%$'\n'*}"
+			case "$memberLeft" in ''|*[!0123456789]*) continue ;; esac
+			[ "$memberLeft" -gt "$1" ] || continue
+			printf '%s: %s (%s seconds left)\n' "$memberFlag" "$memberName" "$(( memberLeft - $1 ))"
+			memberShown=yes
 		done
 	done <<< "$( AgentsToolsTeamMemberDirectoryText 2> /dev/null )"
 	[ -n "$memberShown" ] || printf 'member flags: none\n'
@@ -380,7 +391,8 @@ AgentsToolsScheduleSet(){ ## the operation as it was called, its arguments...
 	printf '%s: %s\n' "$setKey" "$setValue"
 }
 
-## --override-flag [--no] <flag> [<ttl>] [--days <n>]: emergency, overtime, holidays, learning and supervised are overridable, as settings;
+## --override-flag [--no] <flag> [<ttl>] [--days <n>]: holidays, holding, emergency, overtime, learning, supervised and planned-maintenance are
+## overridable, as settings;
 ## worktime and weekend are derived.
 ## emergency is set with a TTL in whole seconds, and a second call prolongs it (its end is the TTL from then); overtime is for outside
 ## worktime and ends at its TTL or, if that is later or there is none, when normal worktime starts, and `--days <n>`, overtime's alone, ends it
@@ -416,7 +428,7 @@ AgentsToolsScheduleOverride(){ ## the operation as it was called, its arguments.
 		esac
 	done
 	if [ -z "$overFlag" ] || [ $# -gt 0 ] ; then
-		echo "⛔ ERROR: $MDSC_CMD $overOp: syntax is [--no] <flag> [<ttl>] [--days <n>], the flag emergency, overtime, holidays, holding, learning or supervised, or vacation or overtime with --member <member>" >&2 ; return 1
+		echo "⛔ ERROR: $MDSC_CMD $overOp: syntax is [--no] <flag> [<ttl>] [--days <n>], the flag holidays, holding, emergency, overtime, learning, supervised or planned-maintenance, or vacation or overtime with --member <member>" >&2 ; return 1
 	fi
 	case "$overFlag" in
 		emergency|overtime|holidays|holding|vacation|learning|supervised|planned-maintenance) ;;
@@ -1007,16 +1019,16 @@ AgentsToolsScheduleAutorun(){
 ## not what the call itself ran (a Bash child, a Wait's waiting), by the record's own clock. A duty start waits while that median is 4 s
 ## (MDAT_TOOL_PACE_MS, 4000) or more, because a start on a machine this slow is what the owner's throttle forbids. A rig with no live run
 ## says so and allows one start a pass (AgentsToolsScheduleWorkDuty): no measure is never a fast pace. Machinery time gates a start, never load.
-## THE MEASURE IS A WALK OF THE WHOLE `spawned/` TREE, which on a workspace with thousands of run folders is the most expensive thing on the call path (a schedule pass,
-## a start-pending pass and each duty of a pass ask for it), so it is taken at most once in MDAT_TOOL_PACE_CACHE_SECONDS (60) and kept in
+## THE MEASURE IS A READ OF THE RUN REGISTRY, never a walk of the `spawned/` store: one awk reads its `spawn-started` rows. So it is taken at most
+## once in MDAT_TOOL_PACE_CACHE_SECONDS, the median's own five-minute window, because a five-minute median gains nothing from being taken again each minute. It is kept in
 ## `.local/agents/schedule/pace.measure` as `<epoch> <window> <median> <count>`. A caller reads that file, one read and no walk; the verdict is worked out
 ## from the measure on each call, so a threshold of the caller's own (MDAT_TOOL_PACE_MS) still applies. 0 takes the measure on every call, as the checks do.
 AgentsToolsSchedulePaceText(){ ## -- one line: what was read, and what it decides
-	local paceLimit="${MDAT_TOOL_PACE_MS:-4000}" paceWindow="${MDAT_TOOL_PACE_WINDOW_SECONDS:-300}" paceTtl="${MDAT_TOOL_PACE_CACHE_SECONDS:-60}" paceFile paceCount paceMedian paceRecord paceRegistry paceRun
+	local paceLimit="${MDAT_TOOL_PACE_MS:-4000}" paceWindow="${MDAT_TOOL_PACE_WINDOW_SECONDS:-300}" paceTtl="${MDAT_TOOL_PACE_CACHE_SECONDS:-300}" paceFile paceCount paceMedian paceRecord paceRegistry paceRun
 	local paceCache="$MMDAPP/.local/agents/schedule/pace.measure" paceNow="" paceAt="" paceWin="" paceHeld="" paceTemp
 	case "$paceLimit" in ''|*[!0123456789]*|0) paceLimit=4000 ;; esac
 	case "$paceWindow" in ''|*[!0123456789]*|0) paceWindow=300 ;; esac
-	case "$paceTtl" in ''|*[!0123456789]*) paceTtl=60 ;; esac
+	case "$paceTtl" in ''|*[!0123456789]*) paceTtl=300 ;; esac
 	paceMedian=""
 	if [ "$paceTtl" -gt 0 ] ; then
 		{ read -r paceAt paceWin paceMedian paceHeld < "$paceCache" ; } 2> /dev/null || paceAt=""
@@ -1357,7 +1369,7 @@ AgentsToolsScheduleBoardDemand(){
 		case "$boardBase" in ''|*[!0123456789]*) boardBase="$( stat -c '%Y' "$boardNote" 2> /dev/null )" || boardBase="" ;; esac
 		case "$boardBase" in ''|*[!0123456789]*) boardBase=0 ;; esac
 	fi
-	for boardState in pending running review blocked parked ; do
+	for boardState in $agentsBoardActiveStates ; do
 		type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" ; local boardFileItems ; AgentsToolsBoardItemsInto boardFileItems "" "$boardState"
 		for boardFile in ${boardFileItems[@]+"${boardFileItems[@]}"} ; do
 			[ -f "$boardFile" ] || continue
@@ -1670,7 +1682,7 @@ AgentsToolsScheduleDismiss(){ ## spawn record, why (a clause of the line printed
 	if [ -e "$dismissStore/$dismissSpawn" ] ; then
 		[ -n "$( find "$dismissStore/$dismissSpawn" -mmin +15 2> /dev/null )" ] || return 0
 		type AgentsToolsManagerSessionKill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.ManagerSessionKill.include"
-		AgentsToolsManagerSessionKill --manager-session-kill "$dismissSpawn" run "" > /dev/null 2>&1 || :
+		AgentsToolsManagerSessionKill --manager-session-kill "$dismissSpawn" run schedule > /dev/null 2>&1 || :
 		printf 'work-duty: %s of %s did not take its dismissal, so it was ended the hard way\n' "$dismissSpawn" "$( AgentsToolsFrontmatterKey "$dismissRecord" owner )"
 		return 0
 	fi
@@ -1708,7 +1720,8 @@ AgentsToolsScheduleOffDutyEnd(){ ## the duty's spawn record, whether the flags a
 	local endRecord="$1" endAllowed="$2" endRoutine=""
 	[ "$endAllowed" = yes ] || return 1
 	endRoutine="$( AgentsToolsFrontmatterKey "$endRecord" routine )"
-	case "$endRoutine" in *.off-duty.routine.md) ;; *) return 1 ;; esac
+	type AgentsToolsDutyRoutineIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.DutyRoutine.include"
+	AgentsToolsDutyRoutineIs "$endRoutine" off-duty || return 1
 	AgentsToolsScheduleDismiss "$endRecord" "the flags allow a work-duty now, so this off-duty run is ended"
 }
 
@@ -2117,10 +2130,14 @@ AgentsToolsScheduleWorkDuty(){
 ## emergency item is confirmed with the owner and sets the emergency flag. In worktime the work-duty step already starts the coordinator on its
 ## inbox work; out of it the advance routine, the one-shot handling block, is started instead. Never fatal; one line for each thing done.
 AgentsToolsScheduleImportantEmergency(){
-	local markFlags markWork=no markFile markMark markImportant="" markEmergency="" markEmergencyItem=""
+	local markFlags markWork=no markHold=no markFile markMark markImportant="" markEmergency="" markEmergencyItem=""
+	local markEmergencyItems=()
 	AgentsToolsScheduleStartsAllowed || return 0
 	AgentsToolsSchedulePassFlagsInto markFlags
 	case "$markFlags" in *"worktime: yes"*) markWork=yes ;; esac
+	## A HOLD LETS AN EMERGENCY THROUGH AND NOTHING ELSE (board-model.md:92): under a hold an emergency is still confirmed and its
+	## advance still started. An important or urgent item waits, so every tier is read against the hold here.
+	case "$markFlags" in *"holding: yes"*) markHold=yes ;; esac
 	type AgentsToolsInboxFilesInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	local markFiles=()
 	AgentsToolsInboxFilesInto markFiles magic-coordinator no
@@ -2128,12 +2145,15 @@ AgentsToolsScheduleImportantEmergency(){
 		case "${markFile##*/}" in note-*-state-and-lock.md) continue ;; esac
 		markMark="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrint.awk" "$markFile" 2> /dev/null | LC_ALL=C sed -n 's/^mark: //p' | LC_ALL=C tail -n 1 )"
 		case "$markMark" in
-			important|urgent) markImportant="yes" ;;
-			emergency) markEmergency="yes" ; markEmergencyItem="${markFile##*/}" ;;
+			important|urgent) [ -z "$markHold" ] || continue ; markImportant="yes" ;;
+			emergency) markEmergency="yes" ; markEmergencyItems+=( "${markFile##*/}" ) ;;
 		esac
 	done
 	[ -n "$markImportant$markEmergency" ] || return 0
-	[ -z "$markEmergency" ] || AgentsToolsScheduleEmergencyConfirm "$markEmergencyItem"
+	## EVERY EMERGENCY ITEM IS CONFIRMED, never only the last one of them.
+	for markEmergencyItem in ${markEmergencyItems[@]+"${markEmergencyItems[@]}"} ; do
+		AgentsToolsScheduleEmergencyConfirm "$markEmergencyItem"
+	done
 	if [ "$markWork" = no ] ; then
 		if AgentsToolsScheduleSpawn "advance.magic-coordinator" --routine "magic-team.advance.routine.md" magic-coordinator ; then
 			printf 'important-emergency: started the advance routine of magic-coordinator\n'
@@ -2173,7 +2193,7 @@ AgentsToolsScheduleEmergencyConfirm(){ ## the emergency item's file name
 ## One line for each thing done, never fatal.
 agentsScheduleSupervisionRoutine="magic-coordinator.supervision-session.routine.md"
 AgentsToolsScheduleSupervision(){ ## --
-	local supFlags supOn=no supLive supRecord supSpawn supNewest supNewestAt supStat="" supWait supNow supDismissed
+	local supFlags supOn=no supLive supRecord supSpawn supKeptSession supNewest supNewestAt supStat="" supWait supNow supDismissed
 	AgentsToolsScheduleStartsAllowed || return 0
 	type AgentsToolsSpawnedRecordsOfRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.StartedRecords.include"
 	AgentsToolsSchedulePassFlagsInto supFlags
@@ -2191,6 +2211,11 @@ AgentsToolsScheduleSupervision(){ ## --
 	if [ -n "$supLive" ] ; then
 		if [ "$supOn" != yes ] ; then
 			supSpawn="${supLive##*/}" ; supSpawn="${supSpawn%.spawn.md}"
+			## ONLY THE FLAG'S OWN RUN IS TOLD TO GO: the session this flag started is kept in supervision-session/magic-coordinator, and a run started by hand ends on its stop condition or the owner's word.
+			supKeptSession="$( cat "$MMDAPP/.local/agents/schedule/supervision-session/magic-coordinator" 2> /dev/null )"
+			[ -n "$supKeptSession" ] && [ "$supKeptSession" = "$( AgentsToolsFrontmatterKey "$supLive" session-id )" ] || {
+				printf 'supervision: %s of magic-coordinator is left alone: this flag did not start it\n' "$supSpawn" ; return 0
+			}
 			supDismissed=no
 			[ ! -e "$MMDAPP/.local/agents/schedule/dismissed/$supSpawn" ] || supDismissed=yes
 			AgentsToolsScheduleDismiss "$supLive" "the supervised flag is off"
@@ -2615,6 +2640,8 @@ AgentsToolsScheduleLoop(){
 	if [ -n "$loopHold" ] ; then
 		loopAt="$SECONDS" ; AgentsToolsScheduleWorkDuty ; agentsSchedulePassTimes="$agentsSchedulePassTimes, work-duty $(( SECONDS - loopAt ))s${agentsScheduleDutyTimes:+ [$agentsScheduleDutyTimes]}"
 		loopAt="$SECONDS" ; AgentsToolsScheduleIdleRunsEnd ; agentsSchedulePassTimes="$agentsSchedulePassTimes, idle-runs $(( SECONDS - loopAt ))s"
+		## AN EMERGENCY PASSES A HOLD (board-model.md:92). The step reads the hold itself and acts on the emergency items alone.
+		loopAt="$SECONDS" ; AgentsToolsScheduleImportantEmergency ; agentsSchedulePassTimes="$agentsSchedulePassTimes, important-emergency $(( SECONDS - loopAt ))s"
 		AgentsToolsScheduleLearningStep
 		return 0
 	fi

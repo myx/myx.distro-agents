@@ -36,11 +36,14 @@ AgentsToolsCommsChannelResolveDeclared(){
 
 ## The scope read is stubbed to one value the test sets, so the token resolver's fallback chain is
 ## observable without a config store.
+## THE SCOPE'S SEAM IS THE SETTINGS WRAPPER: the resolver asks `AgentsToolsConfigOption <member> --select TELEGRAM_BOT_TOKEN`, and
+## that wrapper is what reads the store; it no longer calls the dispatcher. This check stubbed the dispatcher, so its two
+## no-environment cases read nothing (measured 2026-11-26 08:52: 2 of 21).
 rigScopeToken=""
-DistroAgentsTools(){
+AgentsToolsConfigOption(){
 	case "$*" in
 		*"--select TELEGRAM_BOT_TOKEN") [ -n "$rigScopeToken" ] && printf '%s\n' "$rigScopeToken" || return 1 ;;
-		*) echo "unexpected DistroAgentsTools call: $*" >&2 ; return 1 ;;
+		*) echo "unexpected AgentsToolsConfigOption call: $*" >&2 ; return 1 ;;
 	esac
 }
 

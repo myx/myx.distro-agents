@@ -9,13 +9,14 @@
 ## Contract: MAGIC.md.
 ##
 
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 if ! type AgentsToolsApprovalCascade > /dev/null 2>&1 ; then
 
 	## Prints the board state holding <name>.md, or nothing; returns 2 when more than
 	## one state holds it (never guessed between).
 	AgentsToolsApprovalCascadeLocate(){ ## <board-root> <bare-name>
 		local found="" count=0 state
-		for state in backlog pending running review blocked parked processed archived retained ; do
+		for state in $agentsBoardStates ; do
 			if [ -e "$1/$state/$2.md" ] ; then found="$state" ; count=$(( count + 1 )) ; fi
 		done
 		[ "$count" -le 1 ] || return 2
@@ -120,8 +121,8 @@ if ! type AgentsToolsApprovalCascade > /dev/null 2>&1 ; then
 					openBlocker="$blocker (malformed)" ; break
 				fi
 				blockerState="$( AgentsToolsApprovalCascadeLocate "$boardRoot" "$blocker" )" || blockerState="ambiguous"
-				case "$blockerState" in
-					processed|archived|retained) ;;
+				case " $agentsBoardConcludedStates " in
+					*" $blockerState "*) ;;
 					*) openBlocker="$blocker (${blockerState:-not found})" ; break ;;
 				esac
 			done <<EOF

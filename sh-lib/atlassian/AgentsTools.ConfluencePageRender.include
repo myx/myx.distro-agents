@@ -30,6 +30,7 @@
 ##
 ## The engine is AgentsConfluencePageRender.py beside this file.
 
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 AgentsToolsAtlassianConfluencePageRender(){ ## --member <team-member> --source <spec> [--page-id <page-id>] [--context <caller>]
 	local rendMember="" rendSpec="" rendPageId="" rendContext="confluence-page-render"
 	while [ $# -gt 0 ] ; do
@@ -81,8 +82,8 @@ AgentsToolsAtlassianConfluencePageRender(){ ## --member <team-member> --source <
 			case "$rendItem" in
 				''|*/*) rendItem="" ;;
 			esac
-			case "$rendState" in
-				backlog|pending|running|review|blocked|parked|processed|archived|retained) rendStateFound="$rendState" ;;
+			case " $agentsBoardStates " in
+				*" $rendState "*) rendStateFound="$rendState" ;;
 			esac
 			if [ -n "$rendItem" ] && [ -n "$rendStateFound" ] && [ -n "${MDAT_DATA_ROOT:-}" ] ; then
 				rendSourceFile="$MDAT_DATA_ROOT/board/$rendStateFound/$rendItem"

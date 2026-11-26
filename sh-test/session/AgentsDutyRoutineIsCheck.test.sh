@@ -5,6 +5,8 @@
 ##      and by path, for a member name of the roster's shape.
 ##   2. THE CONTROL is row 1's four noes: a routine that is no duty, a name that merely ends like one, a bare word, and
 ##      nothing at all. A predicate that answered yes to everything passes row 1 and fails these.
+##   2b. A CALLER THAT NAMES THE KIND asks the one list for that kind: a work-duty routine answers work-duty and not
+##      off-duty, and the other way round, so a caller needs no suffix test of its own.
 ##   3. THE RECORD PATTERN matches a spawn record's own `routine:` line of either kind, and matches no other line.
 ##   4. THE SITES: every file the design names asks the predicate, the duty-record list asks the pattern, and no case arm
 ##      or test anywhere in sh-lib or sh-scripts is keyed on one duty suffix alone.
@@ -28,12 +30,12 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 	return 0
 }
-rigIs(){ ## routine name or path -- yes or no, from the predicate in this tree
+rigIs(){ ## routine name or path, [the duty kind] -- yes or no, from the predicate in this tree
 	env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" bash -c '
 		set +e
 		. "$1" || exit 9
-		AgentsToolsDutyRoutineIs "${2:-}" && printf yes || printf no
-	' rig "$rigInclude" "$1" 2> /dev/null
+		AgentsToolsDutyRoutineIs "${2:-}" "${3:-}" && printf yes || printf no
+	' rig "$rigInclude" "$1" "${2:-}" 2> /dev/null
 }
 rigMatches(){ ## one line -- yes or no, from the record pattern
 	printf '%s\n' "$1" | env -i PATH="/usr/bin:/bin" bash -c '
@@ -55,6 +57,13 @@ rigAssert "CONTROL: a routine that is no duty"               "$( rigIs magic-tea
 rigAssert "CONTROL: a name that only ends like a duty one"   "$( rigIs magic-team.work-duty.routine.md.bak )" "no"
 rigAssert "CONTROL: a bare duty word is no routine"          "$( rigIs off-duty )" "no"
 rigAssert "CONTROL: nothing at all"                          "$( rigIs '' )" "no"
+
+echo "-- 2b. a caller that names the kind it wants is answered for that kind alone --"
+rigAssert "work-duty asked for, on a work-duty routine"     "$( rigIs magic-coordinator.work-duty.routine.md work-duty )" "yes"
+rigAssert "off-duty asked for, on an off-duty routine"      "$( rigIs magic-coordinator.off-duty.routine.md off-duty )" "yes"
+rigAssert "CONTROL: off-duty asked for, on a work-duty one" "$( rigIs magic-coordinator.work-duty.routine.md off-duty )" "no"
+rigAssert "CONTROL: work-duty asked for, on an off-duty one" "$( rigIs magic-coordinator.off-duty.routine.md work-duty )" "no"
+rigAssert "CONTROL: a kind named on a routine that is neither" "$( rigIs magic-team.coworking.routine.md off-duty )" "no"
 
 echo "-- 3. the record pattern --"
 rigAssert "a work-duty record line"                          "$( rigMatches 'routine: magic-coordinator.work-duty.routine.md' )" "yes"

@@ -988,6 +988,12 @@ rigSpawnIn ws-here keeper-here --spawn-settings-workspace ws-third
 rigAssert "a name two known workspaces have: refused, both said" "$( rigPayRefused ) $( rigN "$rigTmp/err" "several workspaces this machine knows have that name ($rigWork/ws-third, $rigWork/decoy/ws-third) -- nothing was started." )" "1 [] 0 1"
 rigSpawnIn ws-here keeper-here --spawn-settings-workspace ws-there
 rigAssert "accepted sibling: a name one known workspace has, on this machine, is paid from" "$rigRc $( rigPaid )" "0 there/there/there/here"
+## ONE WORKSPACE, TWO LISTS: the places list and the known-workspaces registry both name a tracked workspace, so the
+## same path arrives twice. That is no ambiguity, and --spawn-settings-workspace was refused for every tracked
+## workspace before the spellings were collapsed (W2, measured on the live rig at 04:31 +0200).
+LC_ALL=C printf 'ws-there\t%s\n' "$rigWork/ws-there" >> "$rigHome/.agents/magic-team/directories.registry"
+rigSpawnIn ws-here keeper-here --spawn-settings-workspace ws-there
+rigAssert "the same path named by both lists: one workspace, and it is paid from" "$rigRc $( rigPaid )" "0 there/there/there/here"
 rigScopeOf ws-here keeper-both 'WHERE=ws-here' 'SPAWN_SETTINGS_WORKSPACE=ws-nowhere'
 rigSpawnedBefore="$( rigSpawnedCount ws-here )"
 rigSpawnIn ws-here keeper-both

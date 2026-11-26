@@ -8,6 +8,7 @@
 ## standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 case "$1" in
 
 	--intern-op-board-rename)
@@ -114,7 +115,7 @@ case "$1" in
 		fi
 
 		local state oldFile renamed="false"
-		for state in backlog pending running review blocked parked processed archived retained ; do
+		for state in $agentsBoardStates ; do
 			oldFile="$boardRoot/$state/$oldName"
 			if [ -f "$oldFile" ] ; then
 				## The move op below sees a same-state edit of the new name, so it commits

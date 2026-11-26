@@ -17,14 +17,9 @@ AgentsClientSidesCheck	magic-developer	refuses to report a result: the baseline 
 AgentsClientSystemsCheck	magic-developer	1 of 81 here and 39 of 81 on live: a client's call on our own side does not name --client-operation-run, got 1 0 0 want 1 0 1
 AgentsCodingRoleSplitCheck	magic-librarian	the five S10.10 role-split statements are not in magic-team.armed.md yet, so it waits on the S10.10 ruling and magic-librarian's skillset text
 AgentsCommonOptionsCheck	magic-developer	20 of 35: a spec .local of a workspace with no tooling is not refused and the retired positional still answers, got 1 0 want 1 1
-AgentsCommsTelegramCheck	magic-developer	2 of 21: the member and team scopes resolve to no token, got empty want member-bot-token member-token
 AgentsContactsTierWordCheck	magic-developer	5 of 48: his word is carried out as tier-owner where tier-contact is stored, got 0 tier-owner want 0 tier-contact, and the answer is not stamped as acted on
 AgentsCredentialExposureCheck	magic-developer	refuses to report a result: no Atlassian call reached the fake curl because the client Jira settings are missing
-AgentsDetachedProcessReportCheck	magic-developer	the control fails, a running process is not reported before its stop, got no want yes
-AgentsDetachedProcessWaitCheck	magic-developer	the wait resolves the handle without its output, got WAIT-RESULT: RECEIVED:1:1:0 want RECEIVED:1:1:1
 AgentsDutyKeptSessionCheck	magic-developer	5 of 9: a restart inside a foreign session starts no new duty and marks nothing detached, so it waits for the duty restart rule to be settled
-AgentsDutyKeptStaleCheck	magic-developer	2 of 6: the rig cannot call AgentsToolsDutyKeptStale, so the check waits to load the function from the file that defines it now
-AgentsEmailEnvTokenCheck	magic-developer	2 of 5: the member's own scope EMAIL_IMAP_HOST and EMAIL_USER are not used, got 0 want 1
 AgentsEpicWaveAcceptanceOnBoardCheck	magic-librarian	7 of 15: S6.2's routine text is not in the tree, so its four statements read absent on live, and the row goes in the landing that writes that text
 AgentsGrantsIndexCheck	magic-tester	re-measured by magic-coordinator at 04:01: the index carries a magic-developer member the check does not expect and one coordinator row is missing, with magic-developer on the index build
 AgentsHandbackNextCheck	magic-developer	no start was made from the served call, got 0 want 1
@@ -106,7 +101,6 @@ AgentsRunRuleReadersCheck	magic-developer	two runs' session id with no dispatch 
 AgentsRunTestsQueueCheck	magic-tester	passes alone on live in 662 s and ends at the runner's 900 s limit under load in a long run, so its length stands near the limit
 AgentsRunTestsSubfolderCheck	magic-tester	2 of 13: sh-test itself holds known-failures.txt, triage.md and AgentsRunTestsSweepCheck.test.sh beside the runner, and the folder solid names no sh-lib system
 AgentsRunTestsSweepCheck	magic-developer	its 15 assertions all pass and it fails on its own teardown, leaving 1 process running, and its rows for the busy rig and the link rig are not both kept, got 1:0 want 1:1
-AgentsSandboxLinkCheck	magic-tester	ended at its 900s limit inside section 5, and its refusal row reads 0 0 made where 1 1 none is wanted
 AgentsScheduleRetestDrainCheck	magic-developer	the step AgentsToolsScheduleRetestDrain is not built, so every assertion of it fails for its absence, and the step makes the drain run with no person (task-20261117T2212Z-retest-queue-never-drains)
 AgentsScheduleThreadPassCheck	magic-developer	3 of 11: the ask for the schedule thread is made twice inside one minute where the check wants once, so it waits for the throttle of the ask to hold in its rig
 AgentsSessionAddressCheck	magic-developer	3 of 184: a reports-to send says the session has no recorded parent where the parent's thread is wanted, got rc=3 want rc=0 with the parent channel
@@ -126,15 +120,12 @@ AgentsSlackPathIsolationCheck	magic-developer	1 of 61: the read did not reach co
 AgentsSlackReadFallbackCheck	magic-developer	3 of 13: a send whose user identity cannot reach the conversation is not posted under the bot, got 1 want 0 user,bot
 AgentsSlackReadOneCachePathCheck	magic-developer	the control fails: one message with no floor is not read, got 1 want 0
 AgentsSlackRosterNarrowedCheck	magic-developer	the roster makes 4 users.info calls where 2 are wanted, one a counterparty
-AgentsSlackSendIdentityCheck	magic-developer	a member's send to a channel uses the bot token where its own is wanted, got rig-bot-token-TEAM want rig-user-token-KEEPER
-AgentsSpawnCloseWithdrawCheck	magic-developer	3 of 12: the settle of a pending reply refuses the id as an invalid option, so it waits for the withdraw to call the settle in its current syntax
 AgentsSpawnProxyCloseCommitCheck	magic-developer	the interrupt-while-waiting section finds no output file for the proxy, so it waits for that section to be settled
 AgentsSuperviseRigCheck	magic-developer	section 3 wants a held line naming no board state, and the unguarded board read at sh-lib/supervise/AgentsTools.SuperviseResume.include:103 ends the operation under set -e before line 104 prints
 AgentsTaskGrantRestartCheck	magic-tester	ended at its 900s limit inside section 2, the restarted run's grant, so the check or its rig stands still
 AgentsTestSignalsCheck	magic-tester	signals of sh-test are not on the list, common/AgentsHookFireCheck.test.sh:19 among them, and three kills of AgentsHarnessToolsBash.include are unlisted for magic-developer
 AgentsToolWindowCheck	magic-developer	the long Bash call's handle is not returned and its 120 s window is not named, so TaskStop closes nothing; the same 3 rows fail on the copy before any change
 AgentsToolingTextTemplatesCheck	magic-developer	refuses to report a result: agentsRunRouteField is read without loading AgentsTools.RunRoute.include; fix in progress
-AgentsTrelloEnvTokenCheck	magic-developer	1 of 5: the scope read is not reached, got 1 want 0
 AgentsVscodePanelCheck	magic-librarian	instructions.md is a list where a heading is wanted, got items 5 want items 0
 AgentsWriteGrantReadsCheck	magic-tester	left 2 processes running at its end, so it fails on its own teardown
 AgentsKnownFailureRowsCheck	magic-tester	seven rows compare a fraction against the call sites of their file, where a loop runs one call more than once, and six refusal rows quote no message their own check speaks. The rule waits for the run's own log as the source of the denominator

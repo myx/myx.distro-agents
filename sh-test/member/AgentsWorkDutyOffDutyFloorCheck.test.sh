@@ -34,7 +34,7 @@ cp "$rigTest/check-fixtures/work-duty.curl.stub.sh" "$rigTmp/bin/curl" || rigRef
 chmod +x "$rigTmp/bin/curl"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nWAIT_COLLECT_SECONDS=1\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 ## One item of an owner who is no member, so the external owners' section has a row to carry when it is read at all: put by the store's owner.
-printf -- '---\ntype: task\nowner: human-owner\n---\n\n# rig\n' | rigOwnerInboxPut magic-coordinator note-20261019T0101Z-rig-ext.md || rigRefuse "the rig inbox item could not be put by the store's owner"
+printf -- '---\ntype: note\nowner: human-owner\n---\n\n# Note: rig\n' | rigOwnerInboxPut magic-coordinator note-20261019T0101Z-rig-ext.md || rigRefuse "the rig inbox item could not be put by the store's owner"
 
 rigPassCount=0
 rigFailCount=0

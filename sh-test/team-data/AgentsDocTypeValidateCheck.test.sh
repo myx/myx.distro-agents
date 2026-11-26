@@ -144,6 +144,15 @@ rigAssert "access-control rows of an item (allow-write, allow-read, allow-tool w
 rigTask task-20261001T1012Z-a.md 'access-control: session:Write:%2Frig%2Fa:keeper-x:20261001T1000Z'
 rigCheck board-item.task task-20261001T1012Z-a.md
 rigAssert "a set entry in the old shape, session:<tool>:<target>:<granted-by>:<stamp>, is no row and refuses" "$rigRc:$( rigRules ):$( rigHas 'has a row that is not participants:<verb>:<value>:<granted-by>:<stamp>' )" "1:contract-form:1"
+rigTask task-20261001T1041Z-a.md 'access-control: participants:allow-write:rig-place:source/rig/**:keeper-x:20261001T1000Z'
+rigCheck board-item.task task-20261001T1041Z-a.md
+rigAssert "a write row whose value is a place and a path, with a colon between, passes" "$rigRc:$( rigRules )" "0:"
+rigTask task-20261001T1042Z-a.md 'access-control: participants:allow-tool:Bash:rig-place:src/**:keeper-x:20261001T1000Z'
+rigCheck board-item.task task-20261001T1042Z-a.md
+rigAssert "a tool row whose target is a place and a path passes" "$rigRc:$( rigRules )" "0:"
+rigTask task-20261001T1043Z-a.md 'access-control: participants:allow-write:keeper-x:20261001T1000Z'
+rigCheck board-item.task task-20261001T1043Z-a.md
+rigAssert "control: a write row with no value, four fields, still refuses" "$rigRc:$( rigRules )" "1:contract-form"
 rigTask task-20261001T1013Z-a.md 'access-control: participants:allow-tool:WebFetch:keeper-x:20261001T1000Z'
 rigCheck board-item.task task-20261001T1013Z-a.md
 rigAssert "an allow-tool row with no target refuses" "$rigRc:$( rigRules )" "1:contract-form"

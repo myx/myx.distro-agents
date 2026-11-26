@@ -173,6 +173,7 @@ Document
 # Contract
 
 - rule: `{{deliverables}}` is the `deliverables:` lines of the routine in force in the session that posts, as that routine declares them, one a line and each marked `- `: the tooling copies them, so a reviewer judges the routine's own declaration and never the member's account of it (`AgentsToolsRoutineDeliverablesInForce`). A routine declaring none leaves the label and its field out.
+- rule: A routine's own deliverable is named by the handback that closes it, with where it landed as `<place>:<path>`, in the outcome or the findings. The tooling states the rule and checks nothing yet, because the shape a member writes is a name still unapproved.
 - rule: A report is the one fenced block under `# Skeleton` named for its tool, sent through the member send as the member's own message, or as the team bot's where `as_bot` says so. Trailing blank lines are dropped.
 - rule: Who a report is addressed to is the tool's to settle, from what its call names, and is named by the send, in the author line of the message, never in the body: no block shows an addressee. A tool that names one gives it to its block as `{{address-to}}`.
 - rule: A slot outside `[[ … ]]` is required, and the tool refuses a call that leaves one empty before anything is filled. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a label is left out together with its empty field. No field is ever shown as a placeholder.

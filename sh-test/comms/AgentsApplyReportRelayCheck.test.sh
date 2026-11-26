@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 ## Behavioural check on the relay carrier of the apply-report gate (task-20261117T2241Z): a Slack send that declares
-## --text-group relay and says a file was applied is refused unless it gives that file's absolute path and its
+## --text-group relay and says a file was applied is refused unless it gives that file's place path and its
 ## read-back, and nothing reaches Slack for it. A send that claims no apply goes through, and so does a declared relay
 ## that names the path and the read-back. Temp workspace only, a fake curl first on PATH, under one `env -i` guard.
 ## Nothing leaves the machine. Held:
 ##   1. control: one post reaches the fake curl for an ordinary send
 ##   2. a relay naming a bare file and a line number is refused, names both faults, and posts nothing
-##   3. a relay naming the absolute path with no read-back is refused, and names only that fault
+##   3. a relay naming the place path with no read-back is refused, and names only that fault
 ##   4. a relay naming the path and cksum as its read-back goes through
 ##   5. a plain send that says fixed is not measured: it goes through
 set -u
@@ -69,17 +69,17 @@ rigAssert "rc 0 and one post reached Slack" "$( cat "$rigTmp/a.rc" ) $( rigPosts
 echo "-- 2. a relay naming a bare file and a line number is refused --"
 rigSend "$rigTmp/b" relay "Applied the Show Detail fix in style.css.tpl:1314"
 rigAssert "refused with its reason, and no new post" \
-	"$( [ "$( cat "$rigTmp/b.rc" )" != 0 ] && printf refused || printf sent ):$( LC_ALL=C grep -c 'does not give that file its absolute path and its read-back' "$rigTmp/b" ):$( rigPosts )" "refused:1:1"
+	"$( [ "$( cat "$rigTmp/b.rc" )" != 0 ] && printf refused || printf sent ):$( LC_ALL=C grep -c 'does not give that file its place path and its read-back' "$rigTmp/b" ):$( rigPosts )" "refused:1:1"
 rigAssert "and it names both faults" \
-	"$( LC_ALL=C grep -c -e '^applied-without-absolute-path: ' -e '^applied-without-read-back: ' "$rigTmp/b" )" "2"
+	"$( LC_ALL=C grep -c -e '^applied-without-place-path: ' -e '^applied-without-read-back: ' "$rigTmp/b" )" "2"
 
-echo "-- 3. a relay naming the absolute path with no read-back is refused --"
-rigSend "$rigTmp/c" relay "Applied at /Users/myx/Workspaces/ws-myx.ae3-devel/source/myx/style.css.tpl"
+echo "-- 3. a relay naming the place path with no read-back is refused --"
+rigSend "$rigTmp/c" relay "Applied at ws-myx.ae3-devel:source/myx/style.css.tpl"
 rigAssert "refused, and only the read-back is named" \
-	"$( [ "$( cat "$rigTmp/c.rc" )" != 0 ] && printf refused || printf sent ):$( LC_ALL=C grep -c '^applied-without-absolute-path: ' "$rigTmp/c" ):$( LC_ALL=C grep -c '^applied-without-read-back: ' "$rigTmp/c" ):$( rigPosts )" "refused:0:1:1"
+	"$( [ "$( cat "$rigTmp/c.rc" )" != 0 ] && printf refused || printf sent ):$( LC_ALL=C grep -c '^applied-without-place-path: ' "$rigTmp/c" ):$( LC_ALL=C grep -c '^applied-without-read-back: ' "$rigTmp/c" ):$( rigPosts )" "refused:0:1:1"
 
 echo "-- 4. a relay naming the path and its read-back goes through --"
-rigSend "$rigTmp/d" relay "Applied /Users/myx/Workspaces/ws-myx.ae3-devel/source/myx/style.css.tpl, cksum 1234-99"
+rigSend "$rigTmp/d" relay "Applied ws-myx.ae3-devel:source/myx/style.css.tpl, cksum 1234-99"
 rigAssert "sent, and a post reached Slack" "$( cat "$rigTmp/d.rc" ):$( rigPosts )" "0:2"
 
 echo "-- 5. a plain send that says fixed is not measured --"

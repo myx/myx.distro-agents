@@ -49,6 +49,12 @@ AgentsToolsBoardItemsInto(){ ## array variable, name prefix, state...
 	local itemsVar="$1" itemsPrefix="${2:-}" itemsOne itemsState
 	case "$itemsVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
 	eval "$itemsVar=()"
+	## AN UNRESOLVED DATA ROOT IS A CONTEXT NOT LOADED where this workspace keeps a store, and never a quiet empty board:
+	## the backfill script read zero items that way and reported success over nothing on 2026-11-25.
+	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
+		[ ! -d "${MMDAPP:-/nonexistent}/.local/agents/team-data-root/board" ] || printf '🙋 WARNING: board-items: no team data root is resolved in this call, so no board item was read: load the tooling context\n' >&2
+		return 0
+	fi
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
 	case "$itemsPrefix" in */*) return 1 ;; esac
 	shift 2 2> /dev/null || shift $#
@@ -213,8 +219,21 @@ AgentsToolsDecisionsNorm(){ ## text
 
 agentsDecisionsOwnAwk='
 	function struckBase( s ) {
-		while ( sub( / \[(struck by|confirmed by|backfilled) [^]]*\]$/, "", s ) ) { }
+		while ( sub( / \[(struck by|confirmed by|backfilled)( [^]]*)?\]$/, "", s ) ) { }
 		return s ;
+	}
+	## What the trailing mark of a line settles: a message the decision came from, or an ask whose record
+	## was found. A strike or a confirmation naming a party is handled, so the review leaves it out.
+	## A mark naming nobody settles nothing, and that covers the unknown party this package writes.
+	function decisionsMarkState( s,    markText, markParty ) {
+		if ( s !~ /\]$/ ) { return "" ; }
+		markText = s ; sub( /^.*\[/, "", markText ) ;
+		if ( match( markText, /^(struck|confirmed) by [A-Za-z0-9_@.-]+/ ) ) {
+			markParty = substr( markText, RSTART, RLENGTH ) ;
+			return ( markParty ~ / by unknown$/ ? "" : "handled" ) ;
+		}
+		if ( markText ~ /^backfilled [^]]*: message [A-Za-z0-9:._-]+/ ) { return "settled" ; }
+		return ( markText ~ /^backfilled [^]]*: ask [A-Za-z0-9:._-]+, (answered|settled) by [A-Za-z0-9_@.-]+/ ? "settled" : "" ) ;
 	}
 	function decisionsOwn( n, marker,    i, inFm, inFence, sawBrief, marked, legacy ) {
 		inFm = 0 ; inFence = 0 ; sawBrief = 0 ; marked = 0 ; legacy = 0 ;
@@ -810,8 +829,8 @@ AgentsToolsDecisionJsonText(){ ## text
 
 ## A decision asked before it is recorded: its exact text read back to its party, whose answer lands it (AgentsToolsDecisionsFromPending).
 ## One closing line: DECISION-RECORDED, DECISION-ASKED, DECISION-ESCALATED or DECISION-NOT-RECORDED. rc 1 where nothing was asked.
-## A contact decides a decision itself where the team gives it the rights over the team's work: tier-admin or tier-owner, its
-## team-wide tier read from its record. A board item names no project, so a project's own tier is not read yet. rc 0 where it decides.
+## A contact decides a decision itself where the team gives it the rights over the team's work: tier-admin or tier-owner.
+## That is its team-wide tier read from its record, or a tier it holds for a scope named in `projects:` or `products:`. rc 0 where it decides.
 AgentsToolsDecisionPartyDecides(){ ## party, written contact:<id> for a contact, item path (its projects and products are the scopes read)
 	local pdScope
 	case "$1" in contact:?*) ;; *) return 1 ;; esac
@@ -1198,13 +1217,19 @@ AgentsToolsDecisionsStrike(){ ## who, item, the exact line, the reason, source (
 	return 0
 }
 
-## HIS OWN MESSAGE IS HIS DECISION (): where the source's first part names a Slack message, `slack:<channel>:<ts>`,
+## HIS OWN MESSAGE IS HIS DECISION (): where the source's first part names a Slack message, `slack:<channel>:<ts>`
+## or the same reference bare, `<channel>:<ts>`, the form every post, log and readback of the team writes,
 
 ## that the comms cache holds and whose author is the human-owner's own account here, it prints the provenance
 ## `his message slack:<channel>:<ts>, by <account> at <time>`, rc 0. Anything else, or a message the cache does not hold, is rc 1.
 AgentsToolsDecisionSourceOwnerMessage(){ ## source
 	local somFirst="${1%%,*}" somRest somChannel somTs somLine="" somUser="" somDir somAt
-	case "$somFirst" in slack:*:*) ;; *) return 1 ;; esac
+	case "$somFirst" in
+		slack:*:*) ;;
+		*[!A-Za-z0-9:.]*|*:*:*|:*|*:) return 1 ;;
+		*:*) somFirst="slack:$somFirst" ;;
+		*) return 1 ;;
+	esac
 	somRest="${somFirst#slack:}" ; somChannel="${somRest%%:*}" ; somTs="${somRest#*:}"
 	case "$somChannel" in ''|*[!A-Za-z0-9]*) return 1 ;; esac
 	case "$somTs" in ''|*[!0-9.]*) return 1 ;; esac
@@ -1220,6 +1245,33 @@ AgentsToolsDecisionSourceOwnerMessage(){ ## source
 	AgentsToolsPermissionIsHumanOwner "$somUser" || return 1
 	somAt="$( LC_ALL=C date -u -r "${somTs%%.*}" +%Y-%m-%dT%H:%MZ 2> /dev/null || LC_ALL=C date -u -d "@${somTs%%.*}" +%Y-%m-%dT%H:%MZ 2> /dev/null )"
 	printf 'his message %s, by %s at %s\n' "$somFirst" "$somUser" "${somAt:-unknown}"
+}
+
+## THE ASK'S VERDICT IS HIS DECISION (W2, task 2026-11-25T2218Z): a `--source` naming the pending
+## ask the human-owner answered records the line from that answer, with its verdict, its account and
+## its time as the provenance, and asks him nothing. The help already promises this route ("the
+## message or the ask's verdict it came from"); the code only honoured the message half, so a
+## settlement he had already given was read back to him again -- the loop he named as a bug.
+## Prints the provenance line; rc 1 for an id that is no answered ask of his.
+AgentsToolsDecisionSourceOwnerVerdict(){ ## source (a pending id)
+	local sovId="${1%%,*}" sovFile sovKind sovStatus sovUser sovAt sovVerdict
+	## Any bare id the ask store resolves: production ids are uuids, and a rig names its own, so the store's own
+	## resolver is the judge and the shape here is only "one word, no path".
+	case "$sovId" in ''|*/*|*[[:space:]]*|.|..) return 1 ;; esac
+	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
+	sovFile="$( AgentsToolsPendingRecordPath "$sovId" 2> /dev/null )" || return 1
+	[ -f "$sovFile" ] || return 1
+	sovKind="$( AgentsToolsDecisionsField "$sovFile" kind )"
+	sovStatus="$( AgentsToolsDecisionsField "$sovFile" status )"
+	sovUser="$( AgentsToolsDecisionsField "$sovFile" answered-by )"
+	sovAt="$( AgentsToolsDecisionsField "$sovFile" resolved-at )"
+	sovVerdict="$( AgentsToolsDecisionsField "$sovFile" verdict )"
+	[ "$sovKind" = readback ] || [ "$sovKind" = question ] || return 1
+	[ "$sovStatus" = reply-received ] || return 1
+	[ -n "$sovUser" ] || return 1
+	type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	AgentsToolsPermissionIsHumanOwner "$sovUser" || return 1
+	printf 'his verdict %s, %s by %s at %s\n' "$sovId" "${sovVerdict:-answered}" "$sovUser" "${sovAt:-unknown}"
 }
 
 ## AgentsToolsDecisionsAppend, and then the same line on the item it `tracks:` (the task a

@@ -14,6 +14,7 @@
 ## process runs as the spawn by its own word, or the process its record names still lives. A
 ## command line that only carries a spawn's id holds no sandbox: a process of the tooling
 ## that waits on its session, or another run whose line holds this sandbox's path.
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 AgentsToolsSpawnSandboxSweep(){ ## where
 	local sweepRoot="" sweepDir sweepHold
 	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
@@ -194,7 +195,7 @@ AgentsToolsSpawnSandboxWorkActive(){ ## sandbox folder
 		AgentsToolsBoardItemInto workItem "$workStem" || continue
 		workState="${workItem%/*}"
 		workState="${workState##*/}"
-		case " backlog pending running review blocked parked " in *" $workState "*) workWord="active" ; break ;; esac
+		case " $agentsBoardOpenStates " in *" $workState "*) workWord="active" ; break ;; esac
 	done
 	printf '%s' "${workWord:-inactive}"
 }

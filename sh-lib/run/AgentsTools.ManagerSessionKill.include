@@ -138,6 +138,21 @@ AgentsToolsManagerKillWait(){ ## pids, space-separated
 ## Where the control thread of the session carries the kill out for a console, the name the
 ## ending is recorded under is the one the request of that console gives
 ## (AgentsTools.SessionControlRequest.include).
+## THIS PROCESS'S OWN CHAIN IS NEVER SIGNALLED: a pid that is this process or one it descends from is the console
+## that asked. A recognition list can carry one -- the tool call's own command line names the session id it is
+## killing -- and a TERM there ends the caller instead of the run (measured twice on 2026-11-25). Read at the
+## signal, so no list can leak one through.
+AgentsToolsManagerKillOwnChain(){ ## pid -- rc 0 where it is this process or an ancestor of it
+	local chainOwn="${1:-}" chainWalk="$$" chainSteps=0
+	case "$chainOwn" in ''|*[!0123456789]*) return 1 ;; esac
+	while [ -n "$chainWalk" ] && [ "$chainWalk" -gt 1 ] && [ "$chainSteps" -lt 64 ] ; do
+		[ "$chainWalk" != "$chainOwn" ] || return 0
+		chainWalk="$( ps -o ppid= -p "$chainWalk" 2> /dev/null | LC_ALL=C tr -d ' ' )" || chainWalk=""
+		chainSteps=$(( chainSteps + 1 ))
+	done
+	return 1
+}
+
 AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty), the name the ending is recorded under where the console's user is another's (may be empty)
 	type AgentsSessionCloseRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 	type AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
@@ -189,6 +204,7 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 			killSeen=" $killOwnSpawn "
 			killAny="$killAny $killFound"
 			for killPid in $killFound ; do
+				AgentsToolsManagerKillOwnChain "$killPid" && continue
 				kill -TERM "$killPid" 2>/dev/null || :
 			done
 		fi
@@ -266,6 +282,7 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 		## Each with when it began, so that what is still there later is known to be that process.
 		killBegan[killAt]="$( printf '%s\n' $killFound | AgentsToolsRunProcessesBegan )"
 		for killPid in $killFound ; do
+			AgentsToolsManagerKillOwnChain "$killPid" && continue
 			kill -TERM "$killPid" 2>/dev/null || :
 		done
 		killPids[killAt]="$killFound" ; killOutcomes[killAt]="signalled"
@@ -282,6 +299,7 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 					killOutcomes[killAt]="ended"
 				else
 					for killPid in $killLeft ; do
+						AgentsToolsManagerKillOwnChain "$killPid" && continue
 						kill -KILL "$killPid" 2>/dev/null || :
 					done
 					killOutcomes[killAt]="hard" ; killHard="yes"

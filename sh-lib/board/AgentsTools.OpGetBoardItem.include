@@ -4,6 +4,7 @@
 ## AgentsTools.OpGetBoardItem.include -- the operation `--get-board-item`, sourced by AgentsTools.Member.include with the operation's arguments.
 ## Read one board item by filename and optional state restrictions, with
 ## optional line range. Path lookup remains inside AgentsToolsDataRead.
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 		shift
 		local memberName="$1"
 		shift || true
@@ -31,8 +32,8 @@
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--board-state)
-					case "$2" in
-						backlog|pending|running|review|blocked|parked|processed|archived|retained)
+					case " $agentsBoardStates " in
+						*" $2 "*)
 							boardStates+=( "$2" )
 						;;
 						*)
@@ -64,7 +65,7 @@
 			fi
 		fi
 		if [ ${#boardStates[@]} -eq 0 ] ; then
-			boardStates=( backlog pending running review blocked parked processed archived retained )
+			boardStates=( $agentsBoardStates )
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
 			echo "⛔ ERROR: $MDSC_CMD --get-board-item: MDAT_DATA_ROOT is not set" >&2

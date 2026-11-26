@@ -137,5 +137,13 @@ AgentsToolsSuperviseChecklistAdd(){ ## <run-id> (--item <text>)... [--workspace 
 		echo "$MDSC_CMD: ⛔ ERROR: --supervise-checklist-add: the list of $addMember is being written by another call, or could not be written -- nothing was written" >&2 ; return 1
 	fi
 	printf 'checklist\t%s\t%s\t%s\n' "$addRun" "$addMember" "$addCount"
+	## A STOPPED EXECUTOR IS STARTED AGAIN (sketch 3.4's floor): an item added to a session whose agents stopped resumes
+	## it. The resume is the one the supervisor already owns -- its sleep gate, its item-in-review check and its
+	## kept-context start -- asked for this workspace, so the add grows no second, weaker restart path.
+	type AgentsToolsSpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	if ! AgentsToolsSpawnRuns "$addRun" "" 2> /dev/null ; then
+		type AgentsToolsSuperviseResume > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseResume.include"
+		AgentsToolsSuperviseResume --workspace "$addWs" 2>&1 || :
+	fi
 	return 0
 }

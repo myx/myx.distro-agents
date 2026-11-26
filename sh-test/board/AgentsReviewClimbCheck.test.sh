@@ -147,6 +147,11 @@ rigReview task-rig-human-rung   ""              "review-by: human-owner
 rigReview task-rig-bare-member  rig-child-bare  ""
 rigReview task-rig-reviewer-run rig-child-own   "review-by: keeper-myx
 "
+## The person is the top rung, and his item is his: its own run reports to a live parent, so a row that
+## names him at the gate is what tells his rung from the parent's.
+rigChildRun rig-child-person rig-parent-live:magic-coordinator
+rigReview task-rig-person-rung rig-child-person "review-by: human-owner
+"
 ## A duty round's run, joined into the round's own session, and the dispatch that session spawned.
 rigJoinedRun  rig-duty-run      rig-duty-session  magic-coordinator
 rigChildRunIn rig-child-owned   rig-duty-session  magic-coordinator
@@ -187,6 +192,17 @@ rigAssert "the round's run accepts the dispatch it spawned"     "$( cat "$rigTmp
 rigVerdict "$rigTmp/c9" --accept-review --team-member magic-coordinator task-rig-duty-other
 rigAssert "a rung in another live session still comes first"    "$( cat "$rigTmp/c9.rc" ):$( rigLoc task-rig-duty-other )" 1:review
 rigEnv=()
+
+echo "-- 4. the person is the top rung: his own item never takes the duty's verdict --"
+rigVerdict "$rigTmp/c10" --accept-review --team-member magic-coordinator task-rig-person-rung
+rigAssert "the duty gives no verdict on his item"                "$( cat "$rigTmp/c10.rc" ):$( rigLoc task-rig-person-rung )" 1:review
+rigVerdict "$rigTmp/c11" --reject-review --team-member magic-coordinator task-rig-person-rung --message "not its call"
+rigAssert "and his rung holds a reject too"                      "$( cat "$rigTmp/c11.rc" ):$( rigLoc task-rig-person-rung )" 1:review
+rigVerdict "$rigTmp/c12" --return-review --team-member magic-coordinator task-rig-person-rung --message "not its call"
+rigAssert "and a return waits for him as well"                   "$( cat "$rigTmp/c12.rc" ):$( rigLoc task-rig-person-rung )" 1:review
+rigEnv=()
+rigVerdict "$rigTmp/c13" --accept-review --team-member human-owner task-rig-person-rung
+rigAssert "his own verdict still lands"                          "$( cat "$rigTmp/c13.rc" ):$( rigLoc task-rig-person-rung )" 0:processed
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ REVIEW CLIMB CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -184,16 +184,19 @@ rigOneRun(){ ## name of its output files -- one iteration of the real loop
 		' > "$rigDir/$1.out" 2> "$rigDir/$1.err" < /dev/null
 	rigOneRc=$?
 }
-rigWaitStarts(){ ## -- until the starts the loop made in the background have ended (at most 200 seconds)
-	local waitLeft=1000
+## A CHECK'S OWN BOUNDS MUST SUM UNDER THE RUNNER'S 900 s TEST LIMIT: these two were 200 s and 60 s, and four waits of them timed
+## AgentsScheduleLoopCheck out at 900 s on 2026-11-25, so the check never reported on a machine that made its starts slowly.
+rigWaitStarts(){ ## -- until the starts the loop made in the background have ended (at most 30 seconds)
+	local waitLeft=150
 	## A live start is the bare <key> entry (AgentsToolsScheduleSpawn). Its markers -- .rc, .out, .fails, .hold and .escalated -- are records, never a start
 
 	## still going, and waiting on them ran every wait to its bound.
 	while [ -n "$( LC_ALL=C ls "$rigWs/.local/agents/schedule/starting" 2> /dev/null | LC_ALL=C grep -v -e '\.rc$' -e '\.out$' -e '\.fails$' -e '\.hold$' -e '\.escalated$' )" ] && [ "$waitLeft" -gt 0 ] ; do sleep 0.2 ; waitLeft=$(( waitLeft - 1 )) ; done
-	## The record of a start (spawn-started) is closed a moment after the start, by the run that ended (its exit-code is the mark): the loop no longer holds the check for the
-	## time a pass took, so the close is waited for here (at most 60 seconds), or a check that closes a record by hand has it closed again under it.
+	## The record of a start (spawn-started) is closed a moment after the start, by the run that ended (its exit-code is the mark). ONLY THE RECORDS A PASS LEAVES OPEN
+	## ARE WAITED FOR, and only for a moment: a section whose subject IS an open record (the end of a duty) otherwise spent this wait's whole bound on every pass, and the
+	## check's twenty-four passes put it past the runner's own limit (the 2026-11-25 run sat in section 3 for ten minutes).
 	local waitRecord waitOpen
-	waitLeft=300
+	waitLeft=25
 	while [ "$waitLeft" -gt 0 ] ; do
 		waitOpen=""
 		for waitRecord in $( LC_ALL=C grep -l '^status: spawn-started$' "$rigSp"/*/*.spawn.md 2> /dev/null ) ; do

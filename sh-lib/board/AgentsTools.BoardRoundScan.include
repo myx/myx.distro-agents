@@ -41,7 +41,7 @@ AgentsToolsBoardRoundSections(){ ## calling member, the operation the scan is ca
 	## THE ITEMS ARE LISTED BY THE HEADERS A ROUND DECIDES ON, each cut at 300 characters (MDAT_SCAN_HEADER_CAP): the whole frontmatter of every item, status histories
 	## included, was 365 KB a round on a board of 200 items, and a duty reads all of it before it acts. An item's whole text is one --get-board-item away.
 	MDAT_SCAN_HEADER_CAP=300 DistroAgentsTools --intern-op-session-context-scan "$1" \
-		--state pending --state running --state review --state blocked --state parked \
+		--state ${agentsBoardActiveStates// / --state } \
 		--header type --header owner --header mark --header participants --header approved-by --header condition --header recheck-date --header last-round-at \
 		--header outcome --header execution-receipt --header handler-routine --header restart-session --header epic --header blocked-by --header session-id --header started-at --header status \
 		--all-types \

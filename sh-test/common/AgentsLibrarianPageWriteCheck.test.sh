@@ -4,9 +4,9 @@
 ## magic-librarian's, the Jira state writes (transition, update, comment) are any member's, and the rest of the coordinator's list stays the
 ## coordinator's. The checks the dispatcher asks, AgentsToolsMagicCallerCheck, run through a stand-in .fn.sh of this rig.
 ## Held:
-##   1. magic-librarian passes for the page writes: page create, page update, page move and comment add, and for the Trello comment.
-##   2. any member passes for the Jira state writes: issue transition, issue update and comment add.
-##   3. CONTROLS: another member is refused a page write. magic-librarian is refused a page delete, a space create and a Jira issue create.
+##   1. magic-librarian passes for the page writes: page create, page update, page move, comment add and comment resolve, and for the Trello comment.
+##   2. any member passes for the Jira writes of an item it moves: issue create, issue link-page, issue transition, issue update and comment add.
+##   3. CONTROLS: another member is refused a page write. magic-librarian is refused a page delete, a space create, a Jira issue delete and a project delete.
 ##   4. the console and magic-coordinator pass for every one of them.
 ## Offline: a rig workspace and member set of this check's own; no operation of the tooling acts.
 set -u
@@ -48,11 +48,11 @@ rigRows(){ ## member, want rc, operations... -- one assert for the whole row
 	for rowOp in "$@" ; do rowGot="$rowGot$( rigAsRc "$rowWho" "$rowOp" )" ; done
 	rigAssert "$rowWho is $( [ "$rowWant" = 0 ] && echo passed || echo refused ) for $*" "$rowGot" "$( printf '%*s' "$#" '' | tr ' ' "$rowWant" )"
 }
-rigRows magic-librarian 0 confluence-page-create confluence-page-update confluence-page-move confluence-comment-add trello-post-comment
-rigRows keeper-myx 0 jira-issue-transition jira-issue-update jira-comment-add
-rigRows magic-librarian 0 jira-issue-transition jira-issue-update jira-comment-add
-rigRows keeper-myx 1 confluence-page-create confluence-page-update confluence-page-move confluence-comment-add trello-post-comment
-rigRows magic-librarian 1 confluence-page-delete confluence-space-create jira-issue-create jira-issue-delete
+rigRows magic-librarian 0 confluence-page-create confluence-page-update confluence-page-move confluence-comment-add confluence-comment-resolve trello-post-comment
+rigRows keeper-myx 0 jira-issue-create jira-issue-transition jira-issue-update jira-comment-add jira-issue-link-page
+rigRows magic-librarian 0 jira-issue-create jira-issue-transition jira-issue-update jira-comment-add jira-issue-link-page
+rigRows keeper-myx 1 confluence-page-create confluence-page-update confluence-page-move confluence-comment-add confluence-comment-resolve trello-post-comment
+rigRows magic-librarian 1 confluence-page-delete confluence-space-create jira-issue-delete jira-project-delete
 rigRows magic-coordinator 0 confluence-page-create confluence-page-update confluence-page-delete jira-issue-create jira-issue-transition
 rigRows console 0 confluence-page-update confluence-page-delete jira-issue-create jira-issue-transition
 printf '%s: %s passed, %s failed\n' "${0##*/}" "$rigPassCount" "$rigFailCount"

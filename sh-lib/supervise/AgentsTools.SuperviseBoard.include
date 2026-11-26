@@ -126,7 +126,7 @@ AgentsToolsSuperviseBoard(){ ## workspace path, now (epoch)
 			fence == 1 && index( $0, "tracks: " ) == 1 { t = substr( $0, 9 ) ; sub( / .*/, "", t ) ; sub( /\.md$/, "", t ) ; if ( substr( id, 1, 8 ) in live ) print t ; nextfile ; }
 		' - "${boardItems[@]}" 2> /dev/null )"$'\n'
 		## WORKED BY ITS OWNER'S DUTY: a live duty run works its owner's running tasks in its board round, so a running task whose
-		## owner holds a live duty run on this rig is not idle. The duty routines are one list, agentsDutyRoutineKinds; the owners
+		## owner holds a live duty run on this rig and that changed in the last 45 minutes is not idle. A task untouched for longer is idle. The duty routines are one list, agentsDutyRoutineKinds; the owners
 		## are read in one awk over the running tasks' headers.
 		type AgentsToolsDutyRoutineIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.DutyRoutine.include" || return 1
 		local boardDutyOwners boardOwners="" boardOwner
@@ -145,7 +145,7 @@ AgentsToolsSuperviseBoard(){ ## workspace path, now (epoch)
 			case "$boardTracked" in *$'\n'"$boardKey"$'\n'*) continue ;; esac
 			case "$boardOwners" in
 				*$'\n'"$boardKey "*) boardOwner="${boardOwners#*$'\n'"$boardKey "}" ; boardOwner="${boardOwner%%$'\n'*}"
-					case "$boardDutyOwners" in *$'\n'"$boardOwner"$'\n'*) continue ;; esac ;;
+					case "$boardDutyOwners" in *$'\n'"$boardOwner"$'\n'*) [ -n "$( LC_ALL=C find "$boardItem" -mmin +45 2> /dev/null )" ] || continue ;; esac ;;
 			esac
 			printf '%s\n' "$boardRecords" | LC_ALL=C awk -F'\t' -v k="Board item $boardKey" '$5 == "spawn-started" && index( $8, k ) { found = 1 ; exit ; } END { exit ! found ; }' \
 				|| printf 'running-idle %s %s\n' "$boardWsName" "$boardKey"

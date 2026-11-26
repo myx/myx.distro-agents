@@ -290,9 +290,62 @@ AgentsHarnessContextResumeRoots(){ ## the kept system text and first records, as
 ## Loads MDAT_HARNESS_RESUME_CONTEXT in place of AgentsWireInitMessages, then appends the
 ## corrections. rc 1, with the reason on stderr, when it is not this run's to continue:
 ## another model, service, API host, wire or machine, or a file that does not parse.
+## STRICT JSON AT THE DOOR (measured 2026-11-25): a tool record can pass this file's own validator and still be
+## rejected by the provider -- "messages[26]: expected value at line 47 column 246268", request 2ebc679f -- and a
+## resumed session then dies in one second and can never come back. Every line is parsed strictly here, and a line that
+## fails is replaced by a short note record, so the request body is always valid JSON and the resume goes on.
+AgentsHarnessContextRepair(){ ## file -- rc 0 always; a NOTE on stderr for each line it replaced
+	python3 - "$1" <<'PY' || :
+import json,sys
+path=sys.argv[1]
+lines=open(path,encoding='utf-8',errors='replace').read().split('\n')
+if lines and lines[-1]=='' : lines=lines[:-1]
+out=[]; bad=0
+for line in lines:
+    try:
+        json.loads(line); out.append(line); continue
+    except Exception:
+        bad+=1
+        try: head=json.loads(line.split(',"record"')[0]+'}')
+        except Exception: head=None
+        note='[record dropped at resume: it failed strict JSON validation]'
+        if isinstance(head,dict) and head.get('type')=='message':
+            head.pop('record',None); head.pop('record_text',None)
+            head['record']={'role':'user','content':note}
+            out.append(json.dumps(head,ensure_ascii=False,separators=(',',':')))
+        else:
+            out.append(json.dumps({'type':'message','kind':'assistant','record':{'role':'user','content':note}},ensure_ascii=False,separators=(',',':')))
+## A FILE THAT MIXED TWO WRITERS OR TWO ERAS numbers its messages twice over and loads nowhere (the header's own
+## warning): the order is the conversation, so the numbers are re-cut in that order here, 1 to N, and the file resumes.
+numbers=[]
+for line in out:
+    try: obj=json.loads(line)
+    except Exception: continue
+    if obj.get('type')=='message':
+        try: numbers.append(int(obj.get('n')))
+        except Exception: numbers.append(-1)
+renumber = numbers != list(range(1,len(numbers)+1))
+if renumber:
+    index=0
+    for at,line in enumerate(out):
+        try: obj=json.loads(line)
+        except Exception: continue
+        if obj.get('type')!='message': continue
+        index+=1
+        obj['n']=index
+        out[at]=json.dumps(obj,ensure_ascii=False,separators=(',',':'))
+if bad or renumber:
+    open(path,'w',encoding='utf-8').write('\n'.join(out)+'\n')
+    if bad: sys.stderr.write('NOTE: %d record(s) of the kept context failed strict JSON and were replaced at resume\n'%bad)
+    if renumber: sys.stderr.write('NOTE: the kept context numbered its messages out of order across eras; they were re-cut 1 to %d at resume\n'%index)
+PY
+	return 0
+}
+
 AgentsHarnessContextResume(){
 	local resumeFile="$MDAT_HARNESS_RESUME_CONTEXT" resumeCount resumeIndex=1 resumeDir resumeWhy="" resumeSystem resumeTools resumeKey resumeTask resumeRoots resumeCallId resumeCallIds resumeAnswered resumeWriter
 	type AgentsToolsRunProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
+	[ ! -s "$resumeFile" ] || AgentsHarnessContextRepair "$resumeFile" || :
 	if [ ! -s "$resumeFile" ] ; then
 		resumeWhy="no context file at $resumeFile"
 	elif ! resumeCount="$( LC_ALL=C awk -v mode=validate ${harnessContextAwk[@]+"${harnessContextAwk[@]}"} "$resumeFile" 2>&1 )" ; then

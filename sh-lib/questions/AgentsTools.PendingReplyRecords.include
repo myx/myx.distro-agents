@@ -75,7 +75,7 @@ AgentsToolsPendingReplyOpenAt(){ ## channel, the message's ts
 		function decide() {
 			if ( status == "reply-pending" && channel == wantChannel && ( questionTs == wantTs || revisionTs == wantTs || threadTs == wantTs ) ) { print fileId ; found = 1 ; }
 		}
-		FNR == 1 { if ( found ) { exit ; } fileId = FILENAME ; sub( /^.*\//, "", fileId ) ; sub( /\.md$/, "", fileId ) ; status = "" ; channel = "" ; questionTs = "" ; revisionTs = "" ; threadTs = "" ; stop = 0 ; }
+		FNR == 1 { decide() ; if ( found ) { exit ; } fileId = FILENAME ; sub( /^.*\//, "", fileId ) ; sub( /\.md$/, "", fileId ) ; status = "" ; channel = "" ; questionTs = "" ; revisionTs = "" ; threadTs = "" ; stop = 0 ; }
 		stop { next ; }
 		/^# / { stop = 1 ; next ; }
 		index( $0, "status: " ) == 1 { status = substr( $0, 9 ) ; next ; }

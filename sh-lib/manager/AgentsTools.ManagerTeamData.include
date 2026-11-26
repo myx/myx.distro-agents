@@ -18,6 +18,7 @@
 ## command is run and no registry is touched.
 ##
 
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include"
 type AgentsToolsInboxFolders > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 
@@ -35,10 +36,6 @@ AgentsToolsManagerTeamDataInbox(){ ## member, include processed (yes|no)
 	itemRows="$inboxRows"
 	return 0
 }
-## The folders of the board in the order of their states, as the dashboard counts them;
-## a folder of the board that is none of them comes after them, by its name.
-agentsManagerTeamDataBoardStates="running review blocked pending backlog parked retained processed archived"
-
 ## One field of a row: its whitespace reads `_`, and an empty one `-`, as in a registry.
 AgentsToolsManagerTeamDataField(){ ## text
 	local fieldText="${1//[[:space:]]/_}"
@@ -169,12 +166,12 @@ case "$1" in
 		done
 		if [ "$readStore" = "board" ] ; then
 			local readStates=""
-			for readName in $agentsManagerTeamDataBoardStates ; do
+			for readName in $agentsBoardDisplayStates ; do
 				case $'\n'"$readFolders" in
 					*$'\n'"$readName"$'\n'*) readStates="$readStates$readName"$'\n' ;;
 				esac
 			done
-			readFolders="$readStates$( printf '%s' "$readFolders" | LC_ALL=C sort | { LC_ALL=C grep -v -x -F -e "${agentsManagerTeamDataBoardStates// /$'\n'}" || : ; } )"
+			readFolders="$readStates$( printf '%s' "$readFolders" | LC_ALL=C sort | { LC_ALL=C grep -v -x -F -e "${agentsBoardDisplayStates// /$'\n'}" || : ; } )"
 		elif [ "$readStore" = "audit" ] ; then
 			readFolders="$( printf '%s' "$readFolders" | LC_ALL=C sort -r )"
 		else

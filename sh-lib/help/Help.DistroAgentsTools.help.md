@@ -40,6 +40,7 @@
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-update [--team-member <team-member>] <page-id> (--version <n>|--if-version <n>) --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-resolve [--team-member <team-member>] <page-id> <comment-id>
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-delete [--team-member <team-member>] <page-id>
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-move [--team-member <team-member>] <page-id> --parent-id <parent-page-id>
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-space-list [--team-member <team-member>] [--cursor <value>]
@@ -1821,6 +1822,23 @@
 			id on neither leg is refused with 8 and nothing is posted. A
 			parent on another page refuses the reply with 1.
 
+		--confluence-comment-resolve [--team-member <team-member>] <page-id> <comment-id>
+			Resolves one inline comment on that page, and prints the state it is
+			left in: `COMMENT_ID`, `PAGE_ID`, `RESOLUTION_STATUS`, `WROTE`.
+
+			The comment is read first, so the write carries its text as the site
+			holds it and the next version number. A comment the site answers
+			`resolved` already is answered with success and no write, so a second
+			pass is safe. A comment reading `dangling` is refused with 9, because
+			the site will not update one.
+
+			An id the site does not hold, or one this identity may not see, is
+			refused with 8 and nothing is written. A comment on another page is
+			refused with 1, naming both pages.
+
+			A write the read-back does not show is UNKNOWN with 3, never
+			success: read the comment before acting again.
+
 		--confluence-page-delete [--team-member <team-member>] <page-id>
 			Runs only as `magic-coordinator`; any other name, or a
 			missing <team-member>/<page-id>, is refused with 1,
@@ -2457,9 +2475,8 @@
 			one whose stamp changes moves to its folder. Own inbox only: a spawned session naming another
 			member than itself is refused; a call from no spawned
 			session is taken at the name it gives.
-			`<member>` must be a member this machine holds a record of, in the
-			member view of the run or in the machine's members index, wherever
-			that member is set up; `<item-filename>` a bare filename. The inbox is created
+			`<member>` must be a member this machine holds a record of,
+			wherever that member is set up. `<item-filename>` a bare filename. The inbox is created
 			lazily if missing. Content via stdin by default, or
 			`--from-file <path>` -- either overwrites the target
 			outright. `--edit-patch-from-stdin` instead takes a JSON
@@ -2911,7 +2928,7 @@
 			them too), and one more for a spawned member only:
 			`allow-granted-native-tool.sh` allows a native
 			`Read`/`Edit`/`Write`/`MultiEdit`/`NotebookEdit`/`Grep`/
-			`Glob` call its session permission index grants,
+			`Glob` call its session permissions grant,
 			denies a write in a read-only place, and leaves any
 			other call to the client and the `PermissionRequest`
 			hook; it sets `"autoMemoryEnabled": false`,
@@ -2986,12 +3003,10 @@
 			Wires `myx.common` into workspace `.vscode/mcp.json`,
 			workspace-root `.mcp.json`, and Claude Code's home local
 			scope (`~/.claude.json`). Each written entry is verified by
-			re-reading it. Writes `.local/agents/mcp.servers.index`
-			first, from the servers the workspace has installed, and
-			generates every MCP JSON entry (`.local/agents/
+			re-reading it. Generates every MCP JSON entry (`.local/agents/
 			mcp.servers.json`, `.vscode/mcp.json`, `.mcp.json`) from
-			that index; the universal harness reads the index only,
-			never those files.
+			the servers the workspace has installed. The universal
+			harness never reads those files.
 
 			Default target workspace is the current shell directory;
 			`--workspace <path>` overrides it. Fails fast if the target
@@ -3247,9 +3262,8 @@
 			the console's completion gathers, by its own two readers:
 			the `*.fn.sh` of the sh-scripts folder of each installed
 			package of the family, as `Agents --completion-all` lists
-			them, and the commands the projects declare, from the index
-			the workspace holds in .local, as
-			`Distro --shell-path-append --completion` reads it. A name
+			them, and the commands the projects declare, as
+			`Distro --shell-path-append --completion` reads them. A name
 			is listed once, in the order of `sort -u`. Its file is the
 			one the shell finds for it (`command -v`) on the console's
 			folders alone, in the order of a console's PATH: the
@@ -4222,9 +4236,8 @@
 			One of the console's own operations (see Notes). Lists the
 			routines the members carry: every `*.routine.md` file of
 			every member's folder, those of a member of another workspace
-			of this machine among them. No registry and no index holds
-			the routines, so it reads the files at each call; it writes
-			nothing. Prints rows of TAB-separated fields on stdout, the
+			of this machine among them. It reads the files at each
+			call and writes nothing. Prints rows of TAB-separated fields on stdout, the
 			first naming the row. An absent value reads `-`, and a
 			value's own whitespace reads `_`.
 			`routine <selector> <owner> <start> <executors> <session> <arguments> <title> <reason> <needs> <state> <last-run> <auto> <runs-at> <runs-after> <valid> <would>`
@@ -4401,9 +4414,8 @@
 			runs of this workspace summed by one key: it calls the Dispatcher's
 			`--token-stats` with these arguments, as they come, and prints
 			what it prints, with its status. It has no logic of its own and
-			writes nothing but what the Dispatcher's reader does, which
-			brings its index of the runs (`.local/agents/stats`) up to date
-			first. `--by` is the key: `day`, `member`, `routine`, `preset`
+			writes nothing but what the Dispatcher's reader does.
+			`--by` is the key: `day`, `member`, `routine`, `preset`
 			or `credential`, and `--since` and `--until` (a day,
 			YYYY-MM-DD) and the other four narrow the runs it sums. One
 			row a key, TAB-separated, on stdout, ordered by key:
@@ -4717,9 +4729,8 @@
 		--manager-session-list [--active]
 			One of the console's own operations (see Notes). Lists the
 			coworking sessions run from this workspace, each with its runs.
-			It rebuilds the registries `spawned-sessions` and
-			`pending-replies` first and measures which runs are alive, in
-			the same call, and writes nothing else. Prints rows of
+			It measures which runs are alive, in
+			the same call. Prints rows of
 			TAB-separated fields on stdout, the first naming the row. An
 			absent value reads `-`, and a value's own whitespace reads `_`,
 			as in a registry: a date reads `2026-10-12_16:57_+0300`.
@@ -4749,7 +4760,7 @@
 			`waiting`, `parked`, `unclosed`,
 			`failed`, `finished`: `thinking=1,waiting=1,finished=2`. <session-state> and <session-state-at>
 			are the state the control thread of the session stored for it
-			and when, as `spawned-sessions` holds them after this rebuild:
+			and when:
 			`-` for a session that has none. That state stands beside
 			<state>, which is derived at this call, and where the two
 			differ each is shown as it is. <control-thread> is measured at
@@ -4896,8 +4907,7 @@
 			one run did, or every run of one coworking session: the
 			lines the tracking thread of the session shows, read from
 			where they last, each run's transcript. <id> and `--run` are
-			those of --manager-session-read, and so are the registries
-			it reads and when it rebuilds one. It reads the transcripts
+			those of --manager-session-read. It reads the transcripts
 			and the session logs of that one session, never another's,
 			and writes nothing else. Prints rows of TAB-separated fields
 			on stdout, the first naming the row. An absent value reads
@@ -5546,8 +5556,7 @@
 			follow, which are read from the workspace it is set up in:
 			each by its name alone, its <state> `elsewhere` and its
 			<value> `-`. <workspace> names the workspace whose scope
-			holds the key. The grants index is brought up to date where
-			it is stale; nothing else is written but the registries.
+			holds the key.
 			Exit 1, nothing printed, for a name that is no member, a
 			member whose workspace cannot be reached, or a part that
 			cannot be read.
@@ -6430,21 +6439,15 @@
 			such a session with no end recorded, which is not measured.
 			`other-host`, `host-unrecorded` and `no-session-id`: asked
 			on another host, or the record does not say where or by
-			whom. `not-measured`: this read measured nothing for it, as
-			when the registry could not be rebuilt.
+			whom. `not-measured`: this read measured nothing for it.
 			The session-id of a record is the id of the run that asked,
 			never of the coworking session that run joined, and the
 			asker is matched by it. The read only says so: it closes,
 			withdraws and asks again nothing.
-			A list first rebuilds the pending-replies registry, by the
-			rebuild `--make-harness-indices pending-replies` makes, so
-			that file is current after any list. One record by its
-			<pending-id> rebuilds nothing.
 			`--count` prints only the number of the records the list
 			would show, by the same store and the same test of what is
 			open, `--all` and `--any-owner` widening it as they widen
-			the list, and renders no record: it rebuilds no registry and
-			measures no asker. It takes no <pending-id>. The console
+			the list, and renders no record: it measures no asker. It takes no <pending-id>. The console
 			asks it for the number beside Pending Questions.
 			One record by its <pending-id> prints those same lines, then
 			the whole of what the stores hold of that ask, from
@@ -7779,8 +7782,7 @@
 			run on now, or every test registered `--nightly yes`. Only a test whose
 			script is below a sh-test folder that a testing directive names
 			(`magic-team:testing:<project-glob>:<sh-test-path>:<host-glob>` in a
-			project.inf of the workspace, the directive `--make-agents-indices` reads
-			for magic-tester's write) is eligible: a folder no directive names is not,
+			project.inf of the workspace) is eligible: a folder no directive names is not,
 			and where none is named no test is. Nothing is put in
 			the queue, and it is said, where every test has passed or none is eligible;
 			a testbed with no test is refused. With `--wait` the call stays until the

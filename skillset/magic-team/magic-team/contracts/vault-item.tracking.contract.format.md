@@ -49,7 +49,7 @@ Its middle is the run's own. A planning document knows its sections in advance, 
 - `HH:MM ±HHMM` — a clock time with its numeric offset, where a heading or a line stamps one moment of the run.
 - `item-id` — the id an item carries where its epic or plan names it, such as `S12.30` or `Q4`.
 - `member` — one team member name, or `human-owner`.
-- `path` — a file path in backticks, relative to its tree or absolute.
+- `path` — a file path in backticks, relative to its tree or written as `<place>:<path>`.
 
 ## Body
 

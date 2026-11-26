@@ -13,6 +13,7 @@
 ## and again: the duty that looked at it is the last start.
 ##
 
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 
 ## The rows of the external owners' items, one a line: `<folder>/<item file> TAB <owner> TAB <recheck-date> TAB <why>`, `why` being `recheck-passed`,
@@ -25,7 +26,7 @@ AgentsToolsExternalOwnerRows(){ ## due|all
 	local extInbox=() extOne
 	AgentsToolsInboxFilesInto extInbox magic-coordinator no
 	for extOne in ${extInbox[@]+"${extInbox[@]}"} ; do extFiles+=( "$extOne" ) ; done
-	for extState in backlog pending running review blocked parked ; do
+	for extState in $agentsBoardOpenStates ; do
 		type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" ; local extFileItems ; AgentsToolsBoardItemsInto extFileItems "" "$extState"
 		for extFile in ${extFileItems[@]+"${extFileItems[@]}"} ; do [ -f "$extFile" ] && extFiles+=( "$extFile" ) ; done
 	done

@@ -56,10 +56,6 @@ agentsManagerDashboardSizeSeconds=600
 ## For how long the git state of the team data is kept, in seconds. Its panel is printed only where it is asked for by its name (the list of panels says so).
 agentsManagerDashboardGitSeconds=30
 
-## The states of the board in the order their counts are printed; a folder of the board
-## that is none of them follows, in the order of its name.
-agentsManagerDashboardBoardStates="running review blocked pending backlog parked retained processed archived"
-
 ## THE SESSIONS OF THIS WORKSPACE, AS THE LIST OF SESSIONS PRINTS THEM, with no registry
 ## rebuilt: its `session`, `run` and `counters` rows, by the list's own awk, from the
 ## registry of the sessions as it lies, each row measured now by the one rule
@@ -480,7 +476,7 @@ AgentsToolsManagerDashboardTeamData(){
 	AgentsToolsManagerDashboardStores "$dataRoot"
 	[ -d "$dataRoot/board" ] || return 0
 	type AgentsToolsBoardStateCounts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include"
-	dataCounts="$( AgentsToolsBoardStateCounts $agentsManagerDashboardBoardStates )"
+	dataCounts="$( AgentsToolsBoardStateCounts $agentsBoardDisplayStates )"
 	[ -n "$dataCounts" ] || return 0
 	## The label of a state is its words, capitalised, after `Board Items`.
 	while read -r dataState dataCount dataLabel ; do

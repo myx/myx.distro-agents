@@ -9,6 +9,7 @@
 ## dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 case "$1" in
 
 	--intern-op-routine-coworking-session-input-scan)
@@ -61,7 +62,7 @@ case "$1" in
 			scanNote="## no tracking document was named: this scan covers the session's own inbox only"
 		fi
 
-		local allStates=( backlog pending running review blocked parked processed archived retained )
+		local allStates=( $agentsBoardStates )
 		local phaseAArgs=() s n
 
 		if [ "$scanHasDocument" = "true" ] ; then

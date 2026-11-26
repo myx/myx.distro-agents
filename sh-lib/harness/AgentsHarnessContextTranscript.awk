@@ -191,7 +191,11 @@ function ctxRenderTool(headText, tsText, recordText,   toolName, callId, durMs, 
 		if (ctxLine == 3 && jfLeaf["type"] != "tools") { ctxBad = "line 3 is not the tools reference" ; next ; }
 		if (ctxLine <= 3) next
 		if (jfLeaf["type"] != "message") { ctxBad = "line " ctxLine " is not a message" ; next ; }
-		if (jfLeaf["n"] + 0 != ctxMessages + 1) { ctxBad = "line " ctxLine " is message " jfLeaf["n"] ", expected " (ctxMessages + 1) ; next ; }
+		## A KEPT CONTEXT MAY RESUME WITH A GAP: the counter continues from the context the run resumed, so a file holding
+		## messages 1 to 26 and then 403 to 405 is a valid conversation (measured on the camunda-7 run, 2026-11-25, whose
+		## restart dropped its whole history over exactly this). Disorder and a repeat are still refused.
+		if (jfLeaf["n"] + 0 <= ctxLastN) { ctxBad = "line " ctxLine " is message " jfLeaf["n"] ", after message " ctxLastN ; next ; }
+		ctxLastN = jfLeaf["n"] + 0
 		if (!(("record") in jfLeafSeen) && !(("record_text") in jfLeafSeen) && index($0, ",\"record\":") == 0) { ctxBad = "line " ctxLine " carries no record" ; next }
 		ctxMessages++
 		next

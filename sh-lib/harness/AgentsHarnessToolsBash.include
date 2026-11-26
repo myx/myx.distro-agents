@@ -258,7 +258,15 @@ AgentsHarnessProcessLeftoversEnd(){ ## session
 		leftoverBegan=""
 		{ IFS= read -r leftoverBegan < "$leftoverDir/$leftoverHandle.began" ; } 2> /dev/null || leftoverBegan=""
 		[ -n "$leftoverBegan" ] || continue
-		[ "$( printf '%s\n' "$leftoverPid" | AgentsToolsRunProcessesBegan 2> /dev/null )" = "$leftoverBegan" ] || continue
+		if [ "$( printf '%s\n' "$leftoverPid" | AgentsToolsRunProcessesBegan 2> /dev/null )" != "$leftoverBegan" ] ; then
+			## THE PROCESS IS GONE, so the record is history and is marked closed here: left open it was read again at every pass, 2,308 process
+			## lookups to a schedule pass (76 s of it, measured 2026-11-25), and the store never shrank.
+			leftoverOut=0 ; leftoverErr=0
+			[ ! -f "$leftoverDir/$leftoverHandle.out" ] || leftoverOut="$( wc -c < "$leftoverDir/$leftoverHandle.out" 2> /dev/null | LC_ALL=C tr -d ' ' )"
+			[ ! -f "$leftoverDir/$leftoverHandle.err" ] || leftoverErr="$( wc -c < "$leftoverDir/$leftoverHandle.err" 2> /dev/null | LC_ALL=C tr -d ' ' )"
+			{ printf 'out %s\nerr %s\n' "${leftoverOut:-0}" "${leftoverErr:-0}" > "$leftoverDir/$leftoverHandle.closed" ; } 2> /dev/null || :
+			continue
+		fi
 		## A detached start leads a group of its own, so the group is signalled first: a command that started children takes them with it. The pid follows,
 		## for a process a check started without a group of its own.
 		kill -TERM -- "-$leftoverPid" 2> /dev/null || :
@@ -625,6 +633,40 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 		printf 'ERROR: the command scans a whole tree (%s), which costs every other call on this machine its pace for minutes: a workspace holds about 1300 folders and 900 projects. Name the one folder the task needs (a project folder, one session or store entry), read the registries the tooling keeps (--spawns, --tasks, the member index), or ask the owner of that store for a read operation. Nothing was started.\n' "$harnessScanWide"
 		return 0
 	fi
+	## NO GIT, AND NO INDEX OR CACHE FOLDER, IN A COMMAND: the tools own both. A repository is pulled and published by the workspace
+	## palette tasks and edited by hand after the pull, and an index is brought current by the ingest task. A command that runs `git`
+	## (the command word after the wrappers, quoted strings and comments aside) or names `.local/system-index`, `.local/output-cache`
+	## or `.local/source-cache` is refused before anything runs. A Bash grant on the folder opens it, for a task that fixes the tools.
+	case "$toolCommand" in
+		*git*)
+			toolGitText="${toolCommand//[;&|(\`]/$'\n'}" toolGitFound=""
+			while : ; do case "$toolGitText" in *\'*\'*) toolGitText="${toolGitText%%\'*}_Q_${toolGitText#*\'*\'}" ;; *) break ;; esac ; done
+			set -f
+			while IFS= read -r toolGitLine ; do
+				for toolGitWord in $toolGitLine ; do
+					case "$toolGitWord" in then|do|else|exec|sudo|xargs|nohup|command|builtin|time|env|[A-Za-z_]*=*) continue ;; esac
+					case "${toolGitWord##*/}" in git) toolGitFound=1 ;; esac
+					break
+				done
+				[ -z "$toolGitFound" ] || break
+			done <<< "$toolGitText"
+			set +f
+			if [ -n "$toolGitFound" ] ; then
+				printf 'ERROR: the command runs git, which a member never does. Pull and publish a repository with the workspace palette tasks DistroImageSync --execute-source-prepare-pull and --execute-source-process-push, and edit a file by hand after the pull. Nothing was run.\n'
+				return 0
+			fi
+		;;
+	esac
+	for toolRefusedFolder in system-index output-cache source-cache ; do
+		case "$toolCommand" in
+			*".local/$toolRefusedFolder"*)
+				if ! AgentsHarnessGranted Bash "${MMDAPP%/}/.local/$toolRefusedFolder" ; then
+					printf 'ERROR: the command names an index or cache folder (.local/%s), which belongs to the tools. A member never reads, measures, edits or rebuilds it. Run the workspace task "Ingest Source Changes". For a value that still reads old afterwards, run the workspace task "Re-Build Source Index Snapshot (cached from source)". Nothing was run.\n' "$toolRefusedFolder"
+					return 0
+				fi
+			;;
+		esac
+	done
 	## THE STALE TREE IS NEVER READ OR WRITTEN (AgentsHarnessStaleTree, AgentsHarnessAccess.include), where the workspace does not run
 	## from `.local`. An ABSOLUTE path of this workspace's `.local/myx/` is run on the tree the workspace does run from,
 	## `$MDLT_ORIGIN/myx/`, the same path below it, and a line says so: the member learnt it from a link of the stale copy, so the

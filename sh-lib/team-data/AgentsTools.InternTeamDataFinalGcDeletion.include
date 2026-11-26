@@ -191,7 +191,7 @@ AgentsToolsFinalGcDependedNames(){
 	local boardRoot="$1"
 	local depState depFile depFiles=()
 	gcDependedNames="$LF$LF"
-	for depState in backlog pending running review blocked parked archived ; do
+	for depState in $agentsBoardLiveStates ; do
 		for depFile in "$boardRoot/$depState"/*.md ; do
 			[ -f "$depFile" ] && depFiles+=( "$depFile" )
 		done

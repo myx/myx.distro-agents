@@ -2,7 +2,7 @@
 📘 syntax: DistroAgentsTesting.fn.sh --retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]
 📘 syntax: DistroAgentsTesting.fn.sh --retest-drain [--rest [--about <scratch-folder>]]
 📘 syntax: DistroAgentsTesting.fn.sh --retest-result <request-id>...
-📘 syntax: DistroAgentsTesting.fn.sh --apply-tool <mark|level|plan|apply> [--repository <repository-path>] [--scratch <scratch-path>] [mark: <package>/<relative-path>...]
+📘 syntax: DistroAgentsTesting.fn.sh --apply-tool <mark|level|plan|apply> [--repository <repository-path>] [--scratch <scratch-path>] [mark: <namespace>/<package>/<relative-path>...]
 📘 syntax: DistroAgentsTesting.fn.sh --test-register [--team-member <team-member>] <test-id> --project <p> --script <path> [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
 📘 syntax: DistroAgentsTesting.fn.sh --test-register [--team-member <team-member>] --from-folder <dir> --project <p> [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
 📘 syntax: DistroAgentsTesting.fn.sh --test-update [--team-member <team-member>] <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
@@ -77,7 +77,7 @@
 			routine whose executors is any of those, so the pair would start
 			nothing.
 
-		--apply-tool <mark|level|plan|apply> [--repository <repository-path>] [--scratch <scratch-path>] [mark: <package>/<relative-path>...]
+		--apply-tool <mark|level|plan|apply> [--repository <repository-path>] [--scratch <scratch-path>] [mark: <namespace>/<package>/<relative-path>...]
 			The four beats of applying a lane's work to a repository, all of it under
 			`.local/temp/live-apply.lock`: mark records a file's base, level brings
 			the scratch packages level with live, plan is the dry run, and apply
@@ -95,6 +95,10 @@
 			A marked file that live no longer holds reads GONE on live, in level,
 			plan and apply. A path outside packages.txt, with a `.` or `..` part, a
 			blank or a symlink on live, and a case-only rename on macOS, are refused.
+			Every listed path and every packages.txt row carries its namespace:
+			`<namespace>/<package>/<relative-path>`, and `<namespace>/<package>`.
+			The scratch holds `source/<namespace>/<package>/...` and its base tree
+			`base/<namespace>/<package>/...`, so a change in any namespace applies.
 			Each step is added to `applied-steps.txt` in the scratch before it is
 			made, tagged with a checksum of this work's order and lists. An apply
 			that stopped is run again and skips a step of the same work that is

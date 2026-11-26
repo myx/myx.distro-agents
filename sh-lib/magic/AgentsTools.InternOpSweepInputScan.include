@@ -2,6 +2,7 @@
 # ^^^ for syntax checking in the editor only
 
 ## AgentsTools.InternOpSweepInputScan.include -- the operation `--intern-op-sweep-input-scan`, sourced by AgentsTools.MagicSweep.include with the operation's arguments.
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 		shift
 		local callingMember="$1"
 		shift || true
@@ -39,7 +40,7 @@
 		local phaseAOutput
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
-			--state backlog --state pending --state running --state review --state blocked \
+			--state ${agentsBoardAwaitingStates// / --state } \
 			--header communication-channel-id \
 			--all-types \
 			--no-slack --no-email --no-trello \
@@ -108,7 +109,7 @@
 
 		local commsArgs=( --do-all --do-slack-tags ${commsCutoffArgs[@]+"${commsCutoffArgs[@]}"} ${sourceFloorArgs[@]+"${sourceFloorArgs[@]}"} )
 
-		local phaseBArgs=( --state backlog --state pending --state running --state review --state blocked ) n
+		local phaseBArgs=( --state ${agentsBoardAwaitingStates// / --state } ) n
 		while IFS= read -r n ; do
 			if [ -n "$n" ] ; then phaseBArgs+=( --item "$n" ) ; fi
 		done < <( sort -u <<< "$survivorNames" )

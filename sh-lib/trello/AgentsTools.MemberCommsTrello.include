@@ -127,6 +127,7 @@ case "$1" in
 		## member too: what such a member holds for this system is the other organisation's.
 		--trello-check|--trello-read|--trello-whoami)
 			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
+			type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
 			## A stub whose implementation is an in-context helper calls it by name.
 			case "$1" in

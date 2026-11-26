@@ -230,7 +230,7 @@ AgentsToolsSlackTsNewerThan(){
 ## probes, and it filled 73 GB. So the caller makes both files with mktemp and this function
 ## only ever writes to them.
 AgentsToolsSlackReadBounded(){ ## output file, error file, then the command and its arguments
-	local boundOut="$1" boundErr="$2" boundPid boundStart="$SECONDS" boundCaller boundNow boundRc=0
+	local boundOut="$1" boundErr="$2" boundPid boundStart="$SECONDS" boundCaller boundNow boundRc=0 boundRound=0
 	shift 2
 	## $PPID is this shell's parent as bash recorded it at start, and a subshell inherits
 	## it, so the read would never see it change. ps reads the real parent now.
@@ -250,7 +250,9 @@ AgentsToolsSlackReadBounded(){ ## output file, error file, then the command and 
 	boundPid=$!
 	while kill -0 "$boundPid" 2> /dev/null ; do
 		boundNow="$boundCaller"
-		[ -z "$boundCaller" ] || boundNow="$( ps -o ppid= -p $$ 2> /dev/null | LC_ALL=C tr -d ' ' )"
+		## The look is a process, a pipe and a capture: once every fifth poll is soon enough for a caller that has gone.
+		boundRound=$(( boundRound + 1 ))
+		[ -z "$boundCaller" ] || [ $(( boundRound % 5 )) -ne 0 ] || boundNow="$( ps -o ppid= -p $$ 2> /dev/null | LC_ALL=C tr -d ' ' )"
 		if [ "$boundNow" != "$boundCaller" ] ; then
 			{ kill -TERM "$boundPid" 2> /dev/null ; sleep 1 ; kill -KILL "$boundPid" 2> /dev/null ; wait "$boundPid" 2> /dev/null ; } 2> /dev/null
 			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: a Slack read was ended because the process that asked for it has gone, so its answer had nobody to reach. Nothing was read." >&2

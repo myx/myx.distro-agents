@@ -322,8 +322,8 @@ case "$1" in
 		## MODEL CALLS CLEARED IS NO HOLD (task-20261122T1850Z): `met:` and `none:` clear the wait, and only
 		## the text the one test calls unmet refuses the close. The include holding that test is sourced at
 		## the top of this file.
-		case "$toState" in
-			processed|archived|retained)
+		case " $agentsBoardConcludedStates " in
+			*" $toState "*)
 				## An item already closed and only being filed by housekeeping is no close of a live item.
 				if [ "$isCreate" != "true" ] && [ "$fromState" != "processed" ] ; then
 					local closeCondition=""
@@ -534,6 +534,15 @@ case "$1" in
 		## The waits of the workspace are poked, so one that naps long still reads the move at once (AgentsToolsWakePoke).
 		type AgentsHookFire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Hook.include"
 		AgentsHookFire store-changed wake
+
+		## THE JIRA MIRROR IS THIS STEP (AgentsTools.BoardJiraReflect.include): a real move or a create, never a same-state
+		## edit, reflects the item's new state on its issue, and creates the issue where the site holds none. It runs after
+		## the board write and the commit, and it never fails them.
+		if [ "$isCreate" = "true" ] || [ "$sourcePath" != "$targetPath" ] ; then
+			type AgentsToolsBoardJiraReflect > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.BoardJiraReflect.include"
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
+			AgentsToolsBoardJiraReflect "$( AgentsToolsActingMember )" "$itemName" "$toState" "$( [ "$isCreate" != "true" ] || printf create )"
+		fi
 
 		return 0
 	;;

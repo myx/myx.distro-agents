@@ -73,6 +73,26 @@ rigOp r3 --record-decision --team-member magic-developer "$rigTask" --kind resol
 rigAssert "the line lands"                            "$( [ "$rigRc" -eq 0 ] && echo landed || echo refused )" landed
 rigAssert "with the readback in its source"           "$( rigSection "$rigData/board/running/$rigTask.md" | LC_ALL=C grep -c 'readback rb-his-own' )" 1
 
+## The ask he ANSWERED is his decision too: the help promises "the message or the ask's verdict it
+## came from", and the verdict half was the loop he named as a bug -- a settlement he had already
+## given was read back to him again (task 2026-11-25T2218Z).
+rigVerdict(){ ## pending id, item, question, who answered, the verdict
+	printf -- '---\nstatus: reply-received\nowner: magic-developer\nkind: question\naddress-to: human-owner\nitem: %s\nverdict: %s\nanswered-by: %s\nresolved-at: 2026-10-08 12:40 +0300\n---\n\n# Question asked\n\n%s\n' \
+		"$2" "${5:-yes}" "${4:-URIGOWNER}" "$3" > "$rigTmp/ws/.local/questions/$1.md"
+}
+echo "-- the ask's verdict he answered lands the line, and asks him nothing --"
+rigVerdict q-his-verdict "$rigTask" "Is the rig clause kept?" URIGOWNER yes
+rigPendingBefore="$( ls "$rigTmp/ws/.local/questions" | wc -l | tr -d ' ' )"
+rigOp r5 --record-decision --team-member magic-developer "$rigTask" --kind resolved --text "The rig clause is kept, as he answered." --source q-his-verdict
+rigAssert "the line lands from his verdict"           "$( [ "$rigRc" -eq 0 ] && echo landed || echo refused )" landed
+rigAssert "with his verdict in its source"            "$( rigSection "$rigData/board/running/$rigTask.md" | LC_ALL=C grep -c 'his verdict q-his-verdict' )" 1
+rigAssert "and nothing new was posted at him"         "$( ls "$rigTmp/ws/.local/questions" | wc -l | tr -d ' ' )" "$rigPendingBefore"
+echo "-- control: an ask another member answered is no verdict of his --"
+rigVerdict q-not-his "$rigTask" "Is the rig clause kept?" magic-coordinator yes
+rigOp r6 --record-decision --team-member magic-developer "$rigTask" --kind resolved --text "The rig clause is dropped, he says." --source q-not-his
+rigAssert "it is refused, with no readback named"     "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken )" refused
+rigAssert "and nothing was recorded"                  "$( rigSection "$rigData/board/running/$rigTask.md" | LC_ALL=C grep -c 'The rig clause is dropped' )" 0
+
 echo "-- text that tells no person's decision is untouched --"
 rigConfirmed rb-plain "$rigTask" "The rig scope is the decisions helper only."
 rigOp r4 --record-decision --team-member magic-developer "$rigTask" --kind clarification --text "The rig scope is the decisions helper only." --readback rb-plain

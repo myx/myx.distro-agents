@@ -15,8 +15,6 @@
 ## low-RICE one means. The report is .local/agents/board-dependencies.last, and the work-duty scan prints it (AgentsToolsBoardDependenciesSection).
 ##
 
-agentsBoardDependenciesActive="backlog pending running review blocked parked"
-
 ## The edges and their findings, from the board's items. One row a finding, TAB-separated, sorted:
 ##   FIX<TAB>state<TAB>item<TAB>field<TAB>new value    the item's field is missing the other end of an edge (item names, comma-separated)
 ##   CYCLE<TAB>a -> b -> a                             a cycle of `blocks`
@@ -25,10 +23,11 @@ agentsBoardDependenciesActive="backlog pending running review blocked parked"
 ##   OUTSIDE<TAB>item                                  is in blocked and names no blocker on the board
 ##   UNLINKED<TAB>item                                 is in blocked and records no edge at all, neither `blocks` nor `blocked-by`
 ##   INDEPENDENT<TAB>count                             active items with no edge at all
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 AgentsToolsBoardDependenciesFindings(){
 	local depRoot="$MDAT_DATA_ROOT/board"
 	[ -d "$depRoot" ] || return 0
-	LC_ALL=C awk -v active="$agentsBoardDependenciesActive" '
+	LC_ALL=C awk -v active="$agentsBoardOpenStates" '
 		function trimText(s) { sub(/^[ \t]+/, "", s) ; sub(/[ \t]+$/, "", s) ; return s ; }
 		function bare(s) { s = trimText(s) ; sub(/\.md$/, "", s) ; return s ; }
 		function has(list, one,   n, parts, i) { n = split(list, parts, ",") ; for (i = 1 ; i <= n ; i++) if (bare(parts[i]) == one) return 1 ; return 0 ; }

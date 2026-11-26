@@ -9,6 +9,7 @@
 ##   4. the routine validator accepts a reference that is a file there is, and refuses one no run could read, naming the key
 ##   5. a run whose prefix already carries the member's own reference folder still gets what its routine names from outside
 ##      it, and still drops a file inside it, a deeper one included
+##   6. a member set root that resolves to nothing refuses the line, so a row never passes unread
 ## Offline by construction: no socket, no credential.
 set -u
 : "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
@@ -226,6 +227,19 @@ rigToolStream "$rigDir/res.1" Skill '{"name":"rig-a","file":"reference/rig-ref.m
 rigAssert "a read of it asks once and is answered in one line, and the text stays in the context once" \
 	"$( rigIn "$( rigReq 2 )" "$rigOneLine" ):$( rigCount "$rigDir/req.2" 'RIG-REFERENCE-CRAFT' )" "yes:1"
 
+echo "-- 2b. the default policy, cache-prefix: armed: the reference still arrives --"
+rigScene named-armed "$rigRefLine" 1
+rigRecord magic-team.rigroutine.routine.md armed ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun
+rigAssert "the run ends normally under armed" "$rigRunStatus" 0
+rigAssert "the reference text is in the first message under armed" "$( rigIn "$( rigReq 1 )" 'RIG-REFERENCE-CRAFT' )" yes
+rigAssert "and the routine's own text is not, which is what armed means" "$( rigIn "$( rigReq 1 )" 'rig-own-work' )" no
+
+echo "-- 2c. the control: the same armed policy, naming no reference --"
+rigScene armed-control '' 1
+rigRecord magic-team.rigroutine.routine.md armed ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun
+rigAssert "no reference text, and the armed file still there" \
+	"$( rigIn "$( rigReq 1 )" 'RIG-REFERENCE-CRAFT' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" "no:yes"
+
 echo "-- 3. the control: a routine that names none --"
 rigScene unnamed '' 1
 rigRecord magic-team.rigroutine.routine.md ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun
@@ -269,6 +283,24 @@ rigValidate refslash 'rig-a'
 rigAssert "a line that names no file: refused, naming the key" "$( [ "$rigRc" -ne 0 ] && printf refused || printf passed ):$( rigSaid 'references:' )" "refused:1"
 rigValidate refmissing 'rig-a/reference/no-such-file.md'
 rigAssert "a file that is not there: refused, naming the key" "$( [ "$rigRc" -ne 0 ] && printf refused || printf passed ):$( rigSaid 'references:' )" "refused:1"
+
+echo "-- 6. a member set root that resolves to nothing: the line is refused, never passed unread --"
+## The row of one references line, with the member set root resolved to the value the rig chooses: `<rc>:<what it said>`.
+## The stub stands where the workspace root resolves, so the row is measured against a root of the rig's own making.
+rigRefRoot(){ ## the root it resolves to, references line
+	( cd "$rigWs" && env -i HOME="$rigTmp/home" USER=rigacct PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash -c '
+		rigStubRoot="$1" rigStubRef="$2"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidateRuleSets.include" || exit 1
+		AgentsToolsSkillsetRootInto(){ printf -v "$1" "%s" "$rigStubRoot" ; }
+		rigStubSaid="$( AgentsToolsDocValidateRoutineRef "$rigStubRef" )" ; printf "%s:%s" "$?" "$rigStubSaid"
+	' rig "$1" "$2" ) 2> /dev/null
+}
+rigEmptyRoot="$( rigRefRoot "" "$rigRefLine" )"
+rigAssert "a root that resolves to nothing: refused, naming the key" \
+	"$( printf '%s' "$rigEmptyRoot" | LC_ALL=C cut -d: -f1 ):$( printf '%s' "$rigEmptyRoot" | LC_ALL=C grep -c -F 'references:' || : )" "1:1"
+rigAssert "the root that names the file: accepted, the control" "$( rigRefRoot "$rigSkills" "$rigRefLine" | LC_ALL=C cut -d: -f1 )" 0
+rigAssert "a root in which the file is not there: refused, the second control" "$( rigRefRoot "$rigSkills" 'rig-a/reference/no-such-file.md' | LC_ALL=C cut -d: -f1 )" 1
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "ROUTINE REFERENCES CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2 ; exit 1

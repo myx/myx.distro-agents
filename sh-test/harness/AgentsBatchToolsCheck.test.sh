@@ -204,6 +204,14 @@ rigAssert "no mode, every call a read: run at once (parallel-all-through), both 
 rigServe auto-write "{\"calls\":[{\"tool\":\"Read\",\"arguments\":{\"file_path\":\"$rigFix/a.txt\"}},{\"tool\":\"Bash\",\"arguments\":{\"command\":\"touch $rigFix/marks/auto-write\"}}]}"
 rigAssert "no mode, one call may write: one after another (sequence-all-through)" "$( rigSummary auto-write | LC_ALL=C cut -d' ' -f1 )" "sequence-all-through"
 
+echo "-- a key of a call other than tool and arguments --"
+rigServe stray-key "{\"calls\":[{\"tool\":\"Read\",\"arguments\":{\"file_path\":\"$rigFix/a.txt\"}},{\"tool\":\"Read\",\"args\":{\"file_path\":\"$rigFix/b.txt\"}}]}"
+rigAssert "a call with the key args is refused, naming call 2 and the key" \
+	"$( LC_ALL=C grep -c -F 'ERROR: BatchTools: call 2 has the key args.' "$rigTmp/stray-key.out" )" "1"
+rigAssert "the refusal runs nothing: no BATCH-ENTRY line" "$( LC_ALL=C grep -c '^BATCH-ENTRY:' "$rigTmp/stray-key.out" )" "0"
+rigServe no-arguments "{\"calls\":[{\"tool\":\"Read\",\"arguments\":{\"file_path\":\"$rigFix/a.txt\"}},{\"tool\":\"Grep\"}]}"
+rigAssert "a call with no arguments key at all is not refused for its keys" "$( LC_ALL=C grep -c 'has the key' "$rigTmp/no-arguments.out" )" "0"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ BATCH TOOLS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

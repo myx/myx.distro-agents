@@ -36,24 +36,46 @@ rigCalls(){ ## spawn id, machinery times (ms)... -- a live run's context.jsonl w
 	shift
 	runNow="$(( $( date +%s ) * 1000 ))"
 	mkdir -p "$rigWs/.local/agents/spawned/$runId"
-	[ -f "$rigWs/.local/agents/spawned/$runId/$runId.spawn.md" ] || printf 'status: spawn-started\n' > "$rigWs/.local/agents/spawned/$runId/$runId.spawn.md"
+	[ -f "$rigWs/.local/agents/spawned/$runId/$runId.spawn.md" ] || printf 'spawn-id: %s\nsession-id: %s\nowner: magic-librarian\nstatus: spawn-started\n' "$runId" "$runId" > "$rigWs/.local/agents/spawned/$runId/$runId.spawn.md"
 	: > "$rigWs/.local/agents/spawned/$runId/context.jsonl"
 	for runDur in "$@" ; do printf '{"kind":"tool","tool":"Bash","ms":%s,"dur_ms":%s,"mach_ms":%s}\n' "$runNow" "$(( runDur * 10 ))" "$runDur" >> "$rigWs/.local/agents/spawned/$runId/context.jsonl" ; done
+	rigRegistry
 }
 rigCallsEnded(){ ## spawn id, machinery times (ms)... -- the same, of a run whose record says it ended
 	rigCalls "$@"
-	printf 'status: spawn-ended-without-close\n' > "$rigWs/.local/agents/spawned/$1/$1.spawn.md"
+	printf 'spawn-id: %s\nsession-id: %s\nowner: magic-librarian\nstatus: spawn-ended-without-close\n' "$1" "$1" > "$rigWs/.local/agents/spawned/$1/$1.spawn.md"
+	rigRegistry
 }
 rigCallsOld(){ ## spawn id, machinery times (ms)... -- the same, of calls made ten minutes ago, outside the five-minute window
 	local oldId="$1" oldDur oldThen
 	shift
 	oldThen="$(( ( $( date +%s ) - 600 ) * 1000 ))"
 	mkdir -p "$rigWs/.local/agents/spawned/$oldId"
-	printf 'status: spawn-started\n' > "$rigWs/.local/agents/spawned/$oldId/$oldId.spawn.md"
+	printf 'spawn-id: %s\nsession-id: %s\nowner: magic-librarian\nstatus: spawn-started\n' "$oldId" "$oldId" > "$rigWs/.local/agents/spawned/$oldId/$oldId.spawn.md"
 	: > "$rigWs/.local/agents/spawned/$oldId/context.jsonl"
 	for oldDur in "$@" ; do printf '{"kind":"tool","tool":"Bash","ms":%s,"dur_ms":%s,"mach_ms":%s}\n' "$oldThen" "$(( oldDur * 10 ))" "$oldDur" >> "$rigWs/.local/agents/spawned/$oldId/context.jsonl" ; done
+	rigRegistry
+}
+## THE RIG'S REGISTRY ROWS, as the stored shape: the measure reads the registry, and a rig record rebuilt into a row by the store's own
+## walker drops every column a minimal record does not carry. So the rig writes the row itself, dated with the store stamp the resolver
+## compares against, and the resolver serves it rather than rebuilding.
+rigRegistry(){ ## -- one row a live run, the registry dated with the store's own stamp
+	local rigRow rigRun rigFile rigStamp
+	rigFile="$rigWs/.local/agents/spawned-sessions.registry"
+	: > "$rigFile"
+	for rigRow in "$rigWs/.local/agents/spawned"/*/*.spawn.md ; do
+		[ -f "$rigRow" ] || continue
+		LC_ALL=C grep -q '^status: spawn-started$' "$rigRow" || continue
+		rigRun="${rigRow##*/}" ; rigRun="${rigRun%.spawn.md}"
+		printf '%s %s none rig magic-librarian spawn-started 0 %s - - rig 2026-11-25_00:00_+0000 - rig,_duty running - -\n' "$rigRun" "$rigRun" "$rigRun" >> "$rigFile"
+	done
+	type AgentsSpawnedStoreStampInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	rigStamp="" ; AgentsSpawnedStoreStampInto rigStamp "$rigWs" || rigStamp=""
+	[ -z "$rigStamp" ] || touch -t "$( LC_ALL=C date -r "$rigStamp" +%Y%m%d%H%M.%S 2> /dev/null )" "$rigFile" 2> /dev/null
+	return 0
 }
 rigPace(){ ## [limit ms] -- the pace line
+	rigRegistry
 	if [ -n "${1:-}" ] ; then MDAT_TOOL_PACE_MS="$1" AgentsToolsSchedulePaceText ; else unset MDAT_TOOL_PACE_MS ; AgentsToolsSchedulePaceText ; fi
 }
 

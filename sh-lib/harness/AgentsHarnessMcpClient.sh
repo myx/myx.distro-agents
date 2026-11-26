@@ -254,7 +254,7 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 ## awaited one is the answer, as before. Only whole lines count: a last line the server
 ## has not finished writing is not one yet, exactly as `read` never returned it.
 AgentsHarnessMcpReply(){ ## request id
-	local replyWant="$1" replyText="" replyEnc
+	local replyWant="$1" replyText="" replyEnc replyAwkRc=0
 	harnessMcpReply=""
 	IFS= read -r -d '' replyText < "$harnessScratch/mcp.out" || :
 	case "$replyText" in
@@ -263,8 +263,11 @@ AgentsHarnessMcpReply(){ ## request id
 		*) replyText="" ;;
 	esac
 	[ -n "$replyText" ] || return 1
-	replyEnc="$( LC_ALL=C awk -v lineId="$replyWant" -f "$harnessHere/harness/AgentsHarnessJsonField.awk" -f "$harnessHere/harness/AgentsHarnessArgTable.awk" <<< "${replyText%$'\n'}" 2>/dev/null )" || replyEnc=""
-	[ -n "$replyEnc" ] || return 1
+	## Lines already read for this id that held no answer are not read again: the poll finds the same lines until the answer is appended.
+	[ "$replyWant:$replyText" != "${harnessMcpReplyMiss:-}" ] || return 1
+	replyEnc="$( LC_ALL=C awk -v lineId="$replyWant" -f "$harnessHere/harness/AgentsHarnessJsonField.awk" -f "$harnessHere/harness/AgentsHarnessArgTable.awk" <<< "${replyText%$'\n'}" 2>/dev/null )" || replyAwkRc=$?
+	## Only a parse that ran clean and found no answer is kept as a miss. A parse that failed is read again by the next poll.
+	[ -n "$replyEnc" ] || { [ "$replyAwkRc" -ne 0 ] || harnessMcpReplyMiss="$replyWant:$replyText" ; return 1 ; }
 	AgentsHarnessMcpDec "$replyEnc"
 	harnessMcpReply="$harnessMcpDec"
 	[ -n "$harnessMcpReply" ]

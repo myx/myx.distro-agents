@@ -116,6 +116,10 @@ rigReacted(){ ## reactions|reactions.removed, ts suffix
 rigThreadOf(){ ## body file
 	LC_ALL=C sed -n 's/.*"thread_ts":"\([0-9.]*\)".*/\1/p' "$1" 2>/dev/null | head -1
 }
+## The channel a post was sent to.
+rigChannelOf(){ ## body file
+	LC_ALL=C sed -n 's/.*"channel":"\([^"]*\)".*/\1/p' "$1" 2>/dev/null | head -1
+}
 ## Whether an edit is a whole message as the send builds one: it names the post it edits,
 ## has blocks, and holds no How to answer anywhere -- "<names it>:<blocks>:<How to answer>".
 rigEditShape(){ ## edit body file, ts of the post
@@ -449,6 +453,17 @@ rigCall 8 ProposeApprove "{\"question\":\"$rigQuestion\",\"proposal\":\"Retire i
 rigAssert "the same question for another document is put anew" "$rigKilled:$( rigCalls chat.postMessage ):$( rigRecordCount )" "yes:5:2"
 rigAssert "in a thread of its own"                     "$( rigThreadOf "$rigScenarioDir/post.4" ):$( rigThreadOf "$rigScenarioDir/post.5" )" ":1700000001.000401"
 rigAssert "no earlier verdict is given for it"         "$( rigHolds "$rigScenarioDir/out" 'NOT ASKED AGAIN' )" no
+
+echo "-- a proposal asked from a session that is itself inside a thread: its root is a message of its own --"
+## The measured fault (task 2026-11-26T0115Z): `to: session-current` carried the session thread's ts, so the proposal's
+## pair landed inside whatever thread the session was started in. The alias now resolves to that thread's CHANNEL.
+rigStart sessioncurrent
+mkdir -p "$rigScenarioDir/ws/.local/agents/sessions/rig-propose-$rigScenarioName"
+printf 'CRIG00001:1700000001.000101\n' > "$rigScenarioDir/ws/.local/agents/sessions/rig-propose-$rigScenarioName/session.thread"
+rigCall 60 ProposeApprove "{\"to\":\"session-current\",\"question\":\"$rigQuestion\",\"proposal\":\"Retire it.\",\"document\":\"$rigLink\"}"
+rigAssert "the root is a message of its own, with no thread under it" "$( rigThreadOf "$rigScenarioDir/post.1" )" ""
+rigAssert "and it lands in the session thread's channel"             "$( rigChannelOf "$rigScenarioDir/post.1" )" "CRIG00001"
+rigAssert "with the proposal reply under that root"                  "$( rigThreadOf "$rigScenarioDir/post.2" )" "1700000001.000101"
 
 echo "-- discarded: the proposal reply marked and closed, the root left as it is --"
 rigStart discard

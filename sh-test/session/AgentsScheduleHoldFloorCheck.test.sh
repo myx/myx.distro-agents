@@ -3,8 +3,9 @@
 ## never the review of handbacks, the release of finished sessions or the close of a dead run, and the coordinator's duty runs its board
 ## group under a hold. `AgentsToolsScheduleLoop` and `AgentsToolsScheduleWorkDuty`, in AgentsTools.DispatcherSchedule.include, run
 ## for three passes over a rig, each row against its control with no hold:
-##   1. UNDER A HOLD NO NEW WORK STARTS: no autorun, no pending item, no supervision, no emergency start, no retest drain, and the duty
-##      of no member but the coordinator.
+##   1. UNDER A HOLD NO NEW WORK STARTS: no autorun, no pending item, no supervision, no retest drain, and the duty
+##      of no member but the coordinator. The emergency step still runs, because only an emergency passes holding
+##      (magic-team/reference/board-model.md) and that step reads every item's tier against the hold itself.
 ##   2. UNDER A HOLD THE REVIEW GOES ON: the coordinator's duty is started while the board has news, and is not while it has none.
 ##   3. UNDER A HOLD A DEAD DUTY RECORD IS CLOSED, the finished runs are released, and a live duty's lifetime rule runs.
 ##   4. THE CONTROLS: the same rig with no hold starts the whole roster, runs every step, closes, releases and runs the lifetime.
@@ -175,7 +176,7 @@ rigAssert "the board has a review item: only the coordinator's duty is started" 
 rigAssert "no autorun routine is started" "$( rigCalls autorun )" 0
 rigAssert "no pending board item is started" "$( rigCalls start-pending )" 0
 rigAssert "no supervision is started" "$( rigCalls supervision )" 0
-rigAssert "no emergency start is made" "$( rigCalls emergency )" 0
+rigAssert "the emergency step still runs under the hold, its own tier filter the guard" "$( rigCalls emergency )" 3
 rigAssert "no retest drain is started" "$( rigCalls retest )" 0
 rigAssert "the finished runs are released, in each of the three passes" "$( rigCalls idle-runs )" 3
 rigAssert "and what ended is reported, and the learning step runs" "$( rigCalls report ):$( rigCalls learn )" "3:3"

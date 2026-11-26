@@ -66,6 +66,7 @@
 ## The question as it stands now: the posted body's first section after its kind heading,
 ## up to the first formal field. Of a question asked again, changed, that of its latest
 ## revision (`## Revision <n>`, the n its record counts in `revisions`). At most 40 lines.
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 AgentsToolsPendingReplyRemindQuestion(){ ## record file
 	LC_ALL=C awk '
 		dashes < 2 {
@@ -276,7 +277,7 @@ AgentsToolsPendingReplyRemindRun(){ ## optional: pending ids
 		if [ -n "$fItem" ] && [ -d "${MDAT_DATA_ROOT:-/nonexistent}/board" ] ; then
 			AgentsToolsBoardItemInto mootState "$fItem" ; mootState="${mootState%/*}" ; mootState="${mootState##*/}"
 			case "$mootState" in
-				processed|archived|retained|'')
+				*" $agentsBoardConcludedStates "*|'')
 					mootReason="moot: ${fItem%.md} is in $mootState, so its work no longer waits on this answer"
 					[ -n "$mootState" ] || mootReason="moot: ${fItem%.md} is on the board no more, so its work no longer waits on this answer"
 					type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"

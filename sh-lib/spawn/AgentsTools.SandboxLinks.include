@@ -38,6 +38,8 @@ AgentsToolsSandboxTree(){ ## path
 	while [ ! -d "$treeDir" ] && [ -n "$treeDir" ] ; do treeDir="${treeDir%/*}" ; done
 	treeDir="$( cd -P "${treeDir:-/}" && pwd -P )" || return 1
 	case "$treeDir/" in
+		## The actions builder of the distro links source files into its own temp folder, then copies them: that folder is the build's, no run's sandbox.
+		*/.local/temp/rebuild-actions-*) return 1 ;;
 		*/.local/agents/scratch/*|*/.local/temp/*) return 0 ;;
 	esac
 	AgentsSessionStoreTreeIs "$treeDir/"
@@ -126,7 +128,8 @@ AgentsToolsLnGuard(){ ## the arguments of ln
 AgentsToolsLnGuardMake(){ ## folder -- writes the guard `ln` there, for a run to put first on its PATH; a guard already there is kept
 	local guardHere="$( cd -P "${BASH_SOURCE[0]%/*}" && pwd -P )/${BASH_SOURCE[0]##*/}" guardText guardTemp
 	## The guard runs under the bash that wrote it, never a fixed path (AgentsBashPathGuardCheck).
-	guardText='#!/usr/bin/env bash'$'\n'". '$guardHere' || exit 1"$'\n''AgentsToolsLnGuard "$@"'
+	## The guard `ln` runs in any workspace, whose own origin may hold no myx.distro-agents: it then loads from the origin of this file.
+	guardText='#!/usr/bin/env bash'$'\n'"[ -f \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include\" ] || MDLT_ORIGIN='${guardHere%/myx/myx.distro-agents/sh-lib/spawn/*}'"$'\n'". '$guardHere' || exit 1"$'\n''AgentsToolsLnGuard "$@"'
 	[ "$( cat "$1/ln" 2> /dev/null )" = "$guardText" ] && [ -x "$1/ln" ] && return 0
 	type AgentsToolsTempClaim > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.TempFiles.include"
 	mkdir -p "$1" && guardTemp="$( mktemp "$1/ln.XXXXXX" )" && AgentsToolsTempClaim "$guardTemp" && printf '%s\n' "$guardText" > "$guardTemp" && chmod +x "$guardTemp" && mv -f "$guardTemp" "$1/ln"

@@ -27,16 +27,21 @@ AgentsToolsItemReviewer(){ ## item path
 }
 
 ## THE RUNG BELOW THE DUTY (S6.28): the reviewer an item reads who can still take its verdict, as
-## `<session>:<member>`, else rc 1 and the item is the duty's. Open: such a reviewer with a live run there.
-## The asking run's own session reads rc 1, whether the run carries that session's id or was joined into
-## it and carries its own: its record names the session it belongs to. A bare member, a routine and the
-## person read rc 1 too: no record says which of a member's runs works an item, a routine takes its own
-## next run, and the person's item is the last resort's, as it always was.
+## `<session>:<member>` or the person's own name, else rc 1 and the item is the duty's. Open: such a
+## session's reviewer with a live run there. The asking run's own session reads rc 1, whether the run
+## carries that session's id or was joined into it and carries its own: its record names the session it
+## belongs to. A bare member and a routine read rc 1 too: no record says which of a member's runs works
+## an item, and a routine takes its own next run.
 AgentsToolsItemReviewerParentRung(){ ## item path
 	local rungReviewer rungSession rungMember rungAsking rungRecord=""
 	type AgentsToolsRunRouteAvailable > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
 	rungReviewer="$( AgentsToolsItemReviewer "$1" )"
 	case "$rungReviewer" in
+		## The person is the top rung, so no run of his has to be found: his own item never takes the duty's verdict.
+		human-owner|user-?*)
+			printf '%s\n' "$rungReviewer"
+			return 0
+		;;
 		*:*)
 			rungSession="${rungReviewer%%:*}" ; rungMember="${rungReviewer#*:}"
 			type AgentsToolsActingSession > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"

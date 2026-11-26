@@ -232,6 +232,15 @@ AgentsHarnessAsk(){
 			toolTo="${toolTo%% *}"
 		;;
 	esac
+	## A PROPOSAL OPENS ITS ROOT, NEVER A REPLY (task 2026-11-26T0115Z): an alias naming this session's thread or its
+	## parent's resolves to that thread's CHANNEL alone for a proposal, so the root is a message of its own. Before this,
+	## `to: session-current` carried the thread's ts and the proposal's pair landed inside whatever thread the session
+	## was started in -- the measured pair of 2026-11-26 01:10, 34 seconds apart, under an unrelated question.
+	if [ "$toolKind" = "proposal" ] ; then
+		case "$toolTo" in
+			*:*) toolTo="${toolTo%%:*}" ;;
+		esac
+	fi
 	## A session whose external side is its own root-native printback channel (F2.3) has no thread to put a
 	## question in: the ask is refused with what to do instead, and nothing is posted.
 	case "$toolTo" in
@@ -330,6 +339,21 @@ AgentsHarnessAsk(){
 			## A thread has no party of its own, and neither has event-track or event-alert: a place.
 			*:*|event-track|event-alert) ;;
 			*) toolAddressTo="$toolTo" ;;
+		esac
+	fi
+	## HIS OWN ACCOUNT IS HIM. An ask whose place and party are the human-owner's Slack account (SLACK_CHANNEL_HUMAN_OWNER), or that
+	## account with the word `human-owner`, is an ask of the human-owner, so it is the team bot's post, its record says `ask-identity: bot`,
+	## and one open ask of him is found whichever way it named him. Left as an account, the record said `member`, named an address no
+	## other record of him names, and was never found as the same ask.
+	if [ "$toolKind" != "proposal" ] && [ "$toolTo:$toolAddressTo" != "human-owner:human-owner" ] && [ -z "$askRoutine" ] && [ -z "$askContactMember" ] ; then
+		case "$toolTo" in
+			*:*|event-track|event-alert|*.routine) ;;
+			*)
+				type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+				if { [ "$toolTo" = "human-owner" ] || AgentsToolsPermissionIsHumanOwner "$toolTo" ; } && { [ "$toolAddressTo" = "human-owner" ] || AgentsToolsPermissionIsHumanOwner "$toolAddressTo" ; } ; then
+					toolTo="human-owner" ; toolAddressTo="human-owner"
+				fi
+			;;
 		esac
 	fi
 	## A TEAM MEMBER'S NAME IS AN ADDRESSEE, NEVER A PLACE. Asked by its name, a member is asked
@@ -451,7 +475,13 @@ AgentsHarnessAsk(){
 	## A question is the same one by its words. A permission is the same one by its refused
 	## call (askRefusedCall, AgentsHarnessAskCheck), however it is worded, or with no words at all.
 	askTag=""
-	askKey="$( printf '%s' "${askRefusedCall:-$toolQuestion}" | LC_ALL=C tr -s ' \t\n' '   ' | LC_ALL=C sed 's/^ //;s/ $//' | cksum )"
+	## ONE READBACK PER CORRECTION. The words of a decision's readback are the same for every decision on its item, so the correction
+	## it was made from, its source, is part of what makes it the same ask: the same source asked again is the same ask, and another
+	## source on the same item is another.
+	local askCorrection="" askFindItem="$toolTaskRef"
+	[ "$toolKind" != "readback" ] || askCorrection="${MDAT_ASK_DECISION_SOURCE:-}"
+	[ -z "$askCorrection" ] || askFindItem=""
+	askKey="$( printf '%s%s' "${askRefusedCall:-$toolQuestion}" "${askCorrection:+ $askCorrection}" | LC_ALL=C tr -s ' \t\n' '   ' | LC_ALL=C sed 's/^ //;s/ $//' | cksum )"
 	askKey="${askKey// /-}"
 	type AgentsToolsAskThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskThread.include"
 	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
@@ -471,7 +501,7 @@ AgentsHarnessAsk(){
 		else
 			printf 'WARNING: %s: the question lock for %s could not be taken, so this question is posted without it, and its number may repeat one asked at the same moment.\n' "$harnessAskName" "$toolAddressTo" >&2
 		fi
-		askWhere="$( AgentsToolsAskThreadFind "$toolTo" "$toolAddressTo" "$askKey" "$harnessAgent" "$toolTaskRef" "$toolKind" )"
+		askWhere="$( AgentsToolsAskThreadFind "$toolTo" "$toolAddressTo" "$askKey" "$harnessAgent" "$askFindItem" "$toolKind" )"
 		## A proposal always opens its own thread: the thread of one closed before is never joined.
 		case "$toolKind:$askWhere" in proposal:SAME$'\t'*) askWhere="" ;; esac
 	fi

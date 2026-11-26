@@ -102,12 +102,14 @@ case "$1" in
 						if ( ! start ) { exit ; }
 						last = decisionsEnd( NR, start ) ;
 						for ( i = start + 1 ; i <= last ; i++ ) {
-							if ( line[i] !~ /^- / || line[i] ~ / \[(struck by|confirmed by) [^]]*\]$/ || index( line[i], "(readback " ) > 0 || index( line[i], "(his message slack:" ) > 0 ) { continue ; }
+							if ( line[i] !~ /^- / || decisionsMarkState( line[i] ) == "handled" || index( line[i], "(readback " ) > 0 || index( line[i], "(his message slack:" ) > 0 ) { continue ; }
 							lineKind = line[i] ; sub( /^- [^ ]+ [^ ]+ /, "", lineKind ) ; sub( /:.*$/, "", lineKind ) ;
 							if ( lineKind != "clarification" && lineKind != "resolved" && lineKind != "dismissed" ) { continue ; }
-							tailAt = index( line[i], " (" ) ; lineTail = ( tailAt ? substr( line[i], tailAt ) : "" ) ;
+							## The tail is read off the line with its trailing mark taken off, so a bracket inside that mark decides nothing.
+							lineText = struckBase( line[i] ) ;
+							tailAt = index( lineText, " (" ) ; lineTail = ( tailAt ? substr( lineText, tailAt ) : "" ) ;
 							lineAction = "prune" ;
-							if ( lineTail ~ /withdrawn/ ) { lineAction = "re-ask" ; } else if ( lineTail ~ /answered by|settled/ ) { lineAction = "confirm" ; }
+							if ( index( line[i], " (" ) && substr( line[i], index( line[i], " (" ) ) ~ /withdrawn/ ) { lineAction = "re-ask" ; } else if ( lineTail ~ /answered by|settled/ || decisionsMarkState( line[i] ) == "settled" ) { lineAction = "confirm" ; }
 							printf "%d\t%s\t%s\n", ++lineNumber, lineAction, struckBase( line[i] ) ;
 						}
 					}
@@ -140,9 +142,15 @@ case "$1" in
 			## records the decision from it at once, with that provenance, and asks him nothing. A strike still goes through its readback.
 			if [ -z "$decReadback" ] && [ -z "$decStrike" ] && [ -n "$decSource" ] ; then
 				type AgentsToolsDecisionSourceOwnerMessage > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-				local decOwnMessage=""
+				local decOwnMessage="" decOwnVerdict=""
 				if decOwnMessage="$( AgentsToolsDecisionSourceOwnerMessage "$decSource" )" ; then
 					AgentsToolsDecisionsAppendTracked "$decWho" "$decItem" "$decKind" "$decText" "$decOwnMessage" "$decClear" "$decMentions" || { set +e ; return 1 ; }
+					return 0
+				fi
+				## THE ASK'S VERDICT NAMED IN --source IS HIS DECISION: it lands from that answer, and nothing is read back to him
+				## (the loop he named as a bug, task 2026-11-25T2218Z).
+				if decOwnVerdict="$( AgentsToolsDecisionSourceOwnerVerdict "$decSource" )" ; then
+					AgentsToolsDecisionsAppendTracked "$decWho" "$decItem" "$decKind" "$decText" "$decOwnVerdict" "$decClear" "$decMentions" || { set +e ; return 1 ; }
 					return 0
 				fi
 			fi
@@ -151,6 +159,14 @@ case "$1" in
 					echo "$MDSC_CMD: ⛔ ERROR: a decision is recorded only through its confirmed readback: name the one it was made with by --with <party>, and its exact text is read back to them and recorded once they confirm or edit it; or name a readback they already confirmed by --readback <pending id>" >&2
 					set +e ; return 1 ; }
 				[ -z "$decClear" ] || { echo "$MDSC_CMD: ⛔ ERROR: --clears-blocker is not carried through a readback still to answer; record the decision, then clear the blocker" >&2 ; set +e ; return 1 ; }
+				## The readback quotes the text the line records. Over the cap it would be cut inside the words the person confirms, so it is refused.
+				local decCapName="--text" decCapText="$decText" decCapBytes
+				[ -z "$decStrike" ] || { decCapName="--reason" ; decCapText="$decReason" ; }
+				decCapBytes="$( AgentsToolsDecisionsOneLine "$decCapText" 1000000 | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' )"
+				if [ "${decCapBytes:-0}" -gt 301 ] ; then
+					echo "$MDSC_CMD: ⛔ ERROR: $decCapName holds $(( decCapBytes - 1 )) bytes and a decision line holds 300, so the readback would cut it inside the quote. Shorten it to one decision, then ask again. Nothing was asked or recorded." >&2
+					set +e ; return 1
+				fi
 				if [ -n "$decStrike" ] ; then
 					AgentsToolsDecisionReadbackOpen "$decWho" "$decItem" strike "$( AgentsToolsDecisionsOneLine "$decReason" 300 )" "$decSource" "$decWith" "$decWait" "$decStrike" || { set +e ; return 1 ; }
 				else
@@ -242,7 +258,7 @@ case "$1" in
 					esac
 				fi
 				[ -n "$ownSourced" ] || {
-					echo "$MDSC_CMD: ⛔ ERROR: this text tells a decision by the human-owner, so it is recorded only with the message or the ask's verdict it came from: name that in --source, as slack:<his conversation>:<ts> or the pending id he answered, or record a readback he confirmed. His ruling is not yours to state." >&2
+					echo "$MDSC_CMD: ⛔ ERROR: this text tells a decision by the human-owner, so it is recorded only with the message or the ask's verdict it came from: name that in --source, as <his conversation>:<ts>, with or without a slack: prefix, or the pending id he answered, or record a readback he confirmed. His ruling is not yours to state." >&2
 					set +e ; return 1 ; }
 			fi
 		fi

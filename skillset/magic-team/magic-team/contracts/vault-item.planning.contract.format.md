@@ -48,7 +48,7 @@ Planning is one kind with modes: a mode deserving its own name and prefix extend
 - `date-time` — `YYYY-MM-DD HH:MM ±HHMM`, numeric offset, never a zone abbreviation (Terminology `date-time`).
 - `Q<n>` — a question's number, one decimal number, such as `Q4`.
 - `item-id` — the id an item carries where its epic or plan names it, such as `S12.30`.
-- `path` — a file path in backticks, relative to its tree or absolute.
+- `path` — a file path in backticks, relative to its tree or written as `<place>:<path>`.
 
 ## Body
 

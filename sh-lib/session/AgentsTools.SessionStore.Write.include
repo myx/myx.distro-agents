@@ -152,8 +152,8 @@ AgentsSpawnRecordWrite(){ ## run or record path, folder (empty: the run's own), 
 ## THE SESSIONS STORE PRUNED, its dead folders going after the same days the runs keep: a session whose folder nothing has written for that
 ## long, and whose thread is not live, is history -- its prepared rows, its control files and its kept lists with it. Twenty a pass, so no
 ## pass is long. Prints the number removed, nothing where none was.
-AgentsToolsSessionStorePrune(){ ## days, at most
-	local storeDays="${1:-14}" storeMost="${2:-20}" storeDir storeId storePath storeLive storePid storeGone=0
+AgentsToolsSessionStorePrune(){ ## days, at most -- days: handed by the caller; with none, nothing is removed
+	local storeDays="${1:-}" storeMost="${2:-20}" storeDir storeId storePath storeLive storePid storeGone=0
 	case "$storeDays" in ''|*[!0123456789]*) return 0 ;; esac
 	case "$storeMost" in ''|*[!0123456789]*|0) storeMost=20 ;; esac
 	storeDir="${MMDAPP:-/nonexistent}/.local/agents/sessions"
@@ -229,8 +229,8 @@ AgentsToolsSessionLivePrune(){
 	return 0
 }
 
-AgentsSpawnedRetentionPrune(){ ## days, at most -- stdin: the rows of the spawned-sessions registry
-	local pruneDays="${1:-30}" pruneMost="${2:-20}" pruneRun pruneFolder pruneFresh pruneHold pruneDone=0
+AgentsSpawnedRetentionPrune(){ ## days, at most -- stdin: the rows of the spawned-sessions registry. days: handed by the caller.
+	local pruneDays="${1:-}" pruneMost="${2:-20}" pruneRun pruneFolder pruneFresh pruneHold pruneDone=0
 	local pruneRecord pruneField pruneItem pruneResolved pruneOpen
 	case "$pruneDays" in ''|*[!0123456789]*) return 0 ;; esac
 	case "$pruneMost" in ''|*[!0123456789]*|0) pruneMost=20 ;; esac
@@ -293,22 +293,34 @@ AgentsSpawnedRetentionPrune(){ ## days, at most -- stdin: the rows of the spawne
 	return 0
 }
 
+## THE DAYS ONE STORE CLASS KEEPS, from the key of that class: the one place the fallback of 30 is written, so no caller and no prune
+## carries a number of its own. A value that is no age answers the fallback rather than reaching a prune.
+AgentsToolsStoreRetentionDays(){ ## run|session
+	local daysKept=30 daysValue=""
+	case "${1:-}" in
+		run) daysValue="${MDAT_CLEANUP_RUN_STORE_DAYS:-}" ;;
+		session) daysValue="${MDAT_CLEANUP_SESSION_STORE_DAYS:-}" ;;
+		*) return 1 ;;
+	esac
+	case "$daysValue" in ''|*[!0123456789]*) daysValue="$daysKept" ;; esac
+	[ "$daysValue" -gt 0 ] || daysValue="$daysKept"
+	printf '%s\n' "$daysValue"
+}
+
 ## THE STORE'S OWN DAY: both prunes, once a day at most, by a stamp written before the pass, so a pass that fails is tried again
-## tomorrow and never on every pass. The cut-off is the sweep's own record retention, this class being the same records.
+## tomorrow and never on every pass. Each prune is handed its own class's days, which only AgentsToolsStoreRetentionDays resolves.
 ## Prints one line a prune that removed something; rc 0 always.
 AgentsToolsSpawnedRetentionRun(){
-	local retainStamp="${MMDAPP:-.}/.local/agents/spawned-retention.stamp" retainLast="" retainNow retainDays retainOut
+	local retainStamp="${MMDAPP:-.}/.local/agents/spawned-retention.stamp" retainLast="" retainNow retainOut
 	retainNow="$( date +%s )" || return 0
 	{ IFS= read -r retainLast < "$retainStamp" ; } 2> /dev/null || retainLast=""
 	case "$retainLast" in ''|*[!0123456789]*) retainLast=0 ;; esac
 	[ $(( retainNow - retainLast )) -ge 86400 ] || return 0
-	retainDays="${MDAT_CLEANUP_RETENTION_DAYS:-30}"
-	case "$retainDays" in ''|*[!0123456789]*) retainDays=30 ;; esac
 	mkdir -p "${retainStamp%/*}" 2> /dev/null && printf '%s\n' "$retainNow" > "$retainStamp" 2> /dev/null || :
-	retainOut="$( AgentsToolsSessionStorePrune "$retainDays" 20 2> /dev/null )" || retainOut=""
+	retainOut="$( AgentsToolsSessionStorePrune "$( AgentsToolsStoreRetentionDays session )" 20 2> /dev/null )" || retainOut=""
 	[ -z "$retainOut" ] || printf 'spawned-retention: removed %s dead session folder(s)\n' "$retainOut"
 	type AgentsToolsRegistryRenderSpawnedSessionsKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
-	retainOut="$( AgentsToolsRegistryRenderSpawnedSessionsKept agents "" "" "" live 2> /dev/null | AgentsSpawnedRetentionPrune "$retainDays" 20 2> /dev/null )" || retainOut=""
+	retainOut="$( AgentsToolsRegistryRenderSpawnedSessionsKept agents "" "" "" live 2> /dev/null | AgentsSpawnedRetentionPrune "$( AgentsToolsStoreRetentionDays run )" 20 2> /dev/null )" || retainOut=""
 	[ -z "$retainOut" ] || printf 'spawned-retention: removed %s dead run folder(s)\n' "$retainOut"
 	return 0
 }

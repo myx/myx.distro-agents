@@ -12,11 +12,13 @@
 ## The duty kinds, each a word of a routine file's short name: `<kind>.routine.md`, so `magic-coordinator.off-duty.routine.md`.
 agentsDutyRoutineKinds="work-duty off-duty"
 
-## Whether a routine name or a routine file path is one of the duty routines: rc 0 it is.
-AgentsToolsDutyRoutineIs(){ ## routine name or file path
+## Whether a routine name or a routine file path is one of the duty routines, or the one duty kind named: rc 0 it is.
+AgentsToolsDutyRoutineIs(){ ## routine name or file path, [the duty kind wanted]
 	local isKind=""
 	for isKind in $agentsDutyRoutineKinds ; do
-		case "${1:-}" in *."$isKind".routine.md) return 0 ;; esac
+		case "${1:-}" in *."$isKind".routine.md) ;; *) continue ;; esac
+		[ -z "${2:-}" ] || [ "${2:-}" = "$isKind" ] || return 1
+		return 0
 	done
 	return 1
 }

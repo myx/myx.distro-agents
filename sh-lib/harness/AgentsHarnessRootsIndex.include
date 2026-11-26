@@ -50,7 +50,11 @@ AgentsHarnessRootsEnc(){ ## text
 }
 AgentsHarnessRootsDec(){ ## encoded -- never `printf -v` an empty result: bash 3.2 keeps the last buffer
 	agentsRootsDec=""
-	[ -z "$1" ] || printf -v agentsRootsDec '%b' "$1"
+	[ -z "$1" ] || case "$1" in
+		## Text with no backslash is its own decoding, so only an escaped one pays for the conversion.
+		*\\*) printf -v agentsRootsDec '%b' "$1" ;;
+		*) agentsRootsDec="$1" ;;
+	esac
 }
 
 ## Everything the producer's answer depends on, as one string: names and settings by

@@ -194,6 +194,9 @@ case "$1" in
 				printf '%s\n' DELETE_STATE=deleted
 				printf '%s\n' "$response"
 				deleteDone=$(( deleteDone + 1 ))
+				## One line to the acting run's transcript, and the event-track feed carries the same one.
+				type AgentsTranscriptEvent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+				AgentsTranscriptEvent "$( AgentsTranscriptSessionKey )" NOTE "deleted message $channel:$threadTs" 4096 by "$memberName" 2> /dev/null || :
 			done
 			rm -f "$diagFile"
 			echo "# $MDSC_CMD --slack-delete-message: $deleteDone of $deleteTotal target(s) deleted, $deleteFailed not deleted (acting member $memberName)" >&2

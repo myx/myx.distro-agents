@@ -12,6 +12,7 @@
 ## then the seconds of the call last started (`--release`, apart from the tick).
 ## A RUN A PAUSE HOLDS IS ENDED BY NOTHING (S19.3): a paused run's handback and its item wait as they are, and no closing time runs.
 ##
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
 
 AgentsToolsSessionControlRelease(){
@@ -50,8 +51,8 @@ AgentsToolsSessionControlRelease(){
 			releaseBoard=""
 		done
 		releaseState="${releaseBoard%/*}" ; releaseState="${releaseState##*/}"
-		case "$releaseState" in
-			processed|archived)
+		case " $agentsBoardSettledStates " in
+			*" $releaseState "*)
 				AgentsToolsSessionDismissHeld "$releaseRecord" > /dev/null || releaseWhy="its item ${releaseItem%.md} is in $releaseState"
 			;;
 			review)

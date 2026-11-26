@@ -74,12 +74,20 @@ AgentsTranscriptParts(){ ## session id
 
 ## The last tool line of a session's transcript over all its parts, `<stamp> <tool name>`; nothing where it has none.
 AgentsTranscriptLastTool(){ ## session id
-	local lastParts=() lastPart
+	local lastParts=() lastPart lastFound="" lastIndex=0
 	while IFS= read -r lastPart ; do
 		[ -z "$lastPart" ] || lastParts+=( "$lastPart" )
 	done <<< "$( AgentsTranscriptParts "$1" )"
 	[ ${#lastParts[@]} -gt 0 ] || return 0
-	LC_ALL=C awk '$2 == "TOOL" { at = $1 ; name = $3 ; } END { if ( at != "" ) print at " " name ; }' "${lastParts[@]}"
+	## THE NEWEST PART ANSWERS FOR MOST RUNS, and the walk reaches an earlier part only when it holds no tool line:
+	## reading every part of every run's transcript is the scan's whole cost, and a roll keeps the newest work last.
+	lastIndex=${#lastParts[@]}
+	while [ "$lastIndex" -ge 1 ] ; do
+		lastFound="$( LC_ALL=C awk '$2 == "TOOL" { at = $1 ; name = $3 ; } END { if ( at != "" ) print at " " name ; }' "${lastParts[$(( lastIndex - 1 ))]}" )" || lastFound=""
+		[ -z "$lastFound" ] || break
+		lastIndex=$(( lastIndex - 1 ))
+	done
+	printf '%s\n' "$lastFound"
 }
 
 ## The last lines of a run's transcript over all its parts: first its base file, then the lines. rc 1 where the run keeps none.
@@ -605,21 +613,43 @@ AgentsSessionTokensHeaderUpdate(){ ## session id
 }
 
 ## Totals for items, summed when shown: one tab-separated row per item that has any
-## (AgentsSessionTokensRollup.awk). Board items and spawn records are read once.
+## (AgentsSessionTokensRollup.awk). Board items and spawn records are read once per store change, and answered from a kept
+## index in between: the call-path rule is "a kept measure or an index, never a walk of a store", and the walk per read is
+## what made `--spawns` cost ten seconds on a quiet machine (measured 2026-11-26 07:15).
 AgentsSessionTokensRollupRows(){ ## item name...
 	[ $# -gt 0 ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	local rollupItems=() rollupRecords=() rollupCache rollupWant rollupRows=""
+	rollupCache="${MMDAPP%/}/.local/agents/tokens-rollup.rows"
+	## THE KEPT INDEX, ANSWERED WHILE NO INPUT IS NEWER THAN IT: a board item or a run record written since the rows were
+	## summed makes them stale, and the walk is paid then, not on every read.
+	if [ -f "$rollupCache" ] \
+		&& [ -z "$( find "$MDAT_DATA_ROOT/board" -type f -name '*.md' -newer "$rollupCache" 2> /dev/null | LC_ALL=C head -1 )" ] \
+		&& [ -z "$( find "${MMDAPP%/}/.local/agents/spawned" -type f -name '*.spawn.md' -newer "$rollupCache" 2> /dev/null | LC_ALL=C head -1 )" ] ; then
+		for rollupWant in "$@" ; do
+			rollupWant="${rollupWant##*/}" ; rollupWant="${rollupWant%.md}"
+			LC_ALL=C awk -F'\t' -v item="$rollupWant" '$1 == item { print ; exit ; }' "$rollupCache" 2> /dev/null
+		done
+		return 0
+	fi
 	## EVERY BOARD ITEM AND EVERY RUN RECORD, BY GLOB (call-path audit row 31): the sum of an item takes in the items that track it
-	## or follow it up and the records whose parent is its session, relations only the files carry, so a read of the named items alone
-	## sums an item on its own. The two walks of their owners, no find: no process, one read per file; the record count paid per call is S10.37's debt.
-	local rollupItems=() rollupRecords=()
+	## or follow it up and the records whose parent is its session, relations only the files carry. This walk fills the index.
 	type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	AgentsToolsBoardItemsInto rollupItems ""
 	[ -z "${MMDAPP:-}" ] || AgentsToolsSpawnedAllRecordsInto rollupRecords
-	{
+	rollupRows="$( {
 		[ ${#rollupItems[@]} -eq 0 ] || printf '%s\n' "${rollupItems[@]}"
 		[ ${#rollupRecords[@]} -eq 0 ] || printf '%s\n' "${rollupRecords[@]}"
-	} | LC_ALL=C awk -v want="$*" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTokensRollup.awk" 2>/dev/null
+	} | LC_ALL=C awk -v want="$( { [ ${#rollupItems[@]} -eq 0 ] || printf '%s\n' "${rollupItems[@]}" ; [ ${#rollupRecords[@]} -eq 0 ] || printf '%s\n' "${rollupRecords[@]}" ; } | LC_ALL=C sed 's#^.*/##' | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTokensRollup.awk" 2> /dev/null )"
+	## The index is best effort: a store the caller cannot write still answers from the walk above, never empty.
+	if [ -n "$rollupRows" ] && mkdir -p "${rollupCache%/*}" 2> /dev/null ; then
+		printf '%s\n' "$rollupRows" > "$rollupCache.tmp.$$" 2> /dev/null && mv -f "$rollupCache.tmp.$$" "$rollupCache" 2> /dev/null || rm -f "$rollupCache.tmp.$$" 2> /dev/null
+	fi
+	for rollupWant in "$@" ; do
+		rollupWant="${rollupWant##*/}" ; rollupWant="${rollupWant%.md}"
+		printf '%s\n' "$rollupRows" | LC_ALL=C awk -F'\t' -v item="$rollupWant" '$1 == item { print ; exit ; }'
+	done
 	return 0
 }
 

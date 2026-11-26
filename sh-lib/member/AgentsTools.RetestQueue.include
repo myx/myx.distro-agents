@@ -66,10 +66,26 @@ AgentsToolsRetestProcess(){ ## pid -- when that process was started, as the syst
 	ps -o lstart= -p "$1" 2> /dev/null | LC_ALL=C sed -e 's/^ *//' -e 's/ *$//'
 }
 
+## THE TESTS THAT NAME ONE CHANGED FILE: the covering relation the tree itself carries, read once an ask. A test stands
+## in sh-test itself or one level down, and it names what it exercises -- the file's package-relative path, or its
+## basename. Nothing else in the tree says what covers a file, and a request for three files no longer puts every test
+## of the copy in the machine's line for hours. Prints one test name a line, in the tree's order.
+AgentsToolsRetestFileCoveringTests(){ ## the copy's sh-test folder, the package-relative file
+	local coverDir="$1" coverFile="$2" coverHit
+	[ -d "$coverDir" ] || return 0
+	for coverHit in "$coverDir"/*.test.sh "$coverDir"/*/*.test.sh ; do
+		[ -f "$coverHit" ] || continue
+		LC_ALL=C grep -q -F -e "$coverFile" -e "${coverFile##*/}" -- "$coverHit" 2> /dev/null || continue
+		coverHit="${coverHit##*/}"
+		printf '%s\n' "${coverHit%.test.sh}"
+	done
+	return 0
+}
+
 AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the queue; its id on stdout
 	local queueOp="$1" ; shift
 	local queueSyntax="⛔ ERROR: $MDSC_CMD $queueOp: syntax is [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]"
-	local queueProject="" queueWait="no-wait" queueBy="${MDAT_SPAWN_AGENT:-}" queueAbout="" queueWhy="" queueGiven=() queueTests="" queueFiles="" queueRoot queueDir queueName queueFile queueId queueTestCount=0 queueFileCount=0
+	local queueProject="" queueWait="no-wait" queueBy="${MDAT_SPAWN_AGENT:-}" queueAbout="" queueWhy="" queueGiven=() queueTests="" queueFiles="" queueNoCover="" queueCoverFound="" queueRoot queueDir queueName queueFile queueId queueTestCount=0 queueFileCount=0
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--by|--about|--why|--file|--project)
@@ -116,6 +132,18 @@ AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the
 				queueName="${queueFile#sh-test/}" ; queueName="${queueName%.test.sh}"
 				if [ "sh-test/$queueName.test.sh" != "$queueFile" ] || [ "${queueName#*/*/}" != "$queueName" ] || [ ! -f "$queueDir/$queueName.test.sh" ] ; then
 					case $'\n'"$queueFiles" in *$'\n'"$queueFile"$'\n'*) ;; *) queueFiles="$queueFiles$queueFile"$'\n' ; queueFileCount=$(( queueFileCount + 1 )) ;; esac
+					## THE TESTS THAT NAME IT are what this file is asked for, stored with it as the request's own tests
+					## (AgentsToolsRetestFileCoveringTests): a file no test names stays the request's file alone, and the
+					## batch says so instead of running the copy's whole suite.
+					queueCoverFound=""
+					while IFS= read -r queueName ; do
+						[ -n "$queueName" ] || continue
+						AgentsToolsRetestTestHeld "$queueDir" "$queueName" || continue
+						queueCoverFound="true"
+						case $'\n'"$queueTests" in *$'\n'"$queueName"$'\n'*) ;; *) queueTests="$queueTests$queueName"$'\n' ; queueTestCount=$(( queueTestCount + 1 )) ;; esac
+					done <<< "$( AgentsToolsRetestFileCoveringTests "$queueDir" "$queueFile" )"
+					## A FILE NO TEST NAMES is kept as that, so the result can say which file gave the batch no test
+					[ -n "$queueCoverFound" ] || queueNoCover="$queueNoCover$queueFile"$'\n'
 					continue
 				fi
 				queueName="${queueName##*/}"
@@ -140,13 +168,14 @@ AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the
 		printf 'id: %s\nasked: %s\npriority: %s\nby: %s\nwhy: %s\nabout: %s\norigin: %s\nworkspace: %s\n' "$queueId" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$queueWait" "$queueBy" "$queueWhy" "$( AgentsToolsRetestCopyName "$queueRoot" )" "$queueRoot" "${MMDAPP%/}"
 		[ -z "$queueTests" ] || printf '%s' "$queueTests" | LC_ALL=C sed 's/^/test: /'
 		[ -z "$queueFiles" ] || printf '%s' "$queueFiles" | LC_ALL=C sed 's/^/file: /'
+		[ -z "$queueNoCover" ] || printf '%s' "$queueNoCover" | LC_ALL=C sed 's/^/no-cover: /'
 	} > "$retestStore/waiting/.$queueId.request" 2> /dev/null && mv -f "$retestStore/waiting/.$queueId.request" "$retestStore/waiting/$queueId.request" 2> /dev/null || {
 		rm -f "$retestStore/waiting/.$queueId.request" 2> /dev/null
 		echo "⛔ ERROR: $MDSC_CMD $queueOp: the request could not be written into $retestStore/waiting -- nothing was queued" >&2 ; return 1
 	}
 	printf '%s\n' "$queueId"
 	if [ "$queueFileCount" -gt 0 ] && [ "$queueTestCount" = 0 ] ; then
-		echo "# retest: queued as $queueId, about $( AgentsToolsRetestCopyName "$queueRoot" ): $queueTestCount test(s) by name, and $queueFileCount changed file(s) no test is known to cover, so every test not yet passed on the state that copy is in when the batch runs. The tester's next batch takes it; read the outcome with --retest-result $queueId" >&2
+		echo "# retest: queued as $queueId, about $( AgentsToolsRetestCopyName "$queueRoot" ): $queueTestCount test(s) by name, and $queueFileCount changed file(s) that no test of the copy names, so no test is run for them and the result says so. The tester's next batch takes it; read the outcome with --retest-result $queueId" >&2
 	else
 		echo "# retest: queued as $queueId, about $( AgentsToolsRetestCopyName "$queueRoot" ): $queueTestCount test(s). The tester's next batch takes it; read the outcome with --retest-result $queueId" >&2
 	fi
@@ -166,13 +195,13 @@ AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the
 }
 
 AgentsToolsRetestFinish(){ ## batch folder, request file, batch id, and the id a wider request yielded its remainder to or nothing -- that request's result into `done`, from what the batch found for its copy; then out of `running`, and its line on stdout
-	local finishWork="$1" finishRequest="$2" finishBatch="$3" finishYield="${4:-}" finishId finishCopy finishTest finishHow finishAll="" finishLine
+	local finishWork="$1" finishRequest="$2" finishBatch="$3" finishYield="${4:-}" finishId finishCopy finishTest finishHow finishFile finishAll="" finishLine
 	local finishPassed=0 finishBefore=0 finishFailed="" finishNot="" finishVerdict=PASS
 	finishId="$( LC_ALL=C sed -n "s/^id: //p" "$finishRequest" 2> /dev/null | LC_ALL=C sed -n 1p )"
 	finishCopy="$( LC_ALL=C grep -n -x -F -- "$( LC_ALL=C sed -n "s/^origin: //p" "$finishRequest" 2> /dev/null | LC_ALL=C sed -n 1p )" "$finishWork/copies" | LC_ALL=C sed -n '1s/:.*//p' )"
-	## what it asked for: its tests by name; a request that names none, only a file no test is known to cover, every test of the copy
+	## what it asked for: its tests by name, which a changed file brings as the tests that name it; a file no test names
+	## is the request's own file, said as that below, and never the copy's whole suite (W2: 911 tests for a file-only ask)
 	finishAll="$( LC_ALL=C sed -n "s/^test: //p" "$finishRequest" 2> /dev/null )"
-	[ -n "$finishAll" ] || [ -z "$( LC_ALL=C sed -n "s/^file: //p" "$finishRequest" 2> /dev/null )" ] || finishAll="$( { printf '%s\n' "$finishAll" ; cat "$finishWork/$finishCopy.every" 2> /dev/null ; } | LC_ALL=C grep . | LC_ALL=C sort -u )"
 	{
 		cat "$finishRequest"
 		printf 'batch: %s\nfinished: %s\nrun: %s\n' "$finishBatch" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$( cat "$finishWork/$finishCopy.folder" 2> /dev/null )"
@@ -186,6 +215,12 @@ AgentsToolsRetestFinish(){ ## batch folder, request file, batch id, and the id a
 				*) finishNot="$finishNot $finishTest" ; printf 'not-run: %s %s\n' "$finishTest" "${finishHow:-the batch has no outcome for it}" ;;
 			esac
 		done <<< "$finishAll"
+		## A FILE NO TEST NAMES is answered as that file: the result says which file gave the batch no test, and the
+		## request is not PASS for tests it never asked for.
+		while IFS= read -r finishFile ; do
+			[ -n "$finishFile" ] || continue
+			finishNot="$finishNot $finishFile" ; printf 'not-run: %s no test of the copy names it\n' "$finishFile"
+		done <<< "$( LC_ALL=C sed -n "s/^no-cover: //p" "$finishRequest" 2> /dev/null )"
 		## a request the batch could tell no test for has not been answered
 		if [ "$(( finishPassed + finishBefore ))" = 0 ] && [ -z "$finishFailed$finishNot" ] ; then
 			finishNot=" (every test: the copy it was asked about gave none to run)" ; printf 'not-run: * the copy it was asked about gave no test to run\n'
@@ -243,6 +278,9 @@ AgentsToolsRetestRunTests(){ ## batch folder, number of the copy, its source roo
 	rm -f "$retestStore/drain.lock/run" 2> /dev/null || :
 	runFolder="$( LC_ALL=C sed -n 's/^# AgentsRunTests\.sh: .* run folder: //p' "$runWork/$runNo.out" | LC_ALL=C tail -n 1 )"
 	printf '%s\n' "$runFolder" > "$runWork/$runNo.folder"
+	## THE BATCH NAMES ITS RUN FOLDER IN ITS LOCK (the item's W2: a scan that says `waiting=` and nothing of the work done): a
+	## reader counts the tests it has finished from that folder's own progress, and never guesses at a batch it cannot see.
+	[ -z "$runFolder" ] || printf '%s\n' "$runFolder" > "$retestStore/drain.lock/folder" 2> /dev/null || :
 	## A RUN THE DRAIN STOPPED AT ITS BOUNDARY reached only the tests before the boundary: the rest come back to the queue
 	## with their request, and are counted as run for nobody.
 	runStopped=""
@@ -303,7 +341,7 @@ AgentsToolsRetestDrainEnd(){ ## -- the runner tree this lock's drain started, en
 	if [ -n "$endRunPid" ] && [ "$( AgentsToolsRetestProcess "$endRunPid" )" = "$endRunThen" ] ; then
 		kill -TERM -- "-$endRunPid" 2> /dev/null || kill -TERM "$endRunPid" 2> /dev/null || :
 	fi
-	rm -f "$retestStore/drain.lock/run" "$retestStore/drain.lock/holder" 2> /dev/null
+	rm -f "$retestStore/drain.lock/run" "$retestStore/drain.lock/holder" "$retestStore/drain.lock/folder" 2> /dev/null
 	rmdir "$retestStore/drain.lock" 2> /dev/null
 }
 
@@ -409,17 +447,10 @@ AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that wait
 				## the tests this request still needs: those it names, or for one that names none, every test not passed on this state
 				: > "$drainWork/$drainNo.want"
 				if [ "$drainAsks" = 999999 ] ; then
-					## a test that passed on this very state before the batch, and so did not run again, says so once, at the request that asked for every one
-					while read -r drainTest drainWhen ; do
-						[ -n "$drainTest" ] || continue
-						if ! LC_ALL=C grep -q -x -F -- "$drainTest" "$drainWork/$drainNo.ran" ; then printf '%s before %s\n' "$drainTest" "$drainWhen" >> "$drainWork/$drainNo.outcome" ; fi
-					done < "$drainWork/$drainNo.passed"
-					LC_ALL=C awk -v skipFile="$drainWork/$drainNo.passed" -v ranFile="$drainWork/$drainNo.ran" '
-						BEGIN {
-							while ( ( getline oneLine < skipFile ) > 0 ) { split( oneLine, oneWord, " " ) ; skip[oneWord[1]] = 1 ; }
-							while ( ( getline oneLine < ranFile ) > 0 ) ran[oneLine] = 1
-						}
-						!($0 in skip) && !($0 in ran)' "$drainWork/$drainNo.every" > "$drainWork/$drainNo.want"
+					## A FILE NO TEST NAMES IS NO REQUEST FOR EVERY TEST OF THE COPY (W2: one ask for three .env and registry
+					## files put 911 tests in the machine's line for five hours). The request runs nothing, and its result
+					## names the file that gave it no test.
+					: > "$drainWork/$drainNo.want"
 					else
 					LC_ALL=C sed -n "s/^test: //p" "$drainRequest" 2> /dev/null | LC_ALL=C awk -v ranFile="$drainWork/$drainNo.ran" 'BEGIN { while ( ( getline oneLine < ranFile ) > 0 ) ran[oneLine] = 1 ; } !($0 in ran)' | LC_ALL=C sort -u > "$drainWork/$drainNo.want"
 				fi
@@ -536,7 +567,7 @@ AgentsToolsRetestResult(){ ## operation, request id... -- where each request sta
 ## print its line only where this one is not empty. The oldest is the first by name, and a request is named by the moment it was
 ## asked in UTC, so the name order is the age order.
 AgentsToolsRetestQueueState(){
-	local stateCount=0 stateAsked="" stateAge=0 stateHolder=none stateFile statePid stateEpoch stateNow
+	local stateCount=0 stateAsked="" stateAge=0 stateHolder=none stateFile statePid stateEpoch stateNow stateDone="" stateFolder="" stateTotal=0 stateAnswered=0
 	for stateFile in "$retestStore"/waiting/*.request ; do
 		[ -f "$stateFile" ] || continue
 		stateCount=$(( stateCount + 1 ))
@@ -553,5 +584,14 @@ AgentsToolsRetestQueueState(){
 		[ -z "$statePid" ] || [ -z "$( AgentsToolsRetestProcess "$statePid" )" ] || stateHolder=alive
 	fi
 	[ "$stateCount" -gt 0 ] || [ "$stateHolder" != none ] || return 0
-	printf 'waiting=%s oldest=%sm holder=%s\n' "$stateCount" "$stateAge" "$stateHolder"
+	## WHAT THE RUNNING BATCH HAS DONE, from its own run folder: the tests it has answered, of the ones it took.
+	stateDone="" stateFolder=""
+	[ ! -f "$retestStore/drain.lock/folder" ] || stateFolder="$( LC_ALL=C sed -n 1p "$retestStore/drain.lock/folder" 2> /dev/null )"
+	if [ -n "$stateFolder" ] && [ -f "$stateFolder/tests.list" ] ; then
+		stateTotal="$( LC_ALL=C grep -c . "$stateFolder/tests.list" 2> /dev/null )" ; stateTotal="${stateTotal:-0}"
+		stateAnswered=0
+		[ ! -f "$stateFolder/progress.txt" ] || stateAnswered="$( LC_ALL=C grep -c -e '^PASS' -e '^FAIL' "$stateFolder/progress.txt" 2> /dev/null || : )"
+		stateDone=" done=${stateAnswered:-0}of${stateTotal}"
+	fi
+	printf 'waiting=%s oldest=%sm holder=%s%s\n' "$stateCount" "$stateAge" "$stateHolder" "$stateDone"
 }

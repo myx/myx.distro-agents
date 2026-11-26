@@ -75,13 +75,13 @@
 		}
 		addGate="$agentsLocalLockPath"
 		## The open prompt, the oldest that takes a call.
-		local addFile="" addOpen="" addTs="" addOpenTs="" addOpenKind="" addKind addLine addSetScope addSetSession addSetParts
+		local addFile="" addOpen="" addTs="" addOpenTs="" addOpenThread="" addOpenKind="" addKind addLine addSetScope addSetSession addSetParts
 		while IFS= read -r addFile ; do
 			[ -n "$addFile" ] && [ -f "$addFile" ] || continue
 			[ "$( AgentsToolsEscalationField "$addFile" owner )" = "$addMember" ] && [ "$( AgentsToolsEscalationField "$addFile" session-id )" = "$addSession" ] || continue
 			[ "$( AgentsToolsEscalationField "$addFile" address-to )" = "human-owner" ] && [ "$( AgentsToolsEscalationField "$addFile" ask-identity )" = "bot" ] || continue
 			addTs="$( AgentsToolsEscalationField "$addFile" question-ts )"
-			[ -n "$addTs" ] && [ "$( AgentsToolsEscalationField "$addFile" thread-ts )" = "$addTs" ] || continue
+			[ -n "$addTs" ] || continue
 			[ -z "$( AgentsToolsEscalationField "$addFile" revision-ts )$( AgentsToolsEscalationField "$addFile" rerouted-from )$( AgentsToolsEscalationField "$addFile" forward-ts )" ] || continue
 			addKind="$( AgentsToolsEscalationField "$addFile" kind )"
 			case "$addKind" in
@@ -105,7 +105,7 @@
 				*) continue ;;
 			esac
 			[ -z "$addOpen" ] || [ "$addTs" \< "$addOpenTs" ] || continue
-			addOpen="$addFile" ; addOpenTs="$addTs" ; addOpenKind="$addKind"
+			addOpen="$addFile" ; addOpenTs="$addTs" ; addOpenThread="$( AgentsToolsEscalationField "$addFile" thread-ts )" ; addOpenKind="$addKind"
 		done <<< "$( LC_ALL=C grep -l -x -F 'status: reply-pending' "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null )"
 		if [ -z "$addOpen" ] ; then
 			AgentsToolsLocalLockGive "$addGate"
@@ -196,7 +196,7 @@
 		if ! AgentsToolsEscalationClaim "$addOpen" ; then
 			addWhy="it is being answered"
 		else
-			case "$( AgentsToolsEscalationThreadVerdict "$addMember" "$addOpen" "$addId" "$addChannel" "$addOpenTs" "$addOpenTs" "$addAddressees" true )" in
+			case "$( AgentsToolsEscalationThreadVerdict "$addMember" "$addOpen" "$addId" "$addChannel" "$addOpenTs" "${addOpenThread:-$addOpenTs}" "$addAddressees" true )" in
 				OPEN$'\t'*) ;;
 				*) addWhy="something came into its thread as the call was being added" ; AgentsToolsEscalationClaimGive ;;
 			esac
@@ -281,5 +281,5 @@
 		AgentsToolsLocalLockGive "$addGate"
 		printf 'ADDED: %s\n' "$addId"
 		printf 'ENTRIES: %s\n' "$( printf '%s' "$addNewHave" | LC_ALL=C grep -c . )"
-		printf 'SENT_MESSAGE_CHANNEL=%s\nSENT_MESSAGE_TS=%s\nSENT_MESSAGE_THREAD_TS=%s\nSENT_MESSAGE_ADDRESSEES=%s\n' "$addChannel" "$addOpenTs" "$addOpenTs" "$addAddressees"
+		printf 'SENT_MESSAGE_CHANNEL=%s\nSENT_MESSAGE_TS=%s\nSENT_MESSAGE_THREAD_TS=%s\nSENT_MESSAGE_ADDRESSEES=%s\n' "$addChannel" "$addOpenTs" "${addOpenThread:-$addOpenTs}" "$addAddressees"
 		return 0

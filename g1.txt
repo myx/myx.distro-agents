@@ -1,0 +1,2 @@
+SystemContext: init: /Users/myx/Workspaces/ws-myx-devops/source
+⛔ ERROR: DistroAgentsTools --trello-whoami: TRELLO_KEY/TRELLO_TOKEN not fully set in magic-architect's own scope

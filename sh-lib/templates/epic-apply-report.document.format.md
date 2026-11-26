@@ -64,4 +64,4 @@ time: {{time}}
 - rule: `{{knowledge-lines}}` are the builder's knowledge lines, queued for the librarian through `AgentLibrarianTools.fn.sh --request-update`, one line each.
 - rule: `{{time}}` is the time the work took, as the builder measured it.
 - rule: every line outside the slots is emitted exactly as written here.
-- rule: a report whose `{{applied}}` names a file without its absolute path or without its read-back is refused by the handback and by a declared relay, and the refusal names what is missing.
+- rule: a report whose `{{applied}}` names a file without its `<place>:<relative path>` or without its read-back is refused by the handback and by a declared relay. The refusal names what is missing.

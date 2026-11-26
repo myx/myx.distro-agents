@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.InternOpAtlassianConfluenceCommentResolve.include -- the operation `--intern-op-atlassian-confluence-comment-resolve`, sourced by AgentsTools.InternOpAtlassianCall.include with the operation's arguments.
+	type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.AtlassianRequest.include"
+		shift
+		local confRSMember="" confRSPageId="" confRSCommentId="" confRSContext="intern-op-atlassian-confluence-comment-resolve"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--page-id|--comment-id|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confRSContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)     confRSMember="$2" ;;
+						--page-id)    confRSPageId="$2" ;;
+						--comment-id) confRSCommentId="$2" ;;
+						--context)    confRSContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confRSContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confRSMember" ] || [ -z "$confRSPageId" ] || [ -z "$confRSCommentId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confRSContext: syntax is --member <team-member> --page-id <page-id> --comment-id <comment-id> [--context <caller>] -- an inline comment resolves on its own page alone, and a second call on a resolved comment writes nothing" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAtlassianAssertNumber "$confRSPageId" "<page-id>" "$confRSContext" || { set +e ; return 1 ; }
+		AgentsToolsAtlassianAssertNumber "$confRSCommentId" "<comment-id>" "$confRSContext" || { set +e ; return 1 ; }
+		## THE COMMENT IS READ BEFORE ANYTHING IS WRITTEN. The write carries the comment's text as the site
+		## holds it, because an update replaces the body it names, and the state already in place is what
+		## makes a second pass write nothing. A 404 covers a comment this identity may not see.
+		local confRSFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk"
+		local confRSPath="/wiki/api/v2/inline-comments/$( AgentsToolsAtlassianUrlEncode "$confRSCommentId" )?body-format=storage"
+		local confRSBody="" confRSRc=0 confRSAnswerPageId confRSAnswerStatus confRSAnswerText confRSAnswerVersion confRSWrite
+		confRSBody="$( AgentsToolsAtlassianCall "$confRSMember" confluence GET "$confRSPath" "$confRSContext" "" )" || confRSRc=$?
+		if [ "$confRSRc" -eq 8 ] ; then
+			printf '%s\n' "🙋 WARNING: $MDSC_CMD --$confRSContext: no inline comment with id $confRSCommentId on page $confRSPageId -- a 404 also covers a comment this identity may not see, and nothing was written" >&2
+			set +e ; return 8
+		fi
+		if [ "$confRSRc" -ne 0 ] ; then
+			set +e ; return "$confRSRc"
+		fi
+		confRSAnswerPageId="$( printf '%s\n' "$confRSBody" | LC_ALL=C awk -v path=pageId -v optional=1 -v dialect=atlassian -f "$confRSFieldAwk" 2>/dev/null )"
+		if [ "$confRSAnswerPageId" != "$confRSPageId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confRSContext: inline comment $confRSCommentId belongs to page ${confRSAnswerPageId:-<not stated in the response>}, not page $confRSPageId -- nothing was written" >&2
+			set +e ; return 1
+		fi
+		confRSAnswerStatus="$( printf '%s\n' "$confRSBody" | LC_ALL=C awk -v path=resolutionStatus -v optional=1 -v dialect=atlassian -f "$confRSFieldAwk" 2>/dev/null )"
+		case "$confRSAnswerStatus" in
+			resolved)
+				## Already resolved: the answer is the state it is in, and a second pass is safe.
+				printf 'COMMENT_ID\tPAGE_ID\tRESOLUTION_STATUS\tWROTE\n'
+				printf '%s\t%s\tresolved\tno\n' "$confRSCommentId" "$confRSPageId"
+				return 0
+			;;
+			dangling)
+				## A dangling comment names a span its page no longer carries, and the site refuses to update one.
+				printf '%s\n' "🙋 WARNING: $MDSC_CMD --$confRSContext: inline comment $confRSCommentId on page $confRSPageId reads dangling, and a dangling comment cannot be updated -- nothing was written" >&2
+				set +e ; return 9
+			;;
+			'')
+				## The state is what decides the write, so an answer without one is no answer.
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confRSContext: the site's answer for inline comment $confRSCommentId carries no resolution status, so the state it is in cannot be read and nothing was written" >&2
+				set +e ; return 3
+			;;
+		esac
+		confRSAnswerText="$( printf '%s\n' "$confRSBody" | LC_ALL=C awk -v path=body.storage.value -v optional=1 -v dialect=atlassian -f "$confRSFieldAwk" 2>/dev/null )"
+		if [ -z "$confRSAnswerText" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confRSContext: the site's answer for inline comment $confRSCommentId carries no storage body, and an update would replace the comment's text with nothing -- nothing was written" >&2
+			set +e ; return 1
+		fi
+		confRSAnswerVersion="$( printf '%s\n' "$confRSBody" | LC_ALL=C awk -v path=version.number -v optional=1 -v dialect=atlassian -f "$confRSFieldAwk" 2>/dev/null )"
+		case "$confRSAnswerVersion" in
+			''|*[!0123456789]*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confRSContext: the site's answer for inline comment $confRSCommentId carries no version number, and the site refuses an update without the next one -- nothing was written" >&2
+				set +e ; return 3
+			;;
+		esac
+		## The read answers `body.storage.value`, and the write takes `body.value` beside
+		## `body.representation`: the two shapes differ by that one level, and a write
+		## carrying the read's shape stores a body the site cannot read back.
+		confRSWrite="{\"version\":{\"number\":$(( confRSAnswerVersion + 1 ))},\"body\":{\"representation\":\"storage\",\"value\":\"$( printf '%s' "$confRSAnswerText" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )\"},\"resolved\":true}"
+		confRSRc=0
+		AgentsToolsAtlassianCall "$confRSMember" confluence PUT "/wiki/api/v2/inline-comments/$( AgentsToolsAtlassianUrlEncode "$confRSCommentId" )" "$confRSContext" "$confRSWrite" > /dev/null || confRSRc=$?
+		if [ "$confRSRc" -ne 0 ] ; then
+			set +e ; return "$confRSRc"
+		fi
+		## Read back what stored, never what the write's own answer said.
+		confRSBody="" confRSRc=0
+		confRSBody="$( AgentsToolsAtlassianCall "$confRSMember" confluence GET "$confRSPath" "$confRSContext" "" )" || confRSRc=$?
+		if [ "$confRSRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confRSContext: UNKNOWN -- the resolve was sent, and the read-back of inline comment $confRSCommentId failed (rc=$confRSRc), so the state it was left in cannot be told. Read the comment before acting again: a second call on a resolved comment writes nothing" >&2
+			set +e ; return 3
+		fi
+		confRSAnswerStatus="$( printf '%s\n' "$confRSBody" | LC_ALL=C awk -v path=resolutionStatus -v optional=1 -v dialect=atlassian -f "$confRSFieldAwk" 2>/dev/null )"
+		if [ "$confRSAnswerStatus" != "resolved" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confRSContext: UNKNOWN -- the resolve was sent, and inline comment $confRSCommentId on page $confRSPageId reads back ${confRSAnswerStatus:-no resolution status} rather than resolved. Read the comment before acting again" >&2
+			set +e ; return 3
+		fi
+		printf 'COMMENT_ID\tPAGE_ID\tRESOLUTION_STATUS\tWROTE\n'
+		printf '%s\t%s\tresolved\tyes\n' "$confRSCommentId" "$confRSPageId"
+		return 0

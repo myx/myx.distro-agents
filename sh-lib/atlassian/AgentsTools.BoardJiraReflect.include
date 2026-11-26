@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.BoardJiraReflect.include -- one board item's state, reflected on its Jira issue in the
+## same step that moved it. Sourced, never run. Functions only. Each function loads what it calls.
+##
+## THE MIRROR IS A SETTING: the step runs only where REFLECT_MODELS names the jira board half, read at
+## every write, so turning that half off stops it with no other change.
+##
+## THE BOARD IS THE RECORD, and a Jira fault never fails the move that already landed. Keeping the two
+## in step is the mirror's own next write, which asks the site first and sends only what differs.
+##
+## ONE LABEL IS THE KEY: `magic-item-<item filename>`, lower case and without `.md`, because a Jira
+## label query folds case (vault record adr-20261120T1520Z-jira-board-issue-to-team-board-item-mapping).
+## The state rides a second label, `magic-state-<board state>`, since the project's three statuses
+## cannot carry nine states. A label write replaces the whole list, so the issue's other labels are
+## carried across it and never dropped.
+##
+## EVERY WRITE GOES THROUGH THE GATED FRONT, DistroAgentsAtlassian.fn.sh: an Atlassian write runs
+## behind that front and nowhere else, so the coordinator-only gate decides it and a refusal is recorded.
+##
+
+## The whole label list the issue must end with: every label it holds except any state label, then the
+## one this state names. Comma separated, in the order the site answered.
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
+AgentsToolsBoardJiraLabelsNext(){ ## <current labels> <state label>
+	local nextOut="" nextOne
+	local nextNewline='
+'
+	for nextOne in $( printf '%s\n' "$1" | LC_ALL=C tr ',' "$nextNewline" ) ; do
+		case "$nextOne" in ''|magic-state-*) continue ;; esac
+		nextOut="${nextOut:+$nextOut,}$nextOne"
+	done
+	if [ -z "$2" ] ; then
+		printf '%s\n' "$nextOut"
+		return 0
+	fi
+	printf '%s\n' "${nextOut:+$nextOut,}$2"
+}
+
+## A comma-separated label list as the JSON object a Jira write carries.
+AgentsToolsBoardJiraLabelsJson(){ ## <comma separated labels>
+	LC_ALL=C awk -F, '{ printf "{\"labels\":[" ; for (i = 1 ; i <= NF ; i++) if ($i != "") printf "%s\"%s\"", (n++ ? "," : ""), $i ; printf "]}\n" ; }' <<< "$1"
+}
+
+## THE KEY A RESOLVED ISSUE IS KEPT UNDER, so no later write of the same item pays the search again:
+## a call path takes a kept index (engineering discipline), and the search stays the fallback.
+AgentsToolsBoardJiraKeyKeep(){ ## item filename, key
+	local keepIndex="$MDAT_DATA_ROOT/atlassian/jira-mirror.index" keepTemp=""
+	mkdir -p "${keepIndex%/*}" 2> /dev/null || return 1
+	keepTemp="$( mktemp "${keepIndex%/*}/.keep.XXXXXX" 2> /dev/null )" || return 1
+	{ [ ! -f "$keepIndex" ] || LC_ALL=C awk -F'\t' -v want="$1" '$1 != want { print }' "$keepIndex" 2> /dev/null ; printf '%s\t%s\n' "$1" "$2" ; } > "$keepTemp" 2> /dev/null \
+		&& mv -f "$keepTemp" "$keepIndex" 2> /dev/null || { rm -f "$keepTemp" ; return 1 ; }
+	return 0
+}
+
+AgentsToolsBoardJiraReflect(){ ## <team-member> <item filename> <board state> [create]
+	local reflectMember="$1" reflectItem="$2" reflectState="$3" reflectIsNew="${4:-}"
+	case "$reflectState" in ''|*/*|.|..) return 0 ;; esac
+	if [ -z "$reflectItem" ] ; then
+		printf '🙋 WARNING: board-jira-reflect: no item was named, so nothing was mirrored on Jira\n' >&2
+		return 0
+	fi
+	## A console write names no member, and magic-coordinator is the board's only writer, so it is the
+	## identity the site is asked under when the caller's own context names nobody.
+	[ -n "$reflectMember" ] || reflectMember="magic-coordinator"
+	type AgentsToolsReflectModelsParse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/settings/AgentsTools.ReflectSetting.include"
+	local reflectHalves=""
+	reflectHalves="$( AgentsToolsReflectModelsParse "$( AgentsToolsReflectKeyValue REFLECT_MODELS )" 2> /dev/null )" || return 0
+	[ "${reflectHalves%% *}" = "jira" ] || return 0
+	local reflectProject="$( AgentsToolsReflectKeyValue REFLECT_JIRA_PROJECT )"
+	if [ -z "$reflectProject" ] ; then
+		printf '🙋 WARNING: board-jira-reflect: REFLECT_JIRA_PROJECT is empty, so %s was moved on the board and not on Jira\n' "$reflectItem" >&2
+		return 0
+	fi
+	local reflectFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsAtlassian.fn.sh"
+	local reflectLabel="magic-item-$( printf '%s' "${reflectItem%.md}" | LC_ALL=C awk '{ print tolower($0) ; }' )"
+	local reflectPrefix="${reflectItem%%-*}"
+	local reflectType="Task" reflectStatus="Backlog"
+	case "$reflectPrefix" in
+		project) reflectType="Epic" ;;
+		warning) reflectType="Bug" ;;
+	esac
+	## Measured 2026-11-25 over board 1404's 121 keyed issues: running and review sit In Progress, and
+	## backlog, pending, blocked and parked sit Backlog.
+	case " $agentsBoardWorkStates " in *" $reflectState "*) reflectStatus="In Progress" ;; esac
+	case " $agentsBoardConcludedStates " in *" $reflectState "*) reflectStatus="Done" ;; esac
+	## A KEY THIS INDEX HOLDS IS ASKED FOR DIRECTLY: the issue read happens either way, and the search
+	## runs only for an item whose key is not kept yet.
+	local reflectIndex="$MDAT_DATA_ROOT/atlassian/jira-mirror.index" reflectKeyKept=""
+	[ ! -s "$reflectIndex" ] || reflectKeyKept="$( LC_ALL=C awk -F'\t' -v want="$reflectItem" '$1 == want { print $2 ; exit }' "$reflectIndex" 2> /dev/null )" || :
+	## A NEW ITEM HAS NO ISSUE YET, so its first write goes straight to the create: a search there can
+	## only answer nothing, and it costs a site round-trip on every dispatch the board writes.
+	local reflectFound="" reflectSearchRc=0
+	if [ -z "$reflectKeyKept" ] && [ "$reflectIsNew" != "create" ] ; then
+	reflectFound="$( "$BASH" "$reflectFn" --jira-issue-search --team-member "$reflectMember" \
+		"project = $reflectProject AND labels = \"$reflectLabel\"" --limit 1 2> /dev/null )" || reflectSearchRc=$?
+	if [ "$reflectSearchRc" -ne 0 ] ; then
+		printf '🙋 WARNING: board-jira-reflect: the Jira search for %s failed (rc=%s), so %s was moved on the board and not on Jira\n' "$reflectLabel" "$reflectSearchRc" "$reflectItem" >&2
+		return 0
+	fi
+	fi
+	## The table's first real row, of this project: its diagnostic lines all start with `#`.
+	local reflectRow="$( printf '%s\n' "$reflectFound" | LC_ALL=C awk -F'\t' -v proj="$reflectProject" '$1 ~ /^[A-Za-z]/ && index($1, proj "-") == 1 { print $1 "\t" $3 ; exit ; }' )"
+	local reflectKey="$reflectKeyKept" reflectStatusNow="" reflectSaid="" reflectRc=0
+	if [ -n "$reflectKeyKept" ] ; then
+		:
+	elif [ -n "$reflectRow" ] ; then
+		reflectKey="${reflectRow%%$'\t'*}"
+		reflectStatusNow="${reflectRow#*$'\t'}"
+	fi
+	if [ -n "$reflectKey" ] && [ -z "$reflectKeyKept" ] ; then
+		AgentsToolsBoardJiraKeyKeep "$reflectItem" "$reflectKey" || :
+	fi
+	if [ -z "$reflectKey" ] ; then
+		local reflectFields="$( AgentsToolsBoardJiraLabelsJson "magic-type-$reflectPrefix,$reflectLabel,magic-state-$reflectState" )"
+		## The key is on stdout and the site's own words are on stderr, so each is read where it lands.
+		reflectSaid="$( "$BASH" "$reflectFn" --jira-issue-create --team-member "$reflectMember" --project "$reflectProject" --issuetype "$reflectType" \
+			--summary "${reflectItem%.md}" --fields-json "$reflectFields" 2> /dev/null )" || reflectRc=$?
+		reflectKey="$( printf '%s\n' "$reflectSaid" | LC_ALL=C awk -v path=key -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || reflectKey=""
+		if [ "$reflectRc" -ne 0 ] || [ -z "$reflectKey" ] ; then
+			printf '🙋 WARNING: board-jira-reflect: creating the issue for %s failed (rc=%s), so it was moved on the board and not on Jira\n' "$reflectItem" "$reflectRc" >&2
+			return 0
+		fi
+		printf '# board-jira-reflect: %s created for %s in state %s\n' "$reflectKey" "$reflectItem" "$reflectState" >&2
+		AgentsToolsBoardJiraKeyKeep "$reflectItem" "$reflectKey" || :
+		## A new issue starts in Backlog, so any other status follows at once by a transition of the status alone.
+		[ "$reflectStatus" != "Backlog" ] || return 0
+		reflectSaid="$( "$BASH" "$reflectFn" --jira-issue-transition --team-member "$reflectMember" "$reflectKey" --to-status "$reflectStatus" 2>&1 )" || reflectRc=$?
+		[ "$reflectRc" -eq 0 ] || printf '🙋 WARNING: board-jira-reflect: %s was created as %s and not moved to %s: %s\n' "$reflectItem" "$reflectKey" "$reflectStatus" "$reflectSaid" >&2
+		return 0
+	fi
+	local reflectHave="" reflectWant="" reflectFields="" reflectRaw="" reflectStatusHave=""
+	## `--format raw` puts the whole issue body on stdout; the other formats put a human line on stderr. One read
+	## answers the labels and the status, so a move that leaves the status as it is sends no transition.
+	reflectRaw="$( "$BASH" "$reflectFn" --jira-issue-read --team-member "$reflectMember" "$reflectKey" --format raw 2> /dev/null )" || reflectRaw=""
+	reflectHave="$( printf '%s' "$reflectRaw" \
+		| LC_ALL=C awk -v path=fields.labels -v raw=1 -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null \
+		| LC_ALL=C sed -e 's/^\[//' -e 's/\]$//' -e 's/"//g' -e 's/, */,/g' )" || reflectHave=""
+	reflectStatusHave="$( printf '%s' "$reflectRaw" \
+		| LC_ALL=C awk -v path=fields.status.name -v raw=1 -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || reflectStatusHave=""
+	reflectWant="$( AgentsToolsBoardJiraLabelsNext "$reflectHave" "magic-state-$reflectState" )"
+	if [ "$reflectHave" = "$reflectWant" ] && [ "${reflectStatusHave:-$reflectStatusNow}" = "$reflectStatus" ] ; then
+		return 0
+	fi
+	reflectFields="$( AgentsToolsBoardJiraLabelsJson "$reflectWant" )"
+	## The status moves alone, since Jira refuses a field the transition's screen does not carry. The labels follow in an update.
+	## The status the issue read shows decides it: a move inside one status bucket (pending, blocked and parked all
+	## sit Backlog; running and review sit In Progress) would otherwise pay a transition that changes nothing.
+	if [ -z "$reflectStatusHave" ] && [ -z "$reflectStatusNow" ] ; then
+		:
+	elif [ "${reflectStatusHave:-$reflectStatusNow}" != "$reflectStatus" ] ; then
+		reflectSaid="$( "$BASH" "$reflectFn" --jira-issue-transition --team-member "$reflectMember" "$reflectKey" --to-status "$reflectStatus" 2>&1 )" || reflectRc=$?
+	fi
+	if [ "$reflectRc" -eq 0 ] && [ "$reflectHave" != "$reflectWant" ] ; then
+		reflectSaid="$( "$BASH" "$reflectFn" --jira-issue-update --team-member "$reflectMember" "$reflectKey" --fields-json "$reflectFields" 2>&1 )" || reflectRc=$?
+	fi
+	if [ "$reflectRc" -ne 0 ] ; then
+		printf '🙋 WARNING: board-jira-reflect: %s was moved to %s on the board and its issue %s was not: %s\n' "$reflectItem" "$reflectState" "$reflectKey" "$reflectSaid" >&2
+		return 0
+	fi
+	printf '# board-jira-reflect: %s %s -> %s (%s)\n' "$reflectKey" "${reflectStatusHave:-${reflectStatusNow:--}}" "$reflectStatus" "$reflectState" >&2
+	return 0
+}

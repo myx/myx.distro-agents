@@ -5,6 +5,7 @@
 
 ## A value reaching a command line: one bare name, asked of the family's one bare-name gate
 ## (AgentsToolsAssertBareName, AgentsTools.BareName.include, which has no other effect), quietly.
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 AgentsHarnessBareName(){ ## candidate
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include" || return 1
 	AgentsToolsAssertBareName "$1" "a name" AgentsHarnessBareName 2> /dev/null
@@ -27,7 +28,7 @@ AgentsHarnessDispatchItemPath(){ ## handle, optional `every`
 		''|*/*|*..*) return 0 ;;
 	esac
 	type AgentsToolsBoardStatePathInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-	for dispatchState in running pending review blocked parked processed archived retained backlog ; do
+	for dispatchState in $agentsBoardStates ; do
 		AgentsToolsBoardStatePathInto dispatchPath "$dispatchState" "$handleText" || continue
 		[ -f "$dispatchPath" ] || continue
 		[ "${2:-}" != "every" ] || printf 'file '
@@ -52,14 +53,14 @@ AgentsHarnessDispatchItemPath(){ ## handle, optional `every`
 		case "$dispatchNamed" in */*|.|..) continue ;; esac
 		case "$dispatchNames" in *" $dispatchNamed "*) ;; *) dispatchNames="$dispatchNames$dispatchNamed " ;; esac
 	done
-	for dispatchState in running pending review blocked parked processed archived retained backlog ; do
+	for dispatchState in $agentsBoardStates ; do
 		for dispatchNamed in $dispatchNames ; do
 			AgentsToolsBoardStatePathInto dispatchPath "$dispatchState" "$dispatchNamed.md" || continue
 			[ ! -f "$dispatchPath" ] || dispatchFiles+=( "$dispatchPath" )
 		done
 	done
 	if [ "${#dispatchFiles[@]}" -eq 0 ] ; then
-		AgentsToolsBoardItemsInto dispatchFiles dispatch- running pending review blocked parked processed archived retained backlog
+		AgentsToolsBoardItemsInto dispatchFiles dispatch- $agentsBoardStates
 	fi
 	[ "${#dispatchFiles[@]}" -gt 0 ] || return 0
 	if [ "${2:-}" = "every" ] ; then

@@ -300,7 +300,7 @@ case "$1" in
 		fi
 		AgentsChangeLoad
 		local holdId holdDir holdTotal=0 holdShown=0 holdCounts holdAct="change" holdDiff="" holdCut="" holdPurpose="" holdItem="" holdItemPath="" holdTask="" holdName holdNames="" holdTaskText=""
-		local holdRecord="" holdCandidate holdCow="" holdThread="" holdSessionText="" holdWhere holdByText holdFileShown holdBody holdOut holdChannel holdTs holdAddressees holdAsking holdPending holdFields
+		local holdRecord="" holdCandidate holdCow="" holdThread="" holdSessionText="" holdWhere holdByText holdFileShown holdBody holdOut holdChannel holdTs holdAddressees holdAsking holdAskThread holdPending holdFields
 		local holdDetail="" holdDetailOut="" holdDetailTs=""
 		holdId="$( uuidgen 2> /dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
 		if [ -z "$holdId" ] ; then
@@ -403,6 +403,7 @@ case "$1" in
 		}
 		holdChannel="$( printf '%s\n' "$holdOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' | head -1 )"
 		holdTs="$( printf '%s\n' "$holdOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+		holdAskThread="$( printf '%s\n' "$holdOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' | head -1 )"
 		holdAddressees="$( printf '%s\n' "$holdOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
 		holdAsking="$( printf '%s\n' "$holdOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" || holdAsking=""
 		holdPending=""
@@ -422,7 +423,7 @@ case "$1" in
 			holdFields="$( AgentsToolsAskPostFieldsPack member "$holdMember" act "$holdAct" file "$holdFileShown" purpose "$holdPurpose" )"
 			type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			holdPending="$( printf '%s\n\n%s\n' "$holdBody" "$holdDetail" | DistroAgentsTools --intern-op-pending-reply-open "$holdMember" --to "$holdChannel" --session-id "$holdSession" \
-				--kind change --address-to human-owner --blocked-on "reply from human-owner" --channel "$holdChannel" --question-ts "$holdTs" --thread-ts "$holdTs" \
+				--kind change --address-to human-owner --blocked-on "reply from human-owner" --channel "$holdChannel" --question-ts "$holdTs" --thread-ts "${holdAskThread:-$holdTs}" \
 				--addressees "$holdAddressees" ${holdAsking:+--asking-accounts " $holdAsking"} ${holdItem:+--item "$holdItem"} --ask-identity bot \
 				--fields "$holdFields" --context "$MDSC_CMD" 2> /dev/null )" || holdPending=""
 		fi

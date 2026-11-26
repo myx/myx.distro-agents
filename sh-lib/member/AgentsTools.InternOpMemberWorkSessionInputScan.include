@@ -2,6 +2,7 @@
 # ^^^ for syntax checking in the editor only
 
 ## AgentsTools.InternOpMemberWorkSessionInputScan.include -- the operation `--intern-op-member-work-session-input-scan`, sourced by AgentsTools.Member.include with the operation's arguments.
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 		shift
 		local memberName="$1"
 		shift || true
@@ -28,7 +29,7 @@
 		## Every non-terminal state, owner-filtered, and the member's whole own inbox: the item's own terms.
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		DistroAgentsTools --intern-op-session-context-scan "$memberName" \
-			--state backlog --state pending --state running --state review --state blocked --state parked \
+			--state ${agentsBoardOpenStates// / --state } \
 			--all-types --filter-owner "$memberName" \
 			--do-inbox-reflections \
 			--do-inbox-notes \

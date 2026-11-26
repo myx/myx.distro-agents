@@ -40,6 +40,9 @@ export PATH RIG_SCENARIO RIG_CURL_LOG
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigTmp/ws/.local/.agents/magic-team.agent.env"
 printf 'SLACK_USER_TOKEN=rig-user-token-TESTER\n' > "$rigTmp/ws/.local/.agents/$rigMember.agent.env"
+## The persona row an external send reads, and the member registry its client member is found in.
+printf 'client-rig\t:robot_face:\tRig\tAdmin\tRig_Admin\n' > "$rigTmp/ws/.local/agents/team-members-names.registry"
+printf '%s\t%s\tsource\trig\t%s\n' "$rigTmp/ws" client-rig "$rigTmp/skills/client-rig" > "$rigTmp/ws/.local/agents/members.registry"
 
 rigTask="task-20261008T1200Z-rig-decisions"
 rigDispatch="dispatch-20261008T1201Z-spawn-proxy-1"
@@ -369,7 +372,9 @@ rigReplyCount=0
 rigAnswerAsked(){ ## reply text, replying account (default URIGOWNER), seconds to wait (default 120)
 	local answerFile="" answerLeft="${3:-120}" answerBy="${2:-URIGOWNER}" answerQ answerT answerRoot=""
 	while [ "$answerLeft" -gt 0 ] ; do
-		for answerFile in "$rigStore"/*.md "" ; do
+		## The newest decision readback first: a row that leaves an older readback open, as a contact's escalation does,
+		## must not take the answer meant for the one the call just opened.
+		for answerFile in $( ls -t "$rigStore"/*.md 2> /dev/null ) "" ; do
 			[ -n "$answerFile" ] || break
 			[ "$( rigField "$answerFile" status )" = reply-pending ] && LC_ALL=C grep -q '^decision-kind	' "${answerFile%.md}.fields" 2> /dev/null && [ -n "$( rigField "$answerFile" question-ts )" ] && break
 		done
@@ -383,12 +388,22 @@ rigAnswerAsked(){ ## reply text, replying account (default URIGOWNER), seconds t
 	printf '{"ok":true,"messages":[%s{"ts":"%s","user":"URIGSELF1","text":"question","thread_ts":"%s"},{"ts":"1700000002.00020%s","user":"%s","text":"%s","thread_ts":"%s"}],"has_more":false}\n' \
 		"$answerRoot" "$answerQ" "$answerT" "$rigReplyCount" "$answerBy" "$1" "$answerT" > "$RIG_SCENARIO/replies.$answerT.json"
 }
+## The member set root the rig runs its own calls with: the members the runner hands it, plus the client member that reaches a
+## contact. A client operation reads a member from this root, and the runner's own root holds none of it.
+rigMembers="${MDAT_SKILLSET_ROOT:-}"
+mkdir -p "$rigTmp/members"
+for rigMemberDir in "$rigMembers"/*/ ; do
+	rigMemberDir="${rigMemberDir%/}"
+	[ -d "$rigMemberDir" ] || continue
+	[ -e "$rigTmp/members/${rigMemberDir##*/}" ] || cp -R "$rigMemberDir" "$rigTmp/members/${rigMemberDir##*/}"
+done
+ln -sfn "$rigTmp/skills/client-rig" "$rigTmp/members/client-rig"
 ## As rigOp, with the skillset that gives the asking member its identity, as the AskQuestion block above has it: a readback is posted.
 rigDecOp(){ ## output name, op, arguments...
 	local opOut="$1" ; shift
 	rigRc=0
 	( cd "$rigTmp/ws" && env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" \
-		MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="${MDAT_SKILLSET_ROOT:-$rigTmp/skills}" MDAT_DATA_ROOT="$rigTmp/data" MDAT_HARNESS_WAIT_TIMEOUT=1 \
+		MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/members" MDAT_DATA_ROOT="$rigTmp/data" MDAT_HARNESS_WAIT_TIMEOUT=1 \
 		bash "$rigTool" "$@" ) > "$rigTmp/$opOut" 2> "$rigTmp/$opOut.err" || rigRc=$?
 	return "$rigRc"
 }
@@ -443,11 +458,11 @@ printf -- '---\nname: client-rig\n---\n\n# client-rig, set up in the rig workspa
 printf 'CLIENT_SLACK_USER_TOKEN=rig-user-token-RIGADMIN\nCLIENT_SLACK_WORKSPACE_DOMAIN=rig.slack.invalid\n' > "$rigTmp/ws/.local/.agents/client-rig.agent.env"
 
 echo "-- who decides it himself: a contact by its tier --"
-printf -- '---\ncontact-id: rig-admin\ndisplay-name: Rig Admin\norganisation: rig-org\ntier: tier-admin\nreached-by: client-rig\nslack-id: client-rig:URIGADMIN1\n---\n' > "$rigTmp/data/contacts/persons/rig-admin.md"
+printf -- '---\ntype: contact\ncontact-id: rig-admin\ndisplay-name: Rig Admin\norganisation: rig-org\ntier: tier-admin\nreached-by: client-rig\nslack-id: client-rig:URIGADMIN1\n---\n' > "$rigTmp/data/contacts/persons/rig-admin.md"
 printf -- '---\ncontact-id: rig-guest\ndisplay-name: Rig Guest\norganisation: rig-org\n---\n' > "$rigTmp/data/contacts/persons/rig-guest.md"
 rigDecides(){ ( MDAT_DATA_ROOT="$rigTmp/data" AgentsToolsDecisionPartyDecides "$1" "${2:-}" ) && echo decides || echo goes-up ; }
 rigAssert "a tier-admin contact decides, a plain contact and a member outside it go up" "$( rigDecides contact:rig-admin ):$( rigDecides contact:rig-guest ):$( rigDecides contact:rig-nobody ):$( rigDecides keeper-myx )" "decides:goes-up:goes-up:goes-up"
-printf -- '---\ncontact-id: rig-projadmin\ndisplay-name: Rig Project Admin\norganisation: rig-org\nscope-tiers: rig-proj=tier-admin\nreached-by: client-rig\nslack-id: client-rig:URIGPROJA\n---\n' > "$rigTmp/data/contacts/persons/rig-projadmin.md"
+printf -- '---\ntype: contact\ncontact-id: rig-projadmin\ndisplay-name: Rig Project Admin\norganisation: rig-org\nscope-tiers: rig-proj=tier-admin\nreached-by: client-rig\nslack-id: client-rig:URIGPROJA\n---\n' > "$rigTmp/data/contacts/persons/rig-projadmin.md"
 printf -- '---\ntype: task\nowner: magic-tester\nprojects: rig-other, rig-proj\n---\n\n# Rig project item\n' > "$rigTmp/rig-proj-item.md"
 printf -- '---\ntype: task\nowner: magic-tester\nprojects: rig-other\n---\n\n# Rig other item\n' > "$rigTmp/rig-other-item.md"
 rigAssert "an admin of a project the item names decides it, and only there" "$( rigDecides contact:rig-projadmin "$rigTmp/rig-proj-item.md" ):$( rigDecides contact:rig-projadmin "$rigTmp/rig-other-item.md" ):$( rigDecides contact:rig-projadmin )" "decides:goes-up:goes-up"

@@ -2,8 +2,8 @@
 ## Behavioural check on the gate under the page writes and the Trello comment. The owner ruled that the librarian
 ## writes the pages and their comments, and the caller check carries that ruling; this drives the tool files
 ## themselves, so the gate a real call passes after that check is read too. Held:
-##   1. magic-librarian reaches the operation on all five: page create, page update, page move, the page comment
-##      and the Trello comment, each with its own call on the fake site
+##   1. magic-librarian reaches the operation on all six: page create, page update, page move, the page comment,
+##      the comment resolve and the Trello comment, each with its own call on the fake site
 ##   2. another member calling a page write is still refused, and the site is asked nothing
 ##   3. CONTROLS: magic-librarian is still refused the stub operations outside the ruling, the coordinator still
 ##      reaches a page write, and the site answers, so a quiet run is not a run against nothing
@@ -79,26 +79,44 @@ case "$rigMethod $rigPath" in
 	"POST /wiki/api/v2/pages") rigBody='{"id":"7000000009"}' ; rigStatus=200 ;;
 	"PUT /wiki/rest/api/content/7000000001/move/append/7000000002") rigBody='{}' ; rigStatus=200 ;;
 	"GET /wiki/api/v2/pages/7000000001") rigBody='{"id":"7000000001","title":"Rig page","parentId":"7000000002"}' ; rigStatus=200 ;;
+	"GET /wiki/api/v2/inline-comments/8000000011"*) rigBody='{"id":"8000000011","pageId":"7000000001","resolutionStatus":"resolved","version":{"number":5},"body":{"representation":"storage","storage":{"value":"<p>rig</p>"}}}' ; rigStatus=200 ;;
 	"POST /wiki/api/v2/footer-comments") rigBody='{"id":"9000000009"}' ; rigStatus=201 ;;
 	"POST /1/cards/RIGCARD0001/actions/comments") rigBody='{"id":"6000000001"}' ; rigStatus=200 ;;
+	"POST /rest/api/3/issue/RIG-1/comment") rigBody='{"id":"8000000001"}' ; rigStatus=201 ;;
+	"PUT /rest/api/3/issue/RIG-1?"*) rigBody='' ; rigStatus=204 ;;
 esac
 printf '\n%s\n%s' "$rigBody" "$rigStatus"
 RIGCURL
 chmod +x "$rigBin/curl" || rigRefuse "the fake site could not be written"
-printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigAtlassian" > "$rigBin/rig-atlassian" || rigRefuse "the Atlassian stand-in could not be written"
-printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigTrello" > "$rigBin/rig-trello" || rigRefuse "the Trello stand-in could not be written"
+## A REFUSED CALL RECORDS A REFUSAL AND POSTS IT IN A JOB OF ITS OWN (AgentsToolsPermissionRefusalPost), and
+## that job outlives the call: a test ending while it lives is failed by the runner for a leak. Recording a refusal
+## is not what this test reads, so each stand-in answers the refusal id itself, before the tool defines that helper.
+## What the test reads, the refusal line and the site never being called, is unchanged.
+cat > "$rigBin/rig-atlassian" <<'RIGSTANDIN'
+#!/usr/bin/env bash
+AgentsToolsCallerRefusalId(){ printf ' REFUSAL-ID: %s' 'rig-no-recorder' ; }
+export -f AgentsToolsCallerRefusalId
+exec bash "$RIG_REAL_TOOL" "$@"
+RIGSTANDIN
+cat > "$rigBin/rig-trello" <<'RIGSTANDIN'
+#!/usr/bin/env bash
+AgentsToolsCallerRefusalId(){ printf ' REFUSAL-ID: %s' 'rig-no-recorder' ; }
+export -f AgentsToolsCallerRefusalId
+exec bash "$RIG_REAL_TOOL" "$@"
+RIGSTANDIN
 chmod +x "$rigBin/rig-atlassian" "$rigBin/rig-trello" || rigRefuse "a tool stand-in could not be made executable"
 
 rigPageId="7000000001" rigParentId="7000000002" rigCardId="RIGCARD0001"
 rigRc=0
 rigCall(){ ## member, tool, words... -- one call through the tool file, rc in rigRc
-	local callMember="$1" callTool="$2" ; shift 2
+	local callMember="$1" callTool="$2" callReal="$rigAtlassian" ; shift 2
+	case "$callTool" in *rig-trello) callReal="$rigTrello" ;; esac
 	: > "$rigState/calls"
 	rigRc=0
 	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$rigBin:/usr/bin:/bin" MMDAPP="$rigWs" \
 		MDAT_WORKSPACE_MODE=team-rig MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		MDAT_SPAWN_AGENT="$callMember" RIG_STATE="$rigState" RIG_TOOL="$callTool" \
+		MDAT_SPAWN_AGENT="$callMember" RIG_STATE="$rigState" RIG_TOOL="$callTool" RIG_REAL_TOOL="$callReal" \
 		CONFLUENCE_SITE=rig-confluence.invalid CONFLUENCE_USER=us@rig.invalid CONFLUENCE_API_TOKEN=rig-token \
 		JIRA_SITE=rig-jira.invalid JIRA_USER=us@rig.invalid JIRA_API_TOKEN=rig-token \
 		TRELLO_KEY=rig-key TRELLO_TOKEN=rig-token \
@@ -111,6 +129,20 @@ rigCalls(){ ## -- what the fake site was asked, one call a line
 }
 rigErrHas(){ ## text -- how many lines of the last call's stderr carry it
 	LC_ALL=C grep -c -F -- "$1" "$rigTmp/err" 2> /dev/null || :
+}
+## A REFUSED CALL'S POST IS OWED AND NEVER WAITED ON (AgentsToolsPermissionRefusalPost): the post runs in a job of
+## its own, so a gate capturing the output is never held by the transport. The rig's stand-in answers the refusal id
+## itself, and nothing of the tool's is left running. That the rig's own last job ends is asserted, not assumed.
+rigRigPids(){ ## -- the pids running the rig's own tool stand-in, never a reader of their command line
+	LC_ALL=C ps -eo pid=,args= 2> /dev/null | LC_ALL=C awk -v standin="$rigBin/rig-" -v me="$$" \
+		'index( $0, standin ) && $1 != me && $0 !~ /^ *[0-9]+ +((ba)?sh|awk|grep|ps) -c / && $0 !~ /^ *[0-9]+ +(awk|grep|ps) / { print $1 }' | LC_ALL=C tr '\n' ' '
+}
+rigSettleRigJobs(){ ## -- up to 20 s: waits for this rig's own last job, the refusal's post, to end
+	local settleTries=100
+	while [ "$settleTries" -gt 0 ] ; do
+		[ -n "$( rigRigPids )" ] || return 0
+		sleep 0.2 ; settleTries=$(( settleTries - 1 ))
+	done
 }
 
 echo '-- 1. magic-librarian reaches the operation on all five --'
@@ -130,11 +162,17 @@ rigCall magic-librarian "$rigBin/rig-atlassian" --confluence-comment-add --team-
 	--body-storage '<p>a reply</p>'
 rigAssert "a page comment by magic-librarian runs" "$rigRc" 0
 rigAssert "and the comment is posted on the fake site" "$( rigCalls )" "POST rig-confluence.invalid /wiki/api/v2/footer-comments"
+rigCall magic-librarian "$rigBin/rig-atlassian" --confluence-comment-resolve --team-member magic-librarian "$rigPageId" 8000000011
+rigAssert "a comment resolve by magic-librarian runs" "$rigRc" 0
+rigAssert "and the comment is read on the fake site" "$( rigCalls )" "GET rig-confluence.invalid /wiki/api/v2/inline-comments/8000000011?body-format=storage"
 rigCall magic-librarian "$rigBin/rig-trello" --trello-post-comment --team-member magic-librarian "$rigCardId" 'a rig comment'
 rigAssert "a Trello comment by magic-librarian runs" "$rigRc" 0
 rigAssert "and the comment is posted on the fake site" "$( rigCalls )" "POST api.trello.com /1/cards/$rigCardId/actions/comments"
 
 echo '-- 2. another member is still refused a page write, and nothing is sent --'
+rigCall keeper-myx "$rigBin/rig-atlassian" --confluence-comment-resolve --team-member keeper-myx "$rigPageId" 8000000011
+rigAssert "a comment resolve by another member is refused" "$rigRc" 1
+rigAssert "and the site is asked nothing for it" "$( rigCalls )" ''
 rigCall keeper-myx "$rigBin/rig-atlassian" --confluence-page-update --team-member keeper-myx "$rigPageId" \
 	--version 7 --title "Rig page" --status current --body-storage '<p>a body</p>'
 rigAssert "a page update by another member is refused" "$rigRc" 1
@@ -145,13 +183,27 @@ echo '-- 3. controls: the stub operations outside the ruling stay the coordinato
 rigCall magic-librarian "$rigBin/rig-atlassian" --confluence-space-create --team-member magic-librarian --key RIGSPACE --name "Rig space"
 rigAssert "magic-librarian is still refused a space create" "$rigRc" 1
 rigAssert "and the site is asked nothing for it" "$( rigCalls )" ''
-rigCall magic-librarian "$rigBin/rig-atlassian" --jira-issue-create --team-member magic-librarian --project RIG --issuetype Task --summary "rig ticket"
-rigAssert "magic-librarian is still refused a Jira issue create" "$rigRc" 1
+rigCall magic-librarian "$rigBin/rig-atlassian" --jira-issue-delete --team-member magic-librarian RIG-1
+rigAssert "magic-librarian is still refused a Jira issue delete" "$rigRc" 1
 rigAssert "and the site is asked nothing for it" "$( rigCalls )" ''
 rigCall magic-coordinator "$rigBin/rig-atlassian" --confluence-page-update --team-member magic-coordinator "$rigPageId" \
 	--version 7 --title "Rig page" --status current --body-storage '<p>a body</p>'
 rigAssert "control: the coordinator still reaches a page write" "$rigRc" 0
 rigAssert "control: and the fake site answered it" "$( rigCalls )" "PUT rig-confluence.invalid /wiki/api/v2/pages/$rigPageId"
 
+echo '-- 4. any member reaches the Jira comment and the Jira issue update, and is refused an issue delete --'
+rigCall keeper-myx "$rigBin/rig-atlassian" --jira-comment-add --team-member keeper-myx RIG-1 \
+	--body-adf '{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"rig"}]}]}'
+rigAssert "a Jira comment by another member runs" "$rigRc" 0
+rigAssert "and the comment is posted on the fake site" "$( rigCalls )" "POST rig-jira.invalid /rest/api/3/issue/RIG-1/comment"
+rigCall keeper-myx "$rigBin/rig-atlassian" --jira-issue-update --team-member keeper-myx RIG-1 --fields-json '{"labels":["rig"]}'
+rigAssert "a Jira issue update by another member runs" "$rigRc" 0
+rigAssert "and the update reaches the fake site" "$( rigCalls | LC_ALL=C cut -d'?' -f1 )" "PUT rig-jira.invalid /rest/api/3/issue/RIG-1"
+rigCall keeper-myx "$rigBin/rig-atlassian" --jira-issue-delete --team-member keeper-myx RIG-1
+rigAssert "control: another member is still refused a Jira issue delete" "$rigRc" 1
+rigAssert "control: and the site is asked nothing for it" "$( rigCalls )" ''
+
+rigSettleRigJobs
+rigAssert "no job of this rig outlives its last call" "$( rigRigPids )" ''
 if [ "$rigFail" = 0 ] ; then printf 'LIBRARIAN PAGE WRITE GATE: OK (%s assertions, offline)\n' "$rigPass" ; exit 0 ; fi
 printf '⛔ LIBRARIAN PAGE WRITE GATE CHECK FAILED: %s of %s assertion(s)\n' "$rigFail" "$(( rigPass + rigFail ))" ; exit 1

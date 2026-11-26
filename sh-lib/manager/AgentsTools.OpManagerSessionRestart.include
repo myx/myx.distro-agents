@@ -56,6 +56,20 @@ type AgentsToolsManagerConsoleMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx
 			printf 'restart\t%s\t%s\t%s\tlive\t%s\n' "$restartSession" "$restartSpawn" "${restartMember:--}" "the run still lives: stop or kill it first"
 			return 0
 		fi
+		## ONE SESSION, ONE LIVE RUN: a restart over a session with another live run forks a second worker, and on 2026-11-25 that left
+		## six harnesses on one session, every one writing the same context. Any live peer refuses the restart, whatever the named record says.
+		type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+		local restartPeer="" restartPeerLive=""
+		while IFS= read -r restartPeer ; do
+			[ -n "$restartPeer" ] && [ -f "$restartPeer" ] || continue
+			[ "$( AgentsToolsFrontmatterKey "$restartPeer" spawn-id )" != "$restartSpawn" ] || continue
+			AgentsToolsRunRecorded "$restartPeer" > /dev/null 2>&1 || continue
+			restartPeerLive="$( AgentsToolsFrontmatterKey "$restartPeer" spawn-id )" ; break
+		done <<< "$( AgentsToolsSpawnedSessionRecords "$restartSession" own 2> /dev/null )"
+		if [ -n "$restartPeerLive" ] ; then
+			printf 'restart\t%s\t%s\t%s\tlive\t%s\n' "$restartSession" "$restartSpawn" "${restartMember:--}" "another run of the session still lives: $restartPeerLive -- end it first, or use --run"
+			return 0
+		fi
 		type AgentsReviewRestart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
 		restartItem="$( AgentsReviewItemOfSession "$restartSpawn" )" || restartItem=""
 		if [ -z "$restartItem" ] ; then

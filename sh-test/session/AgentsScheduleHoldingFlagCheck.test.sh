@@ -6,8 +6,9 @@
 ##   1. SETTING holding stores an override with no end, and the override answers `holding: yes`.
 ##   2. --current-flags lists it, `holding: yes` while it holds and `holding: no` after `--override-flag --no holding`.
 ##   3. A TTL SETS AN END, and the flags line carries the seconds left.
-##   4. WHILE IT HOLDS THE LOOP STARTS NO NEW WORK: no autorun, no pending board item, no supervision, no emergency start. The duty step still runs, for the
-##      review and the closes: what it starts is AgentsScheduleHoldFloorCheck's.
+##   4. WHILE IT HOLDS THE LOOP STARTS NO NEW WORK: no autorun, no pending board item, no supervision. The duty step still runs, for the
+##      review and the closes: what it starts is AgentsScheduleHoldFloorCheck's. The emergency step still runs, because only an emergency
+##      passes holding, and that step reads every item's tier against the hold itself (magic-team/reference/board-model.md).
 ##   5. AND IT STILL REPORTS AND LEARNS: what ended is reported and the learning step still runs, and those change no running state.
 ##   6. CLEARED, THE LOOP STARTS AGAIN, so the flag is a hold and not a one-way switch.
 ## The settings reader is a stand-in over a key file of the rig's own, so no setting of any workspace is read or written here. Every step
@@ -143,7 +144,7 @@ rigAssert "the pass says in one line that it is holding" "$( rigSaid 'holding: n
 rigAssert "no autorun was started" "$( rigLog autorun )" 0
 rigAssert "the duty step still runs, for the review and the closes" "$( rigLog duty )" 1
 rigAssert "no supervision was started" "$( rigLog supervision )" 0
-rigAssert "no emergency start was made" "$( rigLog emergency )" 0
+rigAssert "the emergency step still runs, its own tier filter the guard" "$( rigLog emergency )" 1
 rigAssert "no pending board item was started" "$( rigLog start-pending )" 0
 rigAssert "what ended was still reported" "$( rigLog report )" 1
 rigAssert "and the learning step still ran" "$( rigLog learn )" 1

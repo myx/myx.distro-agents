@@ -165,7 +165,6 @@ The live-side-effect module carries the detail. Carry these into the run:
 - Each run is isolated: loopback only, an unprivileged port, fresh working directories, a real copy of the tree in the run's own `output/` folder.
 - Record a finding with its date, and mark it stale when its premise stops holding.
 - A transformation with no suite: build a corpus over the input grammar, run the pre-change and the post-change implementation, and diff byte for byte.
-- An addition to a shared index: snapshot with the new thing held out, put it back, snapshot again, and diff the two snapshots.
 - Grow the corpus by the constructs a change touches, not by volume.
 - Test the inputs the design is silent about: empty, one element, ragged, absent, extreme. Empty comes first, because it tends to expand rather than fail.
 - A package with no checks: that absence is the gap to report, and a differential run is the method meanwhile.

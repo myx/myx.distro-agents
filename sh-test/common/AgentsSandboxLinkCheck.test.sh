@@ -72,6 +72,9 @@ rigAssert "no finding and rc 0" "[$rigAbsent] $rigRc" "[] 0"
 
 echo "-- 4. what is a sandbox tree, and what is a source root --"
 rigAssert "this rig, a session folder and a sandbox are sandbox trees" "$( AgentsToolsSandboxTree "$rigTmp" && printf yes || printf no ) $( AgentsToolsSandboxTree "$MMDAPP/.local/agents/sessions" && printf yes || printf no ) $( AgentsToolsSandboxTree "$MMDAPP/.local/agents/spawned/x/output" && printf yes || printf no ) $( AgentsToolsSandboxTree "$MMDAPP/.local/temp" && printf yes || printf no )" "yes yes yes yes"
+rigBuildDir="$( mktemp -d "$MMDAPP/.local/temp/rebuild-actions-rig.XXXXXX" )" ; rigOtherDir="$( mktemp -d "$MMDAPP/.local/temp/rebuild-other-rig.XXXXXX" )"
+rigAssert "the distro's own actions build folder is not a sandbox tree, and another folder of temp still is" "$( AgentsToolsSandboxTree "$rigBuildDir" && printf yes || printf no ) $( AgentsToolsSandboxTree "$rigOtherDir" && printf yes || printf no )" "no yes"
+rm -r -- "$rigBuildDir" "$rigOtherDir"
 rigAssert "the workspace's source and its vendor folder are not" "$( AgentsToolsSandboxTree "$MMDAPP/source" && printf yes || printf no ) $( AgentsToolsSandboxTree "$MMDAPP/.claude" && printf yes || printf no )" "no no"
 mkdir -p "$rigTmp/ws/source" "$rigTmp/ws/.local/myx" "$rigTmp/origin/myx" "$rigTmp/console/myx" "$rigTmp/beside/source"
 rigAssert "a rig's own source, packages and origin are no source root, since the rig lies in a sandbox tree" "[$( MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$rigTmp/origin" MDLT_CONSOLE_ORIGIN="$rigTmp/console" AgentsToolsSourceRoots )]" "[]"
@@ -151,10 +154,13 @@ rigAssert "and one that links inside the sandbox is made" "$rigRc $( readlink "$
 
 echo "-- the runner puts the guard ln first on the PATH of every test it runs --"
 rigRunPkg="$rigTmp/rws/.local/temp/rig-origin/source/myx/myx.distro-agents"
-mkdir -p "$rigRunPkg/sh-test/check-fixtures" "$rigRunPkg/sh-lib/session" "$rigTmp/rhome" "$rigTmp/rmembers" "$rigTmp/rdata"
+mkdir -p "$rigRunPkg/sh-test/check-fixtures" "$rigRunPkg/sh-test/runner" "$rigRunPkg/sh-lib/session" "$rigRunPkg/sh-lib/spawn" "$rigRunPkg/sh-lib/common" "$rigTmp/rhome" "$rigTmp/rmembers" "$rigTmp/rdata"
 cp "$rigHere/sh-test/AgentsRunTests.sh" "$rigRunPkg/sh-test/AgentsRunTests.sh"
+cp "$rigHere/sh-test/runner"/*.sh "$rigRunPkg/sh-test/runner/"
 cp "$rigHere/sh-test/check-fixtures"/runner-*.py "$rigRunPkg/sh-test/check-fixtures/"
-cp "$rigHere/sh-lib/spawn/AgentsTools.SandboxLinks.include" "$rigRunPkg/sh-lib/session/"
+cp "$rigHere/sh-lib/spawn/AgentsTools.SandboxLinks.include" "$rigRunPkg/sh-lib/spawn/"
+cp "$rigHere/sh-lib/session/AgentsTools.SessionStore.include" "$rigHere/sh-lib/session/AgentsTools.SessionStore.Paths.include" "$rigRunPkg/sh-lib/session/"
+cp "$rigHere/sh-lib/common/AgentsTools.TempFiles.include" "$rigRunPkg/sh-lib/common/"
 cat > "$rigRunPkg/sh-test/RigLn.test.sh" <<'RIGLN'
 #!/usr/bin/env bash
 { printf 'LN=%s\n' "$( command -v ln )" ; ln -s "$RIG_AIM" "$RIG_SHARED/rig-slot" 2> /dev/null ; printf 'RC=%s\n' "$?" ; ln -s "$RIG_SHARED/elsewhere" "$RIG_SHARED/rig-ok" ; printf 'OKRC=%s\n' "$?" ; } > "$RIG_SHARED/ln.found"
@@ -172,6 +178,12 @@ esac
 rigAssert "the ln the test finds is the guard of that run, in the run's own folder" "$rigLnWhich" guard
 rigAssert "it refused a link into source, and made nothing" "$( LC_ALL=C sed -n 's/^RC=//p' "$rigTmp/ln.found" ) $( [ -L "$rigTmp/rig-slot" ] && printf made || printf none )" "1 none"
 rigAssert "and made the link that stays in the rig" "$( LC_ALL=C sed -n 's/^OKRC=//p' "$rigTmp/ln.found" ) $( [ -L "$rigTmp/rig-ok" ] && printf made || printf none )" "0 made"
+
+echo "-- the guard ln runs in a workspace whose origin holds no myx.distro-agents --"
+mkdir -p "$rigTmp/foreign-guard" "$rigTmp/foreign-origin" "$rigTmp/foreign-ws" ; : > "$rigTmp/foreign-target"
+AgentsToolsLnGuardMake "$rigTmp/foreign-guard"
+rigForeign="$( cd "$rigTmp" && MMDAPP="$rigTmp/foreign-ws" MDLT_ORIGIN="$rigTmp/foreign-origin" "$rigTmp/foreign-guard/ln" -s "$rigTmp/foreign-target" "$rigTmp/foreign-link" 2>&1 )" ; rigRc=$?
+rigAssert "it says nothing and makes the link that stays in the rig" "[$rigForeign] $rigRc $( [ -L "$rigTmp/foreign-link" ] && printf made || printf none )" "[] 0 made"
 
 echo "-- 6. live: this workspace's sandboxes, session folders and test trees --"
 rigLiveRoots="$( AgentsToolsSourceRoots )"

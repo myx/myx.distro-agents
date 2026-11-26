@@ -143,6 +143,7 @@ A checker reports green on its own counterexample as readily as on a clean subje
 - A check runs in seconds: one interpreter process for a whole scan, never one per file.
 - A refusal written at more than one layer along one call path is a single gate, not a set of checks. The outer layer answers first, so measuring it says nothing about whether the inner layers would let the call through. A change sized from the layer that answered is too small, and it fails in the direction that reads as "the fix did not work".
 - Size such a change by searching the guard's own message text, never by the layer that refused. The message string is the one token every copy of the guard carries.
+- A refusal whose message does not describe the call it refused is a finding about the tool. An identical call passing beside it is what makes it one, and a mismatch alone is not. Re-send the call unchanged, and split it only where the tool's own limit forces that.
 
 ## Bounds, reserves, and the guard that repairs
 

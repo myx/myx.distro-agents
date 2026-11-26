@@ -418,7 +418,7 @@ case "$1" in
 				local mailApplyFaults="" mailApplyRc=0
 				mailApplyFaults="$( printf '%s\n%s\n' "$subject" "$bodyLines" | AgentsToolsApplyReportFaults )" || mailApplyRc=$?
 				if [ "$mailApplyRc" != 0 ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --email-send: this relay says a file was applied, and it does not give that file its absolute path and its read-back. Nothing was sent. A line names the file absolute path, the workspace it belongs to, and a read-back (cmp against the staged file, or its hash). What is missing:" >&2
+					echo "⛔ ERROR: $MDSC_CMD --email-send: this relay says a file was applied, and it does not give that file its place path and its read-back. Nothing was sent. A line names the file as <place>:<path>, a registered place name, a colon and a path relative to that place, and a read-back (cmp against the staged file, or its hash). What is missing:" >&2
 					printf '%s\n' "$mailApplyFaults" >&2
 					set +e ; return 1
 				fi

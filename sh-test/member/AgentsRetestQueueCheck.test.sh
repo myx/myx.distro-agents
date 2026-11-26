@@ -13,7 +13,8 @@
 ## carries who asked, why, about which copy, where that copy and the workspace are, and returned-from naming the first;
 ## a run the drain did not start is no batch and stops at no boundary; a request is about one copy, the
 ## live tree or a scratch folder, and each copy's tests are run by that copy's own runner; a changed file that is a
-## test is taken as that test, and any other file as every test that has not passed on the state the copy is in; with
+## test is taken as that test, and any other file as the tests that name it -- a file no test names runs nothing
+## and says so; with
 ## nothing waiting, --rest runs only what has not passed on that state; a request left by a drain that no longer
 ## exists is taken by the next; a finished request is read by its id, and kept seven days. Nothing here is told by how
 ## long a run takes: a test that must still be running when something else is done runs until the rig lets it end.
@@ -90,6 +91,8 @@ RIGTINY
 }
 rigTests live RigOne RigTwo RigThree
 rigTests rig-scratch-a RigOne RigTwo
+## What a test exercises, it names: the covering relation a request for a changed file is expanded by (W2).
+printf '# it exercises %s\n' 'sh-lib/wait/AgentsTools.MemberWait.include' >> "$rigLive/myx/myx.distro-agents/sh-test/RigThree.test.sh"
 
 rigCall(){ ## result prefix, operation, its arguments... -- one call of the tooling from the workspace, in the background; <prefix>.out .err, its pid in rigLast
 	local callOut="$1" ; shift
@@ -262,28 +265,30 @@ rigAssert "a test the copy asked about does not hold is refused, though the live
 rigAsk "$rigTmp/q5d" --by rig-first --why 'no such copy' --about rig-scratch-none RigOne
 rigAssert "a scratch folder that holds no copy of the package is refused" "$rigRc $( LC_ALL=C grep -c -F -- "no copy of the package with its test runner at $rigWs/.local/temp/rig-scratch-none/source" "$rigTmp/q5d.err" ) $( rigHolds waiting )" "1 1 0"
 
-echo "-- 6. changed files: a test is taken as that test, any other file as every test not yet passed on the state the copy is in --"
+echo "-- 6. changed files: a test is taken as that test, any other file as the tests that name it, and no test names it as nothing --"
 rigFresh
 rigAsk "$rigTmp/q6a" --by rig-first --why 'a changed test, by its path in the package and by its path in the tree' --file sh-test/RigTwo.test.sh --file "$rigLive/myx/myx.distro-agents/sh-test/RigOne.test.sh" ; rigIdA="$rigId"
 rigAssert "a changed file that is a test is the test itself, however its path was given, and no file is kept" "$rigRc [$( LC_ALL=C grep -e '^test: ' -e '^file: ' "$rigQueue/waiting/$rigIdA.request" | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )]" "0 [test: RigOne|test: RigTwo|]"
 rigOp "$rigTmp/d6a" --retest-drain
 rigAssert "the batch runs those two tests and no other" "$rigRc [$( rigBegun )] $( rigLine "$rigTmp/d6a" "$rigIdA" | LC_ALL=C cut -d' ' -f1-11 )" "0 [live:RigOne live:RigTwo] RETEST <id> PASS -- asked by rig-first about live: 2 passed"
 rigAsk "$rigTmp/q6b" --by rig-second --why 'a library file was changed' --file sh-lib/wait/AgentsTools.MemberWait.include ; rigIdB="$rigId"
-rigAssert "any other changed file is kept as the file: no test is known to cover it" "$rigRc [$( LC_ALL=C grep -e '^test: ' -e '^file: ' "$rigQueue/waiting/$rigIdB.request" | LC_ALL=C tr '\n' '|' )] $( LC_ALL=C grep -c -F -- 'changed file(s) no test is known to cover' "$rigTmp/q6b.err" )" "0 [file: sh-lib/wait/AgentsTools.MemberWait.include|] 1"
+rigAssert "a changed file is asked for as the tests that name it, and kept as the file" "$rigRc [$( LC_ALL=C grep -e '^test: ' -e '^file: ' "$rigQueue/waiting/$rigIdB.request" | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )] $( LC_ALL=C grep -c -F -- 'changed file(s) that no test of the copy names' "$rigTmp/q6b.err" )" "0 [file: sh-lib/wait/AgentsTools.MemberWait.include|test: RigThree|] 0"
 rigOp "$rigTmp/d6b" --retest-drain
-rigAssert "the batch runs for it every test that has not passed on the state the copy is in: the one test left, and neither of the two that just passed on it" "$rigRc [$( rigBegun )]" "0 [live:RigOne live:RigThree live:RigTwo]"
-rigAssert "its line counts every test of the copy: what ran now, and what had passed on this very state before" "$( rigLine "$rigTmp/d6b" "$rigIdB" )" "RETEST <id> PASS -- asked by rig-second about live: 1 passed, 2 passed on this very state before and not run again -- a library file was changed"
+rigAssert "the batch runs that one test alone, not every test of the copy" "$rigRc [$( rigBegun )]" "0 [live:RigOne live:RigThree live:RigTwo]"
+rigAssert "its line counts what it ran: the one test that names the file" "$( rigLine "$rigTmp/d6b" "$rigIdB" )" "RETEST <id> PASS -- asked by rig-second about live: 1 passed -- a library file was changed"
 rigOp "$rigTmp/r6" --retest-result "$rigIdB"
-rigAssert "and its outcome names each: the test that ran, the two that had passed, and the file" "[$( LC_ALL=C grep -e '^  passed ' -e '^  passed-before ' -e '^  file ' "$rigTmp/r6.out" | LC_ALL=C sed 's/ at [0-9TZ:-]*$/ at <when>/' | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )]" "[  file sh-lib/wait/AgentsTools.MemberWait.include|  passed RigThree|  passed-before RigOne at <when>|  passed-before RigTwo at <when>|]"
+rigAssert "and its outcome names the test and the file" "[$( LC_ALL=C grep -e '^  passed ' -e '^  file ' "$rigTmp/r6.out" | LC_ALL=C sed 's/ at [0-9TZ:-]*$/ at <when>/' | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )]" "[  file sh-lib/wait/AgentsTools.MemberWait.include|  passed RigThree|]"
 ## A fixture of the tests is no test: it is named by its type and never ends in .test.sh, so it is a changed file
 ## like any other that is no test.
 rigFixtures="$( rigRoot live )/myx/myx.distro-agents/sh-test/check-fixtures"
 mkdir -p "$rigFixtures" && printf '#!/bin/sh\nexit 7\n' > "$rigFixtures/rig-tool.curl.stub.sh"
 rigAsk "$rigTmp/q6c" --by rig-third --why 'a fixture of the tests was changed' --file sh-test/check-fixtures/rig-tool.curl.stub.sh ; rigIdC="$rigId"
-rigAssert "a changed fixture below sh-test, named by its type, is kept as the file and asked for as no test" "$rigRc [$( LC_ALL=C grep -e '^test: ' -e '^file: ' "$rigQueue/waiting/$rigIdC.request" | LC_ALL=C tr '\n' '|' )] $( LC_ALL=C grep -c -F -- 'changed file(s) no test is known to cover' "$rigTmp/q6c.err" )" "0 [file: sh-test/check-fixtures/rig-tool.curl.stub.sh|] 1"
+rigAssert "a changed fixture below sh-test, named by its type, is kept as the file and asked for as no test" "$rigRc [$( LC_ALL=C grep -e '^test: ' -e '^file: ' "$rigQueue/waiting/$rigIdC.request" | LC_ALL=C tr '\n' '|' )] $( LC_ALL=C grep -c -F -- 'changed file(s) that no test of the copy names' "$rigTmp/q6c.err" )" "0 [file: sh-test/check-fixtures/rig-tool.curl.stub.sh|] 1"
 rigOp "$rigTmp/d6c" --retest-drain
-rigAssert "the batch runs for it every test of the copy, whose state the changed fixture moved, each once more, and the request does not read as failed for a test that was never one" \
-	"$rigRc $( rigBegins RigOne ) $( rigBegins RigTwo ) $( rigBegins RigThree ) $( rigLine "$rigTmp/d6c" "$rigIdC" )" "0 2 2 2 RETEST <id> PASS -- asked by rig-third about live: 3 passed -- a fixture of the tests was changed"
+rigAssert "a file no test names runs nothing: the copy's whole suite is not put in the line for it" \
+	"$rigRc $( rigBegins RigOne ) $( rigBegins RigTwo ) $( rigBegins RigThree ) $( rigLine "$rigTmp/d6c" "$rigIdC" )" "0 1 1 1 RETEST <id> FAIL -- asked by rig-third about live: 0 passed, NOT RUN: sh-test/check-fixtures/rig-tool.curl.stub.sh -- a fixture of the tests was changed"
+rigOp "$rigTmp/r6c" --retest-result "$rigIdC"
+rigAssert "and its result says which file gave it no test" "[$( LC_ALL=C grep -e '^  not-run ' -e '^  file ' "$rigTmp/r6c.out" | LC_ALL=C tr '\n' '|' )]" "[  file sh-test/check-fixtures/rig-tool.curl.stub.sh|  not-run sh-test/check-fixtures/rig-tool.curl.stub.sh no test of the copy names it|]"
 rm -f "$rigFixtures/rig-tool.curl.stub.sh"
 
 echo "-- 7. with nothing waiting, --rest runs only what has not passed on the state the copy is in --"
@@ -380,16 +385,16 @@ rigAssert "a caller's own shorter wait is the one the test is handed" "$( LC_ALL
 rigLane=""
 rigFresh
 
-echo "-- 12. a request naming no test is the widest, and any request naming tests ends it at the next test boundary --"
-## A request naming no test asks for every test of its copy, which is the widest there is. With one test of it begun and
+echo "-- 12. the widest request is one naming every test of the copy, and a narrower request ends it at the next test boundary --"
+## The widest request here names every test of the copy. With one test of it begun and
 ## still held, a request naming one test is narrower than the tests left to run, so that batch must stop at the boundary
 ## and run the narrow one's test, within one test of the widest. The narrow request names the test the widest would run LAST,
 ## so a widest that went on would run another test before it.
 rigFresh
 : > "$rigTmp/hold.RigOne" ; : > "$rigTmp/hold.RigTwo" ; : > "$rigTmp/hold.RigThree"
-rigAsk "$rigTmp/q12a" --by rig-first --why 'every test of the copy, which is the widest request there is' --file sh-lib/wait/AgentsTools.MemberWait.include ; rigIdA="$rigId"
+rigAsk "$rigTmp/q12a" --by rig-first --why 'every test of the copy, the widest request there is' RigOne RigTwo RigThree ; rigIdA="$rigId"
 rigCall "$rigTmp/d12" --retest-drain ; rigPidD=$rigLast
-rigUntil 'BEGIN live ' "$rigTmp/log" || rigRefuse "the widest request's first test never began, so nothing below would be measured"
+rigUntil 'BEGIN live ' "$rigTmp/log" 180 || rigRefuse "the widest request's first test never began, so nothing below would be measured"
 rigBatch="$( rigBatchOrder "$rigTmp/d12" )"
 [ -n "$rigBatch" ] || rigRefuse "the widest request named no test list, so nothing below would be measured"
 rigFirst="$( printf '%s' "$rigBatch" | LC_ALL=C awk '{ print $1 }' )"
@@ -465,7 +470,7 @@ rigFresh
 : > "$rigTmp/hold.RigOne" ; : > "$rigTmp/hold.RigTwo" ; : > "$rigTmp/hold.RigThree"
 rigAsk "$rigTmp/q14a" --by rig-first --why 'the wide one, which the narrow one stops' RigOne RigTwo RigThree ; rigIdA="$rigId"
 rigCall "$rigTmp/d14" --retest-drain ; rigPidD=$rigLast
-rigUntil 'BEGIN live ' "$rigTmp/log" || rigRefuse "the wide request's first test never began, so nothing below would be measured"
+rigUntil 'BEGIN live ' "$rigTmp/log" 180 || rigRefuse "the wide request's first test never began, so nothing below would be measured"
 rigBatch="$( rigBatchOrder "$rigTmp/d14" )"
 [ -n "$rigBatch" ] || rigRefuse "the wide request named no test list, so nothing below would be measured"
 rigFirst="$( printf '%s' "$rigBatch" | LC_ALL=C awk '{ print $1 }' )"

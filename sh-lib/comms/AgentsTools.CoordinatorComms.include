@@ -44,7 +44,7 @@ case "$1" in
 		return $?
 	;;
 
-	--jira-issue-search|--jira-comment-read|--jira-issue-create|--jira-issue-update|--jira-issue-transition|--jira-comment-add|--jira-issue-link-page|--jira-issue-delete|--jira-project-delete|--confluence-page-search|--confluence-comment-read|--confluence-page-create|--confluence-space-create|--confluence-page-update|--confluence-page-move|--confluence-comment-add|--confluence-page-delete)
+	--jira-issue-search|--jira-comment-read|--jira-issue-create|--jira-issue-update|--jira-issue-transition|--jira-comment-add|--jira-issue-link-page|--jira-issue-delete|--jira-project-delete|--confluence-page-search|--confluence-comment-read|--confluence-page-create|--confluence-space-create|--confluence-page-update|--confluence-page-move|--confluence-comment-add|--confluence-comment-resolve|--confluence-page-delete)
 		local fwdOp="${1#--}" fwdSecondFlag="" fwdSecondLabel="" fwdRestKind="" fwdStubValues="" fwdStubNoValues="" fwdMemberTail=""
 		shift
 		case "$fwdOp" in
@@ -64,6 +64,7 @@ case "$1" in
 			confluence-page-update) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=stub ; fwdStubValues='--version --if-version --title --status --space-id --body-storage --body-storage-from-file' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-page-update' ;;
 			confluence-page-move) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=stub ; fwdStubValues='--parent-id' ; fwdMemberTail=' -- a page move has no client-facing twin' ;;
 			confluence-comment-add) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=stub ; fwdStubValues='--body-storage --body-storage-from-file --parent-comment-id' ; fwdStubNoValues='--body-storage-from-stdin' ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-comment-add' ;;
+			confluence-comment-resolve) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=pageComment ; fwdMemberTail=' -- a comment resolve has no client-facing twin' ;;
 			confluence-page-delete) fwdSecondFlag=--page-id ; fwdSecondLabel='<page-id>' ; fwdRestKind=none ; fwdMemberTail=' -- the client-facing write is --client-comms-confluence-page-delete' ;;
 		esac
 		local actingMember="${1:-}"
@@ -80,20 +81,26 @@ case "$1" in
 		fi
 		if [ "$fwdRestKind" = stub ] ; then
 			AgentsToolsAssertBareName "$actingMember" "<team-member>" "$fwdOp" || { set +e ; return 1 ; }
-			## THE DOCUMENTS ARE THE LIBRARIAN'S (the owner's ruling, and the same five names AgentsToolsMagicCallerCheck
-			## admits): the four page writes run as magic-coordinator or magic-librarian. Every other stub operation stays
-			## the coordinator's alone.
-			local fwdRuns="magic-coordinator"
+			## THE DOCUMENTS ARE THE LIBRARIAN'S (the owner's ruling): the four page writes run as magic-coordinator or
+			## magic-librarian. EVERY member actualises the Jira state of its own item (the epic's floor, 2026-11-25), held
+			## by the acting-member check. A delete stays the coordinator's alone.
+			local fwdRuns="magic-coordinator" fwdActingWrites=""
 			case "$fwdOp" in
 				confluence-page-create|confluence-page-update|confluence-page-move|confluence-comment-add) fwdRuns="$fwdRuns magic-librarian" ;;
+				jira-issue-create|jira-issue-update|jira-issue-transition|jira-comment-add|jira-issue-link-page) fwdActingWrites="yes" ;;
 			esac
-			case " $fwdRuns " in
-				*" $actingMember "*) ;;
-				*)
-					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: runs only as ${fwdRuns// / or }, and this call acts as $actingMember${fwdMemberTail}" >&2
-					set +e ; return 1
-				;;
-			esac
+			if [ -n "$fwdActingWrites" ] ; then
+				type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
+				AgentsToolsActingMemberCheck "$actingMember" "$fwdOp" || { set +e ; return 1 ; }
+			else
+				case " $fwdRuns " in
+					*" $actingMember "*) ;;
+					*)
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: runs only as ${fwdRuns// / or }, and this call acts as $actingMember${fwdMemberTail}" >&2
+						set +e ; return 1
+					;;
+				esac
+			fi
 			local fwdStubArg fwdStubTakesValue=""
 			for fwdStubArg in "$@" ; do
 				if [ -n "$fwdStubTakesValue" ] ; then
@@ -150,14 +157,25 @@ case "$1" in
 						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: not accepted: $actingMember $fwdSecondValue $*" >&2 ; set +e ; return 1 ;;
 					esac
 				;;
+				pageComment)
+					## The second value is the comment's own id, a bare word, so this arm takes exactly one
+					## of them and no flag: a flag here would reach the operation as a stray argument.
+					case "$#:${1:-}" in
+						1:?*) ;;
+						1:) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: <comment-id> missing" >&2 ; set +e ; return 1 ;;
+						*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: not accepted: $actingMember $fwdSecondValue $*" >&2 ; set +e ; return 1 ;;
+					esac
+				;;
 			esac
 			AgentsToolsAssertBareName "$actingMember" "<team-member>" "$fwdOp" || { set +e ; return 1 ; }
-			## Every member reads as itself; a delete stays the coordinator's.
+			## Every member reads as itself; a delete stays the coordinator's. The comment resolve is the
+			## librarian's beside the four page writes, because the routine closes a comment it filed.
 			case "$fwdOp:$actingMember" in
 				jira-issue-search:*|jira-comment-read:*|confluence-page-search:*|confluence-comment-read:*)
 					type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 					AgentsToolsActingMemberCheck "$actingMember" "$fwdOp" || { set +e ; return 1 ; }
 				;;
+				confluence-comment-resolve:magic-librarian) ;;
 				*:magic-coordinator) ;;
 				*)
 					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$fwdOp: runs only as magic-coordinator, and $actingMember is not it${fwdMemberTail}" >&2
@@ -167,7 +185,10 @@ case "$1" in
 		fi
 		local fwdInternArgs=( "--intern-op-atlassian-$fwdOp" --member "$actingMember" --context "$fwdOp" )
 		if [ -n "$fwdSecondFlag" ] ; then fwdInternArgs+=( "$fwdSecondFlag" "$fwdSecondValue" ) ; fi
-		if [ "$fwdRestKind" != none ] ; then fwdInternArgs+=( "$@" ) ; fi
+		## The comment resolve names its second value bare, and the internal operation takes it as a
+		## flag of its own: the one place the public form and the internal form differ in shape.
+		if [ "$fwdRestKind" = pageComment ] ; then fwdInternArgs+=( --comment-id "$1" )
+		elif [ "$fwdRestKind" != none ] ; then fwdInternArgs+=( "$@" ) ; fi
 		local fwdOpRc=0
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianCall.include" "${fwdInternArgs[@]}" || fwdOpRc=$?
 		if [ "$fwdOpRc" -ne 0 ] ; then set +e ; return "$fwdOpRc" ; fi

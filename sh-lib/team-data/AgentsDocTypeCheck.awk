@@ -88,8 +88,8 @@ function formFault(formWord, formArg, valueIn,   misfit, enumParts, enumN, idx, 
 			rowText = trimText(entries[entryIdx]) ;
 			rowParts = split(rowText, rowField, ":") ;
 			rowOk = (rowField[1] == "participants" && rowField[rowParts] ~ /^[0-9]+T[0-9]+Z$/ && rowField[rowParts - 1] != "") ;
-			if (rowOk && (rowField[2] == "allow-read" || rowField[2] == "allow-write")) rowOk = (rowParts == 5 && rowField[3] != "") ;
-			else if (rowOk && rowField[2] == "allow-tool") rowOk = (rowParts == 6 && rowField[3] != "" && rowField[4] != "") ;
+			if (rowOk && (rowField[2] == "allow-read" || rowField[2] == "allow-write")) rowOk = (rowParts >= 5 && rowField[3] != "") ;
+			else if (rowOk && rowField[2] == "allow-tool") rowOk = (rowParts >= 6 && rowField[3] != "" && rowField[4] != "") ;
 			else rowOk = 0 ;
 			if (!rowOk) { faultDetail = rowText ; return "has a row that is not participants:<verb>:<value>:<granted-by>:<stamp>" ; }
 		}

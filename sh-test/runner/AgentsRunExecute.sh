@@ -34,6 +34,9 @@ while [ $# -gt 0 ] ; do
 done
 
 runQueueDir="${HOME:-}/.agents/magic-team/suite-queue"
+## THE NAP OF THE LINE: a fifo every waiter holds both ends of, so a place or a lane that moves wakes
+## the waiters at once, and the shell's own timed read is the fallback. A pass forks nothing.
+runQueueNap="$runQueueDir/queue.nap" runQueueNapOpen=""
 runHandLock="$MMDAPP/.local/temp/suite-run.lock"
 runTicket="" runLockMine="" runDir="" runChecks=""
 runSlotDir="${HOME:-}/.agents/magic-team/suite-workers"
@@ -277,9 +280,26 @@ AgentsRunDescribeTicket(){ ## ticket file -- that place named as its own ticket 
 		"$( [ "$describeKind" = check ] && printf 'check' || printf 'run' )" \
 		"${describeSession:-nobody}" "$describeFrom" "$describeAge" "$describeDoing"
 }
+## A fifo hands each byte to one reader, so the wake is written once per place held in the line: every
+## waiter is woken by one and reads the line again.
+AgentsRunQueuePoke(){ ## -- wakes the waiters of the line now, where this run holds the line's fifo
+	local pokeLeft=0 pokeFile
+	[ -n "${runQueueNapOpen:-}" ] || return 0
+	for pokeFile in "$runQueueDir"/*.ticket ; do
+		[ -f "$pokeFile" ] || continue
+		pokeLeft=$(( pokeLeft + 1 ))
+	done
+	[ "$pokeLeft" -gt 0 ] || pokeLeft=1
+	while [ "$pokeLeft" -gt 0 ] ; do
+		printf '\n' >&6 2> /dev/null || :
+		pokeLeft=$(( pokeLeft - 1 ))
+	done
+	return 0
+}
 AgentsRunQueueLeave(){ ## -- out of the line, and every lane this run took given back
 	local leaveLane
 	[ -z "$runTicket" ] || rm -f "$runQueueDir/$runTicket" "$runQueueDir/$runTicket.beat" "$runQueueDir/$runTicket.yield"
+	AgentsRunQueuePoke
 	## a lane given up between two checks may be another run's by now: only one this runner still holds goes back
 	for leaveLane in 1 "$runLaneDir"/lane.* ; do
 		leaveLane="${leaveLane##*/lane.}"
@@ -288,11 +308,17 @@ AgentsRunQueueLeave(){ ## -- out of the line, and every lane this run took given
 	done
 	runTicket="" runLockMine="" runLaneMine=""
 }
-## THE PACE A TOOL CALL FINDS NOW, and the lanes it buys (HOW MANY RUNS STAND BESIDE EACH OTHER, above): the schedule's pace line, read from the
-## file each rig keeps it in (`<epoch> <window> <median ms> <calls>`) and never taken here, since taking it walks the whole `spawned/` tree.
+## THE PACE OF THE RIG THAT WANTS THE LANE, and the lanes it buys (HOW MANY RUNS STAND BESIDE EACH OTHER, above): its own
+## schedule pace line, read from the file it keeps it in (`<epoch> <window> <median ms> <calls>`), never taken here and never
+## from another rig, since taking it walks the whole `spawned/` tree and another rig's pace says nothing of this one.
+## A measure that is missing, older than its TTL, or over too few calls to judge buys ONE lane: a machine that says nothing is
+## not a machine that carries three (W2: the widest count, on no measure, put 911 tests in the line for five hours).
 AgentsRunLaneCount(){ ## -- one line: how many runs may stand beside each other now, then why
-	local laneMax laneFixed laneRig laneAt laneHeld laneMedian laneAge laneBestAge="" laneBestRig="" laneBestMedian="" laneBestHeld=""
-	local laneTtl="${MDAT_TOOL_PACE_CACHE_SECONDS:-60}" laneLimit="${MDAT_TOOL_PACE_MS:-4000}" laneNow="$( date +%s )"
+	local laneMax laneFixed laneAt laneHeld laneMedian laneAge
+	## The measure is refreshed on the writer's own TTL, the median's five-minute window (AgentsToolsSchedulePaceText, 300): a
+	## shorter TTL here would read a measure the writer has not yet refreshed as no measure at all, and take one lane on a
+	## machine that is idle.
+	local laneTtl="${MDAT_TOOL_PACE_CACHE_SECONDS:-300}" laneLimit="${MDAT_TOOL_PACE_MS:-4000}" laneNow="$( date +%s )"
 	laneMax="$( LC_ALL=C sed -n 1p "$runLaneDir/max" 2>/dev/null )"
 	case "$laneMax" in ''|*[!0123456789]*) laneMax="${MDAT_SUITE_LANES:-3}" ;; esac
 	case "$laneMax" in ''|*[!0123456789]*) laneMax=3 ;; esac
@@ -304,30 +330,28 @@ AgentsRunLaneCount(){ ## -- one line: how many runs may stand beside each other 
 		''|*[!0123456789]*) ;;
 		*) [ "$laneFixed" -ge 1 ] || laneFixed=1 ; [ "$laneFixed" -le "$laneMax" ] || laneFixed="$laneMax" ; printf '%s set by hand in %s/count\n' "$laneFixed" "$runLaneDir" ; return 0 ;;
 	esac
-	case "$laneTtl" in ''|*[!0123456789]*) laneTtl=60 ;; esac
+	case "$laneTtl" in ''|*[!0123456789]*) laneTtl=300 ;; esac
 	case "$laneLimit" in ''|*[!0123456789]*|0) laneLimit=4000 ;; esac
-	type AgentsToolsSuperviseRigs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseRigs.include" || {
-		echo "⛔ ERROR: AgentsRunTests.sh: the rigs of the machine cannot be named, AgentsTools.SuperviseRigs.include does not load" >&2 ; printf '1 the rigs cannot be named\n' ; return 0
-	}
-	## The freshest measure of the rigs --flags names, the one a measure younger than its own TTL: an older one, or none, is too little to judge.
-	while IFS=$'\t' read -r laneRig _ ; do
-		{ read -r laneAt _ laneMedian laneHeld < "$laneRig/.local/agents/schedule/pace.measure" ; } 2> /dev/null || continue
-		case "$laneAt" in ''|*[!0123456789]*) continue ;; esac
-		case "$laneHeld" in ''|*[!0123456789]*) continue ;; esac
-		case "$laneMedian" in ''|*[!0123456789]*) laneHeld=0 ;; esac
-		laneAge=$(( laneNow - laneAt ))
-		[ "$laneAge" -ge 0 ] && [ "$laneAge" -lt "$laneTtl" ] || continue
-		[ -z "$laneBestAge" ] || [ "$laneAge" -lt "$laneBestAge" ] || continue
-		laneBestAge="$laneAge" laneBestRig="$laneRig" laneBestMedian="$laneMedian" laneBestHeld="$laneHeld"
-	done <<< "$( AgentsToolsSuperviseRigs "$MMDAPP" 2> /dev/null )"
-	if [ -z "$laneBestRig" ] ; then
-		printf '%s no pace measure of a rig is under %ss old, too little to judge\n' "$laneMax" "$laneTtl"
-	elif [ "$laneBestHeld" -lt 3 ] ; then
-		printf '%s pace of %s, %ss old: %s calls in its window, too few to judge\n' "$laneMax" "${laneBestRig##*/}" "$laneBestAge" "$laneBestHeld"
-	elif [ "$laneBestMedian" -lt "$laneLimit" ] ; then
-		printf '%s pace of %s, %ss old: median %s ms machinery a call over %s calls, under the %s ms gate\n' "$laneMax" "${laneBestRig##*/}" "$laneBestAge" "$laneBestMedian" "$laneBestHeld" "$laneLimit"
+	## THIS RIG'S OWN MEASURE, THE ONE THAT WANTS THE LANE: none, and the answer is one lane with the reason.
+	laneAt="" laneHeld="" laneMedian=""
+	{ read -r laneAt _ laneMedian laneHeld < "$MMDAPP/.local/agents/schedule/pace.measure" ; } 2> /dev/null || :
+	case "$laneAt" in ''|*[!0123456789]*) laneAt="" ;; esac
+	if [ -z "$laneAt" ] ; then
+		printf '1 this rig records no pace measure, too little to judge\n' ; return 0
+	fi
+	laneAge=$(( laneNow - laneAt ))
+	if [ "$laneAge" -lt 0 ] || [ "$laneAge" -ge "$laneTtl" ] ; then
+		printf '1 the pace measure of this rig is %ss old, too little to judge\n' "$laneAge" ; return 0
+	fi
+	case "$laneHeld" in ''|*[!0123456789]*) laneHeld=0 ;; esac
+	case "$laneMedian" in ''|*[!0123456789]*) laneMedian=0 ;; esac
+	if [ "$laneHeld" -lt 3 ] ; then
+		printf '1 pace of this rig, %ss old: %s calls in its window, too few to judge\n' "$laneAge" "$laneHeld" ; return 0
+	fi
+	if [ "$laneMedian" -lt "$laneLimit" ] ; then
+		printf '%s pace of this rig, %ss old: median %s ms machinery a call over %s calls, under the %s ms gate\n' "$laneMax" "$laneAge" "$laneMedian" "$laneHeld" "$laneLimit"
 	else
-		printf '1 pace of %s, %ss old: median %s ms machinery a call over %s calls, at or over the %s ms gate\n' "${laneBestRig##*/}" "$laneBestAge" "$laneBestMedian" "$laneBestHeld" "$laneLimit"
+		printf '1 pace of this rig, %ss old: median %s ms machinery a call over %s calls, at or over the %s ms gate\n' "$laneAge" "$laneMedian" "$laneHeld" "$laneLimit"
 	fi
 }
 AgentsRunLaneReport(){ ## -- the lane this run holds, of how many stood open when its turn came, and which other runs hold the rest
@@ -349,6 +373,7 @@ AgentsRunLaneHolder(){ ## lane number -- the pid written in that lane, or nothin
 	esac
 }
 AgentsRunLaneGive(){ ## lane number -- gives one lane back, whatever state its holder left it in
+	AgentsRunQueuePoke
 	case "$1" in
 		1) rm -f "$runHandLock/holder.txt" ; rmdir "$runHandLock" 2>/dev/null ;;
 		*) rm -f "$runLaneDir/lane.$1/pid" ; rmdir "$runLaneDir/lane.$1" 2>/dev/null ;;
@@ -521,6 +546,14 @@ AgentsRunFolderMake(){ ## -- makes this run's folder, runDir, points latest at i
 	## the run folder on the ticket, so a waiter says how many of its checks are done
 	[ -z "$runTicket" ] || printf 'rundir=%s\n' "$runDir" >> "$runQueueDir/$runTicket" 2>/dev/null || :
 }
+## THE WAIT BETWEEN TWO PASSES OF A WAITING RUN starts no process. The line's fifo is held open at both
+## ends, so a read on it blocks and never sees end of file; a waiter's own line wakes every waiter now,
+## and the timer is the shell's own read. A fifo that cannot be made falls back to the plain sleep.
+AgentsRunQueueNap(){ ## seconds -- one pass's wait, woken by the line, with the shell's own read as the timer
+	local napLine=""
+	if [ -n "${runQueueNapOpen:-}" ] ; then IFS= read -r -t "$1" -u 6 napLine 2> /dev/null || : ; return 0 ; fi
+	sleep "$1"
+}
 AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn, and returns; says whom it waits behind, each time that changes
 	local turnStamp turnFile turnSession turnState turnWhom="" turnWho="" turnHeldWhom="" turnAhead=0 turnSaid="" turnBegan turnWaited runQueueClock="" turnSleep
 	local turnHolders turnLane turnRound=0 turnRecount=0 turnChild turnTries turnAdopted="$runTicket" turnKey turnValue turnPid turnKind
@@ -534,6 +567,9 @@ AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn,
 	mkdir -p "$runQueueDir" 2>/dev/null || {
 		echo "⛔ ERROR: AgentsRunTests.sh: cannot create the machine's line of test runs: $runQueueDir -- no run is started outside its turn" >&2 ; exit 1
 	}
+	if mkfifo "$runQueueNap" 2> /dev/null || [ -p "$runQueueNap" ] ; then
+		{ exec 6<> "$runQueueNap" ; } 2> /dev/null && runQueueNapOpen=yes
+	fi
 	mkdir -p "$MMDAPP/.local/temp" 2>/dev/null || {
 		echo "⛔ ERROR: AgentsRunTests.sh: cannot create $MMDAPP/.local/temp, the folder of the lock a run takes at its turn" >&2 ; exit 1
 	}
@@ -737,11 +773,11 @@ AgentsRunQueueTurn(){ ## -- stands in the line, takes a lane at this run's turn,
 		if [ "$turnRecount" -ge 15 ] ; then turnRecount=0 ; read -r runLaneCountNow runLaneWhy <<< "$( AgentsRunLaneCount )" ; fi
 		## the pass is slower the longer the line: a run far back has nothing to gain from a quick look, and a long line looked
 		## at quickly by every waiter is load on the very machine the line protects
-		## A run more than 10 back cannot reach a lane for minutes, so it looks up to 90 s apart. Under 120 s, so its beat still reads fresh
-		## to every other waiter, which then spends no `ps` on it (AgentsRunTicketState).
-		turnSleep=$(( 5 + turnAhead * 3 ))
-		if [ "$turnAhead" -le 10 ] ; then [ "$turnSleep" -le 30 ] || turnSleep=30 ; else [ "$turnSleep" -le 90 ] || turnSleep=90 ; fi
-		sleep "$turnSleep"
+		## The pass is woken by the line itself, and its own nap is only the fallback for a change nothing poked:
+		## one long tick, under 120 s so the beat still reads fresh to every other waiter (AgentsRunTicketState).
+		turnSleep=$(( 15 + turnAhead * 5 ))
+		[ "$turnSleep" -le 60 ] || turnSleep=60
+		AgentsRunQueueNap "$turnSleep"
 	done
 }
 ## THE FAILURES HAVE OWNERS. A red test of the suite is what a regression run cannot protect, so each one carries the
@@ -1204,7 +1240,7 @@ exec 8<&- 9<&-
 {
 	runPass=0 runNoteBlock="" runOwned=0 runUnowned=0 runFixed=0
 	runAssert=0 runRefused=0 runTimedOut=0
-	runRows=""
+	runRows="" runUnownedRows=""
 	for runName in $( cut -d' ' -f1 "$runList" ) ; do
 		runRc="$( sed -n 's/^rc=//p' "$runDir/$runName.receipt" 2>/dev/null )"
 		runEnded="$( sed -n 's/^ended-by=//p' "$runDir/$runName.receipt" 2>/dev/null | LC_ALL=C sed -n 1p )"
@@ -1218,7 +1254,7 @@ exec 8<&- 9<&-
 				runRows="$runRows""PASS $runName"$'\n'
 			fi
 		else
-			if [ -n "$runKnown" ] ; then runOwned=$(( runOwned + 1 )) ; else runUnowned=$(( runUnowned + 1 )) ; fi
+			if [ -n "$runKnown" ] ; then runOwned=$(( runOwned + 1 )) ; else runUnowned=$(( runUnowned + 1 )) ; runUnownedRows="$runUnownedRows$runName"$'\n' ; fi
 			## THREE FINDINGS, NEVER ONE: a check ended at its time limit by the stall keeper's own note, a check that
 			## refused ended a line on the refusal wording every check of the suite writes, and the rest failed an assertion.
 			runKind=""
@@ -1239,6 +1275,13 @@ exec 8<&- 9<&-
 	done
 	printf '%s' "$runRows" | sort -k1,1 -k2,2
 	printf '%s' "$runNoteBlock"
+	## A RED NOBODY OWNS IS NAMED HERE, with the one action that makes it owned: the totals line counts them, and a count alone
+	## sent nobody to the list -- an unowned red (`AgentsCoordinatorStateNoteCheck`, 2026-11-26 10:20) sat in a summary no one
+	## could route. The names are the run's own, sorted, one a line.
+	if [ "$runUnowned" -gt 0 ] ; then
+		printf 'UNOWNED-TESTS %s\n' "$runUnowned"
+		printf '%s' "$runUnownedRows" | LC_ALL=C sort | LC_ALL=C sed 's/^/  /'
+	fi
 	[ -z "$runStalled" ] || echo "STALLED  never ran $runNeverCount  never ended $runOpenCount"
 	## THE THREE KINDS COUNTED APART, on a line of their own: the totals line below keeps its shape, which three checks
 	## read as their instrument, and FAIL keeps its meaning as every check that did not pass, so TOTAL = PASS + FAIL.
@@ -1249,6 +1292,9 @@ python3 -I -B "$runPassKeeper" prune "$runPassDir" "$runPassAge" 2>/dev/null || 
 
 echo "---" >&2
 grep '^FAIL' "$runDir/summary.txt" || :
+## THE RED NOBODY OWNS IS NAMED WHERE THE RUNNER'S READER LOOKS, not only in the file: the console held the FAIL rows and the
+## totals line, and a count without a name sent nobody to the list (2026-11-26 10:20).
+LC_ALL=C awk '/^UNOWNED-TESTS/ { print ; named = 1 ; next } named && /^  / { print ; next } named { exit }' "$runDir/summary.txt" 2> /dev/null || :
 tail -n 1 "$runDir/summary.txt"
 if [ -n "$runNoWatch" ] ; then
 	echo "⛔ ERROR: AgentsRunTests.sh: this run was ended because no stall watch was left beside it: nothing was watching it for a run that stood still, so it was ended with the checks it had. Never ran, $runNeverCount of $runCount test(s):${runNever:- none}. Started and never ended, $runOpenCount:${runOpen:- none}. What did end is in $runDir/summary.txt, and the note of this in $runDir/stalled.txt" >&2

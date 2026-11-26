@@ -10,6 +10,7 @@
 ##
 
 ## The bytes one epic's Decisions may take in the section; MDAT_EPIC_DECISIONS_CAP_BYTES overrides it. Past it, the newest go first.
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 agentsEpicDecisionsCapBytes=16384
 
 ## The section, a blank line before it, or nothing where no active epic is the member's. An empty member reads as magic-coordinator.
@@ -17,7 +18,7 @@ AgentsToolsEpicDecisionsSection(){ ## member
 	local epicMember="${1:-magic-coordinator}" epicItems=() epicNames epicName epicCap="${MDAT_EPIC_DECISIONS_CAP_BYTES:-$agentsEpicDecisionsCapBytes}"
 	case "$epicCap" in ''|0|*[!0123456789]*) epicCap="$agentsEpicDecisionsCapBytes" ;; esac
 	type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-	AgentsToolsBoardItemsInto epicItems "" running pending blocked review || return 1
+	AgentsToolsBoardItemsInto epicItems "" $agentsBoardUnderwayStates || return 1
 	[ ${#epicItems[@]} -gt 0 ] || return 0
 	## One pass over the frontmatter of every active item: the epic names of the items the member may read.
 	epicNames="$( LC_ALL=C awk -v who="$epicMember" '

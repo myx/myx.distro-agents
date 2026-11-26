@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 type AgentsSpawnedThreadOfRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 
 ##
@@ -418,7 +419,7 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 	[ -n "$rsMember" ] || { printf 'RETURN: not restarted: no member is recorded for %s\n' "${rsItem%.md}" ; return 1 ; }
 	## The item is read where it stands: running, or still in review while the return that restarts it has not moved it yet. Reading running alone failed
 	## "document not found in lookup folders" in whichever restart case came first, a race, not a case.
-	set -- --intern-op-agent-spawn-proxy "$rsMember" --from-board "$rsItem" --board-state running --board-state review --dispatch-doc:reuse
+	set -- --intern-op-agent-spawn-proxy "$rsMember" --from-board "$rsItem" --board-state ${agentsBoardWorkStates// / --board-state } --dispatch-doc:reuse
 	[ -z "$rsTracking" ] || set -- "$@" --tracking-name "$rsTracking"
 	## Paid from the workspace that paid for the run it replaces, and on the service that run
 	## was started on by name: both off its record (above), neither asked for again.
@@ -452,7 +453,15 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 	else
 		[ -z "$rsFrom" ] || { rsFrom="" ; rsWhy="the old session has no thread to join" ; }
 		[ -z "$rsContext" ] || { rsContext="" ; rsWhy="the old session has no thread to join" ; }
-		rsOut="$( AgentsReviewTools "$@" --context "${MDSC_CMD:-review}" 2>&1 )" || rsRc=$?
+		## A SESSION IS JOINED BY ITS ID, NOT BY ITS THREAD: a restart of a session whose founding record carries
+		## no thread forked a brand-new session instead (measured 2026-11-25: session 8b066c82 where 00569208 was
+		## asked), which then owned its own context and could never be resumed. The proxy refuses a join it cannot
+		## make; the name is offered here whatever the thread is.
+		if [ -n "$rsSession" ] ; then
+			rsOut="$( AgentsReviewTools "$@" --session-id "$rsSession" --context "${MDSC_CMD:-review}" 2>&1 )" || rsRc=$?
+		else
+			rsOut="$( AgentsReviewTools "$@" --context "${MDSC_CMD:-review}" 2>&1 )" || rsRc=$?
+		fi
 	fi
 	if [ "$rsRc" != 0 ] ; then
 		printf 'RETURN: not restarted: the spawn of %s for %s failed (rc %s): %s\n' "$rsMember" "${rsItem%.md}" "$rsRc" "$( printf '%s\n' "$rsOut" | LC_ALL=C grep -m1 'ERROR' )"
@@ -764,7 +773,7 @@ AgentsReviewPromptPost(){ ## who handed back, item file name, its spawn id, outc
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemReviewer.include"
 	local rpWho="$1" rpItem="${2%.md}" rpSpawn="${3:-}" rpOutcome="${4:-}" rpPath rpRecord="" rpCandidate rpTask rpName rpNames="" rpTaskText rpCow rpThread rpSessionText=""
-	local rpBody rpOut rpChannel rpTs rpAddressees rpAsking rpId rpDeliverablesText="" rpDeliverable
+	local rpBody rpOut rpChannel rpTs rpAddressees rpAsking rpId rpDeliverablesText="" rpDeliverable rpThread
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	rpPath="$( AgentsToolsDecisionsItemPath "$rpItem" )" || return 0
 	## Who reviews it: its review-by, else where its run reports to (AgentsToolsItemReviewer). A
@@ -818,6 +827,7 @@ AgentsReviewPromptPost(){ ## who handed back, item file name, its spawn id, outc
 	}
 	rpChannel="$( printf '%s\n' "$rpOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' | head -1 )"
 	rpTs="$( printf '%s\n' "$rpOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+	rpThread="$( printf '%s\n' "$rpOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' | head -1 )"
 	rpAddressees="$( printf '%s\n' "$rpOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
 	rpAsking="$( printf '%s\n' "$rpOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$agentsReviewLib/harness/AgentsHarnessJsonField.awk" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" || rpAsking=""
 	if [ -z "$rpChannel" ] || [ -z "$rpTs" ] || [ -z "$rpAddressees" ] ; then
@@ -826,7 +836,7 @@ AgentsReviewPromptPost(){ ## who handed back, item file name, its spawn id, outc
 	fi
 	## What the post was filled with is kept beside its record, so it is filled again once it takes no answer.
 	rpId="$( printf '%s\n' "$rpBody" | AgentsReviewTools --intern-op-pending-reply-open "$rpWho" --to "$rpChannel" ${rpSpawn:+--session-id "$rpSpawn"} \
-		--kind review --address-to human-owner --blocked-on "reply from human-owner" --channel "$rpChannel" --question-ts "$rpTs" --thread-ts "$rpTs" \
+		--kind review --address-to human-owner --blocked-on "reply from human-owner" --channel "$rpChannel" --question-ts "$rpTs" --thread-ts "${rpThread:-$rpTs}" \
 		--addressees "$rpAddressees" ${rpAsking:+--asking-accounts " $rpAsking"} --item "$rpItem" --ask-identity bot \
 		--fields "$( AgentsToolsAskPostFieldsPack member "$rpWho" task "$rpTaskText" outcome "$rpOutcome" deliverables "$rpDeliverablesText" session "$rpSessionText" )" --context "${MDSC_CMD:-review}" 2> /dev/null )" || rpId=""
 	if [ -z "$rpId" ] ; then

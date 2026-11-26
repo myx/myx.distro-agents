@@ -415,7 +415,7 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 	## rc 1, the reason on stderr, where it could not be posted or recorded, so the act is not
 	## promised.
 	AgentsToolsUndoAskOpen(){ ## record folder, acting member, session id
-		local undoAskDir="$1" undoAskBy="$2" undoAskSession="$3" undoAskBody="" undoAskOut="" undoAskChannel="" undoAskTs="" undoAskAddressees="" undoAskAsking="" undoAskFields="" undoAskPending="" undoAskTemplate
+		local undoAskDir="$1" undoAskBy="$2" undoAskSession="$3" undoAskBody="" undoAskOut="" undoAskChannel="" undoAskTs="" undoAskAddressees="" undoAskAsking="" undoAskFields="" undoAskPending="" undoAskTemplate undoAskThread
 		type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 		AgentsToolsAskKindRow undo || { printf 'the prompt cannot be filled: undo is not a kind the table of asks names\n' >&2 ; return 1 ; }
 		type AgentsToolsToolingTemplate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
@@ -426,13 +426,14 @@ if ! type AgentsToolsUndoKinds >/dev/null 2>&1 ; then
 			printf 'the prompt could not be posted, so nothing is promised: %s\n' "$( printf '%s\n' "$undoAskOut" | LC_ALL=C grep -m1 'ERROR' )" >&2 ; return 1 ; }
 		undoAskChannel="$( printf '%s\n' "$undoAskOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' | head -1 )"
 		undoAskTs="$( printf '%s\n' "$undoAskOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+		undoAskThread="$( printf '%s\n' "$undoAskOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' | head -1 )"
 		undoAskAddressees="$( printf '%s\n' "$undoAskOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
 		undoAskAsking="$( printf '%s\n' "$undoAskOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" || undoAskAsking=""
 		[ -n "$undoAskChannel" ] && [ -n "$undoAskTs" ] && [ -n "$undoAskAddressees" ] || {
 			printf 'the prompt was posted but its thread could not be named, so its answer could not be read\n' >&2 ; return 1 ; }
 		undoAskFields="$( AgentsToolsAskPostFieldsPack member "$undoAskBy" act "$undoAskBody" )"
 		undoAskPending="$( printf '%s\n' "$undoAskBody" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-open "$undoAskBy" --to "$undoAskChannel" --session-id "$undoAskSession" \
-			--kind undo --address-to human-owner --blocked-on "reply from human-owner" --channel "$undoAskChannel" --question-ts "$undoAskTs" --thread-ts "$undoAskTs" \
+			--kind undo --address-to human-owner --blocked-on "reply from human-owner" --channel "$undoAskChannel" --question-ts "$undoAskTs" --thread-ts "${undoAskThread:-$undoAskTs}" \
 			--addressees "$undoAskAddressees" ${undoAskAsking:+--asking-accounts " $undoAskAsking"} --ask-identity bot --fields "$undoAskFields" --context undo-record 2> /dev/null )" || undoAskPending=""
 		[ -n "$undoAskPending" ] || { printf 'the prompt was posted, but its ask could not be recorded, so its answer could not be read\n' >&2 ; return 1 ; }
 		## Its click answers, the names its template gives, placed as the identity that posted it.

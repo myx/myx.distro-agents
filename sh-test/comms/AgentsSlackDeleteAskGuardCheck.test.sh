@@ -126,10 +126,33 @@ rigAssert "deleted: the guard did not widen into a refusal of everything" "$rigD
 rigAssert "chat.delete was asked once" "$rigDeleteDeletes" 1
 rigAssert "and the call ends 0" "$rigDeleteRc" 0
 
+## A permission request is the same store's record under another kind, so the same
+## "still waiting" test must refuse its post. Nothing else in this check opens one.
+rigPermTs="1700000500.000500"
+printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGSELF1","text":"RIG-PERMISSION"}]}\n' "$rigPermTs" > "$RIG_SCENARIO/replies.$rigPermTs.json"
+rigPermId="$( printf '# Permission set\n\nMay I have this?\n' | rigEnv bash "$rigTool" --intern-op-pending-reply-open "$rigMember" --to CRIG00001 \
+	--kind permission-set --channel CRIG00001 --question-ts "$rigPermTs" --thread-ts "$rigPermTs" --addressees URIGOWNER --asking-accounts ' URIGSELF1 ' 2> "$rigTmp/perm.err" )"
+[ -n "$rigPermId" ] && [ -f "$rigWs/.local/agents/pending/$rigPermId.md" ] \
+	|| rigRefuse "the permission request was not opened, so this check could not test its post: $( cat "$rigTmp/perm.err" )"
+
 echo "-- 4. a thread the read cannot answer refuses rather than passing --"
 rigDelete "$rigSilentTs"
 rigAssert "refused as unverified, not deleted" "$rigDeleteState" "unverified-thread"
 rigAssert "chat.delete was never asked" "$rigDeleteDeletes" 0
+
+echo "-- 5. the post of a permission request still waiting --"
+rigDelete "$rigPermTs"
+rigAssert "refused, the state naming the open request" "$rigDeleteState" "refused-open-ask"
+rigAssert "the request is named in the one line, with the operation that closes it" \
+	"$( LC_ALL=C grep -c -F -- "$rigPermId" "$rigTmp/delete.err" || : ):$( LC_ALL=C grep -c -F -- '--settle-pending-reply' "$rigTmp/delete.err" || : )" "1:1"
+rigAssert "chat.delete was never asked for it" "$rigDeleteDeletes" 0
+
+## The store now holds two open records, and the ask's is no longer the newest one. A guard
+## that reads only one of them lets this second attempt delete the question it refused above.
+echo "-- 6. the earlier ask, now that a newer record stands beside it --"
+rigDelete "$rigAskTs"
+rigAssert "still refused, the earlier ask is not lost behind the newer record" "$rigDeleteState" "refused-open-ask"
+rigAssert "chat.delete was never asked for it either" "$rigDeleteDeletes" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	printf '⛔ SLACK DELETE ASK GUARD CHECK FAILED: %s of %s assertion(s)\n' "$rigFailCount" "$(( rigPassCount + rigFailCount ))" >&2

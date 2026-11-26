@@ -8,6 +8,7 @@ input-scan-def: none
 review-by: inherit
 deliverables: each reflection incorporated in the skillset, filed as an open question, or retired as covered
 runs-at: none
+routine-lock-document: inbox:{{team-member}}:note-20261020T000000Z-work-duty-state-and-lock.md
 ---
 # magic-team.process-reflections.routine — the actual procedure
 

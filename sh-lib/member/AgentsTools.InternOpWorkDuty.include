@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/slack/AgentsTools.SlackIdentities.include"
 
 ##
@@ -169,7 +170,7 @@ case "$1" in
 			## exits non-zero, and the spawner writes that failure into input/input-scan.md in place of a digest. A folder the
 			## board does not have is no failure: a fresh board holds only the states it uses.
 			type AgentsToolsBoardStateUnreadable > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-			if workState="$( AgentsToolsBoardStateUnreadable pending running review blocked parked )" ; then
+			if workState="$( AgentsToolsBoardStateUnreadable $agentsBoardActiveStates )" ; then
 				printf '\n(the board could not be read: board/%s is not a readable folder)\n' "$workState" >&2
 				workBoardRc=1
 			fi

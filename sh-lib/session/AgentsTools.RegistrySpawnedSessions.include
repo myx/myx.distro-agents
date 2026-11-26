@@ -70,7 +70,7 @@ AgentsToolsRegistryHousekeepingDue(){
 ## one. A rebuild that finds the registry dated with the stamp as it stands, once it holds the lock, has nothing to do. rc 1 where the lock
 ## was not taken in 30 s, or the registry could not be written.
 AgentsToolsRegistrySpawnedSessionsRebuild(){
-	local rebuildStamp="" rebuildDate="" rebuildNow="" rebuildOwn="" rebuildLock="" rebuildStatus=0
+	local rebuildStamp="" rebuildDate="" rebuildNow="" rebuildOwn="" rebuildLock="" rebuildStatus=0 rebuildRecords="" rebuildRows=""
 	type AgentsToolsRegistryWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	type AgentsSpawnedStoreStampInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
@@ -82,11 +82,21 @@ AgentsToolsRegistrySpawnedSessionsRebuild(){
 	AgentsSpawnedStoreStampInto rebuildStamp "$MMDAPP"
 	case "$rebuildStamp:$rebuildNow" in *[!0123456789:]*|:*|*:) rebuildStamp="" ;; esac
 	rebuildOwn="$( LC_ALL=C stat -f '%m' "$MMDAPP/.local/agents/spawned-sessions.registry" 2> /dev/null || LC_ALL=C stat -c '%Y' "$MMDAPP/.local/agents/spawned-sessions.registry" 2> /dev/null )" || rebuildOwn=""
-	if [ -n "$rebuildStamp" ] && [ "$rebuildOwn" = "$rebuildStamp" ] ; then
+	## THE STORE'S COUNT AS WELL AS ITS STAMP: a record added with an older date than the registry (a restored store, or a rig
+	## modelling a run that failed an hour ago) moves no stamp, so the stamp alone served a registry without it -- the ListAgents
+	## check read no row for a `spawn-failed` record its own store held (measured 2026-11-26 08:10). One find a rebuild test.
+	## THE COUNT THE LAST REBUILD SAW, NOT THE REGISTRY'S ROWS: the rebuild leaves some records out of its rows (a record with no
+	## tracking name, for one), so comparing the store's count with the registry's rows rebuilt the whole registry on every call --
+	## `--spawns --active` measured 25.5 s at 08:20. The count is written beside the registry by the rebuild that saw it, so equal
+	## counts mean one registry for one store, and one added record means exactly one rebuild.
+	rebuildRecords="$( find "$MMDAPP/.local/agents/spawned" -type f -name '*.spawn.md' 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
+	rebuildRows="$( LC_ALL=C sed -n 1p "$MMDAPP/.local/agents/spawned-sessions.records.stamp" 2> /dev/null )" || rebuildRows=""
+	if [ -n "$rebuildStamp" ] && [ "$rebuildOwn" = "$rebuildStamp" ] && [ -n "$rebuildRows" ] && [ "${rebuildRecords:-x}" = "$rebuildRows" ] ; then
 		AgentsToolsLocalLockGive "$rebuildLock"
 		return 0
 	fi
 	if AgentsToolsRegistryWrite spawned-sessions AgentsToolsRegistrySpawnedSessionsRows ; then
+		[ -z "$rebuildRecords" ] || printf '%s\n' "$rebuildRecords" > "$MMDAPP/.local/agents/spawned-sessions.records.stamp" 2> /dev/null || :
 		if [ -n "$rebuildStamp" ] ; then
 			[ "$rebuildStamp" -lt "$rebuildNow" ] || rebuildStamp=$(( rebuildStamp - 1 ))
 			rebuildDate="$( TZ=UTC0 date -r "$rebuildStamp" '+%Y%m%d%H%M.%S' 2> /dev/null || TZ=UTC0 date -d "@$rebuildStamp" '+%Y%m%d%H%M.%S' 2> /dev/null )" || rebuildDate=""
@@ -250,6 +260,24 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 ; }' "$measuredFile" 2> /dev/null | LC_ALL
 				}
 				return 0 ;
 			}
+			## A RUN THE CONSOLE ENDED IS FINISHED, NEVER FAILED (S12.15): the kill writes the two kill marks on the
+			## record before it signals, and the shell that closes it leaves the word a start that died on its own leaves.
+			## The mark decides, and it is read from the record the store of this row holds.
+			function killedOf( tracking, runId, session,   killedPath, killedLine, killedFence, killedHit ) {
+				if ( tracking == "" || tracking == "-" ) return 0 ;
+				if ( runId == "" || runId == "-" ) runId = session ;
+				if ( runId == "" || runId == "-" ) return 0 ;
+				if ( ( tracking "/" runId ) in killedSeen ) return killedSeen[tracking "/" runId] ;
+				killedHit = 0 ; killedFence = 0 ;
+				killedPath = agentsDir "/spawned/" tracking "/" runId ".spawn.md" ;
+				while ( ( getline killedLine < killedPath ) > 0 ) {
+					if ( killedLine == "---" ) { if ( ++killedFence > 1 ) break ; continue ; }
+					if ( killedFence == 1 && killedLine ~ /^killed-(by|at): ./ ) { killedHit = 1 ; break ; }
+				}
+				close( killedPath ) ;
+				killedSeen[tracking "/" runId] = killedHit ;
+				return killedHit ;
+			}
 			## The state a row comes to, exactly as AgentsToolsRunDeriveStateFromSet gives it.
 			function derivedOf( rowStatus, rowLive, rowSession, rowSpawn ) {
 				## A run not running that control/closed names is finished, before any other mark is read.
@@ -259,6 +287,7 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 ; }' "$measuredFile" 2> /dev/null | LC_ALL
 				if ( rowLive != "running" && parkedOf( rowSpawn, rowSession ) ) { return "parked" ; }
 				## A run a pause holds reads `paused` whatever its activity word says (S19.1).
 				if ( rowLive == "running" && pausedOf( rowSpawn, rowSession ) ) { return "paused" ; }
+				if ( rowLive != "running" && rowStatus == "spawn-failed" && killedOf( trackingName, rowSpawn, session ) ) { return "finished" ; }
 				if ( rowStatus == "spawn-failed" || rowStatus == "spawn-succeeded" ) {
 					if ( rowLive == "running" ) return activityOf( rowSpawn ) ;
 					if ( deadNames( rowSession, rowSpawn ) ) return "failed" ;
@@ -377,16 +406,37 @@ AgentsToolsRegistryRenderSpawnedSessionsKept(){ ## view, seconds the copy may st
 	local keptName="${3:-all}.${4:-all}"
 	case "$keptName" in *[!A-Za-z0-9._-]*) keptName="unfiltered" ;; esac
 	local keptFile="$MMDAPP/.local/agents/spawned-sessions.render.${1:-agents}.$keptName" keptAt keptNow keptTtl keptTemp keptStale keptRefresh
+	local keptStamp="" keptStampFile=""
+	## THE STAMP IS THE COPY'S OWN: one shared stamp let a filtered view's rebuild vouch for another view's older copy, and the
+	## full view then served rows a failed run had already left (measured 2026-11-26 08:05).
+	keptStampFile="$keptFile.stamp"
 	keptTtl="${2:-600}"
 	case "$keptTtl" in ''|*[!0123456789]*) keptTtl=600 ;; esac
 	keptAt="$( LC_ALL=C date -r "$keptFile" +%s 2> /dev/null )" || keptAt=""
 	keptNow="$( date +%s )" || keptNow=""
+	## THE AGE AND THE REGISTRY'S OWN STAMP: a copy is served while it is younger than its TTL AND the registry it was made from
+	## still stands as it was. Age alone served a row set a failed or ended run had already left (measured 2026-11-26 07:55: the
+	## ListAgents check added a failed run and a finished process inside the 60 s TTL and read no row for either). The stamp is the
+	## registry's own bytes' checksum, one read of it and no walk.
+	## THE STAMP IS THE REGISTRY'S BYTES AND THE STORE'S OWN COUNT OF RECORDS: the checksum moves when a record is rewritten, and
+	## the count moves when one is added or removed even where the writer gave it an older date (a rig does exactly that to
+	## model a run that failed an hour ago). One find a call, no process a record.
+	if [ -f "$MMDAPP/.local/agents/spawned-sessions.registry" ] ; then
+		keptStamp="$( { LC_ALL=C cksum < "$MMDAPP/.local/agents/spawned-sessions.registry" 2> /dev/null ; find "$MMDAPP/.local/agents/spawned" -type f -name '*.spawn.md' 2> /dev/null | LC_ALL=C wc -l ; } | LC_ALL=C tr -d ' ' | LC_ALL=C tr '\n' '-' )" || keptStamp=""
+	else
+		keptStamp="none"
+	fi
 	case "$keptAt$keptNow" in
 		''|*[!0123456789]*) ;;
 		*)
-			## THE AGE ALONE: a registry moves whenever any record of the store does, so a copy held only while the registry stood still is no
-			## copy at all, and the pass measured every run again at every pass -- 24,830 ms of a 29 s loop, a machine that never rests.
-			if [ "$(( keptNow - keptAt ))" -lt "$keptTtl" ] ; then
+			## THE AGE AND THE STAMP: the copy is no copy at all once the registry it was made from moved, and a pass measures every
+			## run again only when that happened.
+			## A RECORD WRITTEN SINCE THE COPY IS THE STORE MOVING, and the registry cannot show it yet because the very scan
+			## that would rebuild the registry is the one this copy skips (measured 2026-11-26 07:55: the ListAgents check added a
+			## failed run inside the TTL and read no row for it). One find over the sandbox root, no process per record.
+			if [ "$(( keptNow - keptAt ))" -lt "$keptTtl" ] && [ -n "$keptStamp" ] && [ -f "$keptStampFile" ] \
+				&& [ "$( LC_ALL=C sed -n 1p "$keptStampFile" 2> /dev/null )" = "$keptStamp" ] \
+				&& [ -z "$( find "$MMDAPP/.local/agents/spawned" -type f -name '*.spawn.md' -newer "$keptFile" 2> /dev/null | LC_ALL=C head -1 )" ] ; then
 				cat "$keptFile" 2> /dev/null && return 0
 			fi
 		;;
@@ -400,6 +450,7 @@ AgentsToolsRegistryRenderSpawnedSessionsKept(){ ## view, seconds the copy may st
 			keptRefresh="$( mktemp "$MMDAPP/.local/agents/spawned-sessions.render.XXXXXX" 2> /dev/null )" || keptRefresh=""
 			if [ -n "$keptRefresh" ] ; then
 				if AgentsToolsRegistryRenderSpawnedSessions "${1:-agents}" "${3:-}" "${4:-}" "${5:-}" > "$keptRefresh" 2> /dev/null && [ -s "$keptRefresh" ] ; then
+					[ -z "$keptStamp" ] || printf '%s\n' "$keptStamp" > "$keptStampFile" 2> /dev/null || :
 					mv -f "$keptRefresh" "$keptFile" 2> /dev/null || rm -f "$keptRefresh" 2> /dev/null
 				else
 					rm -f "$keptRefresh" 2> /dev/null
@@ -413,6 +464,7 @@ AgentsToolsRegistryRenderSpawnedSessionsKept(){ ## view, seconds the copy may st
 	if [ -n "$keptTemp" ] ; then
 		if AgentsToolsRegistryRenderSpawnedSessions "${1:-agents}" "${3:-}" "${4:-}" "${5:-}" > "$keptTemp" 2> /dev/null && [ -s "$keptTemp" ] ; then
 			cat "$keptTemp"
+			[ -z "$keptStamp" ] || printf '%s\n' "$keptStamp" > "$keptStampFile" 2> /dev/null || :
 			mv -f "$keptTemp" "$keptFile" 2> /dev/null || rm -f "$keptTemp" 2> /dev/null
 			return 0
 		fi

@@ -15,6 +15,7 @@
 ## AgentsSettingsKeyNames <workspace> <scope> [<prefix>]           the keys the scope holds, those starting with <prefix>, one a line, each once
 ## AgentsSettingsHoldsKeys <workspace> <scope> <prefix>            rc 0 where the scope holds a key starting with <prefix>
 ## AgentsSettingsKeyNamesJoined <workspace> <scope> <prefix> [<key to leave out>]  those keys joined by ", ": names only, never a value
+## AgentsSettingsScopeValues <workspace> <scope> <prefix>  the `KEY=value` lines whose key carries <prefix>, in the store's own order
 ## AgentsSettingsScopeCreate <workspace> <scope>, AgentsSettingsScopeRename <workspace> <old> <new>
 AgentsSettingsStoreDir(){ ## workspace
 	printf '%s/.local/.agents\n' "${1%/}"
@@ -45,6 +46,10 @@ AgentsSettingsKeyNames(){ ## workspace, scope, prefix (may be empty)
 ## Kept as the store's predicate for one key: every caller must ask it, never repeat the read and the emptiness test.
 AgentsSettingsHoldsKeys(){ ## workspace, scope, prefix
 	[ -n "$( AgentsSettingsKeyNames "$1" "$2" "$3" )" ]
+}
+AgentsSettingsScopeValues(){ ## workspace, scope, prefix -- the settings whose key carries the prefix, values included, one `KEY=value` a line
+	AgentsSettingsScopeHas "$1" "$2" || return 0
+	AgentsSettingsRead "$1" "$2" --select-all | LC_ALL=C awk -v p="${3:-}" 'index( $0, p ) == 1 { print }'
 }
 AgentsSettingsKeyNamesJoined(){ ## workspace, scope, prefix, a key to leave out (may be empty)
 	AgentsSettingsKeyNames "$1" "$2" "$3" | LC_ALL=C awk -v out="${4:-}" '$0 != out { printf "%s%s", ( n++ ? ", " : "" ), $0 ; }'

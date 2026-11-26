@@ -7,7 +7,7 @@ Read this when working on `myx.distro-*` itself (source/deploy/system/remote/.lo
 
 ## Contents
 
-- After a source change: the lifecycle, and what "no new changes" means
+- After a source change
 - Running a deploy: what the prepare modes refresh
 - How a machine gets its name, and the two-name pattern
 - A different, larger system — don't conflate with myx.common
@@ -31,29 +31,12 @@ Read this when working on `myx.distro-*` itself (source/deploy/system/remote/.lo
 - Reaching a tool is a fact to establish, not an assumption
 - Piping one host's console into another hides the source-side failure
 
-## After a source change: the lifecycle, and what "no new changes" means
+## After a source change
 
-A source edit reaches a deploy through a chain of steps with separate currencies. The incremental steps can all report clean while an aggregate is still older than the source tree.
-
-- `--sync-cached-from-source` runs the scan itself. It mirrors the workspace's `source/` tree into `source-cache/sources/`, and writes the change delta only when that mirror actually differs.
-- `--ingest-distro-index-from-source` is that step followed by the publish step, in one call. This is the `🛫 Ingest Source Changes...` palette entry, and the ordinary way to pick up an edit.
-- `--build-project-metadata` rebuilds the aggregate from the change delta. An empty delta makes it a no-op.
-- `--rebuild-cached-index` ignores the delta and imports everything from source, then regenerates the secondary indexes.
-- `BuildCachedFromSource.fn.sh` regenerates the whole snapshot from source. This is the `📥 Re-Build Source Index Snapshot (cached from source)...` palette entry.
-- `--scan-source-changes` only reports what changed. It writes no delta, and no step depends on running it first.
-
-**"No new changes" is not proof the index is current.** It means the mirror already matches `source/`. A value the deploy resolves can still be older than the source tree, and every incremental step will keep reporting clean.
-
-**So a stale resolved value means run the snapshot rebuild before anything else.** It is the only whole-tree step. Never edit an index or cache file by hand.
-
-**How the per-project cache decides it is current.** The deploy reads `$MDSC_CACHED/<project>/project-provides-merged.txt`. That file is served when either test says it is fresh:
-
-- it is not older than `build-time-stamp.txt`, or
-- `distro-index.env.inf` is not newer than it.
-
-`distro-index.env.inf` reports staleness correctly. The stamp clause does not, because the step that would copy it returns before reaching the copy: with an empty change delta, `--sync-cached-from-source` exits at the "no new changes" test, and the stamp copy further down never runs. So the stamp stays at its old value, that test keeps reporting fresh, and the cache outlives any number of ingests.
-
-That is why the snapshot rebuild is the cure: `BuildCachedFromSource.fn.sh` regenerates the per-project files themselves rather than arguing with the gate.
+- Run the workspace task `🛫 Ingest Source Changes...`, which is `DistroSourcePrepare.fn.sh --ingest-distro-index-from-source`. It is the one step that picks up a source edit.
+- A value that still reads old afterwards goes to the workspace task `📥 Re-Build Source Index Snapshot (cached from source)...`, which is `BuildCachedFromSource.fn.sh`.
+- Never open, measure, edit or rebuild an index or cache file by any other route. The tools own them.
+- **A deletion never enters the change delta, so a deleted project's rows stay in the aggregate.** No rebuild from that delta removes them.
 
 ## Running a deploy: what the prepare modes refresh
 
@@ -63,10 +46,9 @@ A deploy ships two generated things: a `sync/` folder of files to upload, and an
 - `--prepare-exec` regenerates `exec` only. Use it when only the install script changed, and the uploaded file set is unchanged. It is the narrow choice for a fragment edit.
 - `--prepare-sync` regenerates `sync/` only. Use it when only files under `data/` changed, and the fragment set is unchanged.
 - `--prepare-none` reuses whatever is already on disk and deploys it. It is for running the exact artifact a previous prepare produced, such as a repeat attempt after a transport failure. It is never a way to skip a stale artifact: a run with `--prepare-none` sends the previous files unchanged, and its result says nothing about the current source tree.
+- **A stage handed over as a patch is a whole tree, and a sync deletes every file it omits.** `--prepare-sync` builds `sync/` with `rsync --delete`, and the upload runs `rsync --delete` into each target folder. One devops stage measured 2026-11-25 held 1000 files against live's 1442, `.git` excluded. Count both sides before laying a stage down.
 
-No prepare mode rebuilds an index or refreshes a resolved context variable. A source edit that changes a value the deploy resolves therefore needs the index lifecycle above first, then a prepare. `--prepare-full` alone refreshes the content the deploy ships, never the values it resolves.
-
-Which index a deploy reads depends on the spec in force. The deploy console defaults to `--distro-from-output`, and its index tree is `.local/output-cache/distro`. From source, the tree is `.local/system-index`. A rebuild of one says nothing about the other, so state which spec a value was read under.
+No prepare mode refreshes a resolved context variable. A source edit that changes one needs the ingest task above first, then a prepare.
 
 ## How a machine gets its name, and the two-name pattern
 
@@ -118,9 +100,9 @@ Counts below are **builders on disk**, not mentions of the name. A mention count
 - `image-process` — builders `4???-*`. 2 builders, **both echo-only markers** — `4011-deploy-init.sh` and `4911-deploy-apply.sh`, a started/finished pair that prints and does nothing else. No runner.
 - `image-install` — builders `5???-*`. 2 builders, **both echo-only markers** — `5011-deploy-init.sh`, `5911-deploy-apply.sh`. No runner.
 
-**A stage is a runner, not a filter token plus a directory.** The runners are `myx.distro-source/sh-scripts/Build*.fn.sh`, and all three share one four-part shape. They ingest the previous tier, export the env-path contract, run that one stage's builders in sorted order, and publish the index. `BuildDistroFromSource.fn.sh` shows it whole — `DistroImagePrepare --ingest-distro-image-from-output`, then `export` of `MDSC_SOURCE`/`MDSC_CACHED`/`MDSC_OUTPUT`/`OUTPUT_PATH`/`DISTRO_PATH`/`EXPORT_PATH`, then a loop over `Distro AllBuilders --executables image-prepare`, then `DistroImagePrepare --ingest-distro-index-from-processed`. Those variables are rebound per stage, and are the contract builders read. `image-prepare/3000-env-from-output.sh` hard-asserts each one against its expected path. It `return 1`s the whole stage on a mismatch, an unset `EXPORT_PATH` included. Three of the six stages have a runner. Three do not, which is what makes a stage selectable but inert rather than merely empty.
+**A stage is a runner, not a filter token plus a directory.** The runners are `myx.distro-source/sh-scripts/Build*.fn.sh`, and all three share one shape. They ingest the previous tier, export the env-path contract, and run that one stage's builders in sorted order. `BuildDistroFromSource.fn.sh` shows it. It runs `DistroImagePrepare --ingest-distro-image-from-output`. Then it exports `MDSC_SOURCE`/`MDSC_CACHED`/`MDSC_OUTPUT`/`OUTPUT_PATH`/`DISTRO_PATH`/`EXPORT_PATH`. Then it loops over `Distro AllBuilders --executables image-prepare`. Those variables are rebound per stage, and are the contract builders read. `image-prepare/3000-env-from-output.sh` hard-asserts each one against its expected path. It `return 1`s the whole stage on a mismatch, an unset `EXPORT_PATH` included. Three of the six stages have a runner. Three do not, which is what makes a stage selectable but inert rather than merely empty.
 
-**What "publish" currently means, concretely.** `image-prepare/3899-distro-ready.sh`, that stage's last builder, logs `distro-ready: publishing distro and export.` and `rsync -ai --delete`s `.local/output-cache/distro/` to `$MMDAPP/distro` and `.local/output-cache/export/` to `$MMDAPP/export`, the two in parallel. Both targets are local paths in the same workspace. Nothing in the pipeline carries either tree off the machine.
+**What "publish" currently means, concretely.** `image-prepare/3899-distro-ready.sh`, that stage's last builder, logs `distro-ready: publishing distro and export.` and `rsync -ai --delete`s the built distro tree to `$MMDAPP/distro` and the built export tree to `$MMDAPP/export`, the two in parallel. Both targets are local paths in the same workspace. Nothing in the pipeline carries either tree off the machine.
 
 **Nine names are planned only — never call these.** Zero files mention any of them as a stage: `image-publish`, `image-receive`, `image-upgrade`, `deploy-prepare`, `deploy-settings`, `deploy-reinstall`, `deploy-actions`, `execute-remote`, `monitor-checks`. (`deploy-settings`'s only textual hits are local, unpublished sketch notes naming an unrelated mdci hook script. A `DeploySettings.fn.sh` tool does exist, and a tool is not a pipeline stage.)
 
@@ -160,7 +142,7 @@ One `deploy-export:<local-path>:<public-url-path>` declaration lands in two shap
 
 - `builders/source-process/2801-copy-exports.sh` places the content at `$MDSC_OUTPUT/distro/<project>/<src>` — one location, organised per project.
 - `builders/image-prepare/3895-sync-export.sh` places it at
-  `.local/output-cache/export/<external-url-path>`. That placement follows the
+  `export/<external-url-path>`. That placement follows the
   external address itself, so the export tree mirrors the layout of the public
   URLs the declarations name.
 
@@ -230,7 +212,7 @@ Which subset exists tracks the workspace's purpose. A personal/refactor-only wor
 
 **The real templating layer stops one layer short of that content.** `--make-console-command`/`--make-console-script` (`SourceTools.Make.include` and its per-family siblings) regenerate only the thin launcher wrapper — `DistroSourceConsole.sh` etc., a `cat <<-'DISTROCONSOLE'` heredoc whose entire body is `bash --rcfile <the-hand-authored-rc> -i`. Nothing in that op touches the rc file's own `PATH`-building content. The wrapper is regenerated, the rc it invokes stays hand-authored.
 
-**Project-declared commands reach console `PATH` through the source-prepare stage, not a `--make-*` op.** `source-prepare/1901-make-commands-no-delete.sh` writes `$MMDAPP/.local/distro-commands.txt` from the projects' `custom-commands-path` declares. `Distro --shell-path-append` reads it and appends each scripts directory not yet on `PATH`. The Source and Deploy console rcs call it at start and in `PROMPT_COMMAND`.
+**Project-declared commands reach console `PATH` through the source-prepare stage, not a `--make-*` op.** `source-prepare/1901-make-commands-no-delete.sh` handles the projects' `custom-commands-path` declares. `Distro --shell-path-append` appends each scripts directory not yet on `PATH`. The Source and Deploy console rcs call it at start and in `PROMPT_COMMAND`.
 
 **`--install-workspace-integrations` (`DistroAgentsTools.fn.sh`, `myx.distro-agents`) is not that op** — don't confuse the two. It's agents-domain-specific: VS Code settings plus skillset-symlink installation, keyed off the `magic-team:team-member:*` tag. Unrelated capability that happens to share the word "integrations" with the `--make-*` family above.
 
@@ -242,12 +224,12 @@ Which subset exists tracks the workspace's purpose. A personal/refactor-only wor
 
 **`custom-commands-path:sh-scripts`, implemented.** The tag a user-added custom project would declare via `Declares:` to contribute its own `sh-scripts/` to console `PATH`. `Declares:` is self-only and non-inherited, per `Man.Project.Inf.file.help.md`'s own schema. It is additive only, never touching the existing hardcoded embedded-family `PATH` lists.
 
-**A declared command is dropped when its file carries no executable bit, and nothing reports it.** `builders/source-prepare/1901-make-commands-no-delete.sh` reads `[ -x "$commandFile" ] || continue` inside its loop over a declaring project's `sh-scripts/`. So the index, and the derived `distro-command-path.txt`, name only the executable files. The command is then absent from console `PATH` and from `Distro --shell-path-append --completion`, and a caller sees `not found` for a command its project declares. Measured 2026-11-10: four declared command files across five workspaces, three emitted and one skipped, and the skip printed nothing. On a copy, `chmod 755` made the same file emit and `644` made it skip again. So when a declared command is unreachable, the first question is its file mode, then whether any project declares its folder at all.
+**A declared command is dropped when its file carries no executable bit, and nothing reports it.** `builders/source-prepare/1901-make-commands-no-delete.sh` reads `[ -x "$commandFile" ] || continue` inside its loop over a declaring project's `sh-scripts/`. So only the executable files are emitted. The command is then absent from console `PATH` and from `Distro --shell-path-append --completion`, and a caller sees `not found` for a command its project declares. Measured 2026-11-10: four declared command files across five workspaces, three emitted and one skipped, and the skip printed nothing. On a copy, `chmod 755` made the same file emit and `644` made it skip again. So when a declared command is unreachable, the first question is its file mode, then whether any project declares its folder at all.
 
-**Per-workspace `.local/` is the installed tool release** — `myx/` holds the installed `myx.common`/`myx.distro-*` packages themselves, alongside `roots/`, `assets/`, `home/`, `lib/`, `agents/`, plus `MDLT.settings.env`/`MDSC.source.settings.env`. Written by the console commands above through their own install/upgrade path. Never hand-edited. Not a generated tree, not a cache, not regenerable by us — see this member's own `$MMDAPP/.local/` rules for why. Exceptions, genuinely generated and still Tier 1: the regenerable subtrees under it — `source-cache/`, `system-index/`, `temp/`, and `.cleanup/` (`--owner-cleanup-purge`'s own target). The release-version rule above is about `.local/` as a whole, not about those.
+**Per-workspace `.local/` is the installed tool release** — `myx/` holds the installed `myx.common`/`myx.distro-*` packages themselves, alongside `roots/`, `assets/`, `home/`, `lib/`, `agents/`, plus `MDLT.settings.env`/`MDSC.source.settings.env`. Written by the console commands above through their own install/upgrade path. Never hand-edited. Not a generated tree, not a cache, not regenerable by us — see this member's own `$MMDAPP/.local/` rules for why. Exceptions, genuinely generated and still Tier 1: the regenerable subtrees under it — `temp/` and `.cleanup/` (`--owner-cleanup-purge`'s own target). The release-version rule above is about `.local/` as a whole, not about those.
 
 **Three owners meet here:**
-  - `magic-devops` knows how to operate the tool: consoles, sync/index/build machinery, task wiring.
+  - `magic-devops` knows how to operate the tool: consoles, sync and build machinery, task wiring.
   - the owning `keeper-*` owns the `myx.distro-*` source and package internals.
   - the owning `partner-*` owns a namespace's domain content. `myx.distro-*` is deliberately extensible — any project can declare its own `.fn.sh` functions, custom builders, and `ExecuteParallel.fn.sh`/`ExecuteSequence.fn.sh` targets selected via `--select-merged-keywords`/`--select-projects`. Once a project extends the tool this way, the extension is simultaneously "tool mechanics" and "domain content" — use both lenses. The one thing unambiguously the `partner-*`'s alone: the actual namespace inventory data (`infra/accounts-<ns>`, `clusters-<ns>`, `instances-<ns>`, etc.).
 
@@ -269,16 +251,11 @@ Which subset exists tracks the workspace's purpose. A personal/refactor-only wor
 
 **When authoring a new action/wrapper script by copying a sibling's structure, don't carry over its selector flags unchecked.** An example is a settings-apply wrapper copied from a working routing-apply wrapper. Verify independently the right value of `--select-merged-keywords <value>` or similar for the new script's own target set. Structurally identical wrappers can front genuinely different deploy mechanisms with different real targets: an SSH config-apply script and an rsync-style file-sync script, for instance. A keyword that correctly scopes one can silently under-select for the other. There is no error, just a quietly incomplete target list. A host present in the real intended set simply never appears, with nothing to indicate it was dropped. Always verify a new wrapper's selector independently, against the actual `Keywords:` field of the specific `project.inf`(s) it's meant to target. Use the same read-only `ListDistroProjects`/`ListDistroProvides` resolution check described above. Never assume it matches a sibling wrapper's value.
 
-**When scanning full output from a live multi-host deploy for problems, grep broadly across the entire output rather than sampling or trusting a summary line.** Search for `error|fail|denied|refused|timeout|no route|exit code|connection refused|permission denied` (case-insensitive) across the whole log, not just the tail. Pre-existing, unrelated warnings routinely coexist with an otherwise fully clean run, such as stale-index `MISSING:` provider gaps for projects unrelated to the deploy. Don't mistake them for new problems. Don't assume a run is clean without actually running the broad scan either.
+**When scanning full output from a live multi-host deploy for problems, grep broadly across the entire output rather than sampling or trusting a summary line.** Search for `error|fail|denied|refused|timeout|no route|exit code|connection refused|permission denied` (case-insensitive) across the whole log, not just the tail. Pre-existing, unrelated warnings routinely coexist with an otherwise fully clean run, such as `MISSING:` provider gaps for projects unrelated to the deploy. Don't mistake them for new problems. Don't assume a run is clean without actually running the broad scan either.
 
-## Index/provides mechanics: the live lookup path and the cached-snapshot path are different files
+## Project listings after a move
 
-Two genuinely separate mechanisms exist in the index system, feeding different consumers. Conflating them leads to treating a stale report file as a functional outage, or the reverse:
-
-- **The live, no-cache lookup path** — `IndexNoCacheDistroProjects`, driven only by `source-cache/all-projects.index.txt` (a lightweight project-path listing). It reads each selected project's `project.inf` fresh, on every call. This is what selector-based queries (`ListDistroProvides --select-*`/`--filter-*-column`, and by extension what `DeployRouting.fn.sh`/`DeploySettings.fn.sh` read internally to build their task lists) actually consult at runtime. As long as `all-projects.index.txt` itself is current, this path is always current. It never goes stale independently, because it doesn't cache the provides data at all.
-- **`all-projects.index.txt` itself is not automatically current after a project move.** It only reflects reality as of the last time `DistroSourcePrepare --ingest-distro-index-from-source` (or equivalent) was run. A project move can land correctly on disk and be committed/pushed. `ListDistroProvides --select-projects <name>` and other selector-based resolution can still return the pre-move path and pre-move `Provides:` entries, with no error, until that command is re-run. Re-running it picks up exactly that one changed project and resolves it correctly. Practical implication: after ANY project move, re-run `DistroSourcePrepare --ingest-distro-index-from-source` before trusting a `ListDistroProvides`/selector-based resolution check. Don't assume the live-lookup path is automatically fresh just because it isn't the cached-snapshot pipeline described below.
-- **The cached-snapshot pipeline** — `DistroSourcePrepare.fn.sh`'s `--sync-cached-from-source` writes `source-cache/prepare/distro-provides.txt` (and sibling `distro-declares.txt`/`distro-keywords.txt`/`distro-requires.txt`). `--ingest-distro-index-from-prepared` publishes that into `system-index/distro-provides.txt`. `--build-project-metadata` rebuilds the same aggregate from per-project cache subdirectories. This is a separately-maintained report/aggregate artifact — nothing in the live selector-query path reads it. Staleness here does not imply staleness in the live lookup path above. It does not by itself indicate anything is broken for an actual deploy. Verify which of the two mechanisms actually feeds the operation before treating a stale file as a functional problem.
-- **The index-rebuild pipeline is three separate steps, and the first is not a prerequisite.** `--sync-cached-from-source` runs the scan itself and writes the change delta. `--build-project-metadata` reads that delta, so an empty one makes it a silent no-op. `--rebuild-cached-index` ignores the delta and does a full import. `--scan-source-changes` only reports, and writes nothing. Read the lifecycle section above before choosing an entry. A `--build-project-metadata` run without a full delta shows as `cat: ... No such file or directory` for the projects whose per-project cache subdirectories were never created.
+A project move that landed on disk shows in a listing only after the workspace task `🛫 Ingest Source Changes...` has run. Run it, then list again. Never read an index or cache file to find out.
 
 ## Building blocks vs. actions — two different layers, don't conflate them
 

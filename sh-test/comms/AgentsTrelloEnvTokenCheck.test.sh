@@ -20,7 +20,9 @@ check(){ if [ "$2" = "$3" ] ; then printf '  PASS  %s\n' "$1" ; pass=$((pass+1))
 ## The config-store read must not run while the environment holds the credential: it
 ## fails loudly if reached. The prerequisite guards (bare-name, own-side) merely pass,
 ## since they run before the credential read for any member and are not the scope read.
-DistroAgentsTools(){ echo "scope-read should not run" >&2 ; return 1 ; }
+## THE SCOPE'S SEAM IS THE SETTINGS WRAPPER (same move as the email and Telegram checks): the credential resolver asks
+## `AgentsToolsConfigOption`, which no longer calls the dispatcher, so a stub on the dispatcher never sees the read.
+AgentsToolsConfigOption(){ echo "scope-read should not run" >&2 ; return 1 ; }
 AgentsToolsAssertBareName(){ return 0 ; }
 AgentsToolsCommsOwnSideCheck(){ return 0 ; }
 ## curl is stubbed to record the header it is handed and succeed, so the credential

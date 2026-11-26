@@ -40,17 +40,64 @@ AgentsMcpPaceRecord(){ ## tool name, start epoch
 	return 0
 }
 
+## A SPIN THAT STARTS NO PROCESS. A fifo beside the wire lock, held open at both ends by every request
+## of this server, is the wait: a lock given back writes a line into it, and each waiting request wakes
+## on the shell's own timed read. Made on the first wait; where it cannot be made, the timer stands.
+AgentsMcpShortWait(){ ## seconds
+	local mcpSpinLine=""
+	if [ -z "${mcpSpinFifoOpen:-}" ] ; then
+		if mkfifo "$mcpScratchRoot/spin.nap" 2> /dev/null || [ -p "$mcpScratchRoot/spin.nap" ] ; then
+			{ exec 9<> "$mcpScratchRoot/spin.nap" ; } 2> /dev/null && mcpSpinFifoOpen=yes
+		fi
+	fi
+	if [ -n "${mcpSpinFifoOpen:-}" ] ; then IFS= read -r -t "$1" -u 9 mcpSpinLine 2> /dev/null || : ; return 0 ; fi
+	sleep "$1"
+}
+## A fifo hands each byte to one reader, so the wake is written once for each request in flight.
+AgentsMcpSpinPoke(){ ## -- wakes the requests waiting on this server's fifo, now
+	local mcpPokeLeft=0 mcpPokeFile
+	[ -n "${mcpSpinFifoOpen:-}" ] || return 0
+	for mcpPokeFile in "$mcpScratchRoot"/inflight/* ; do
+		[ -f "$mcpPokeFile" ] || continue
+		mcpPokeLeft=$(( mcpPokeLeft + 1 ))
+	done
+	[ "$mcpPokeLeft" -gt 0 ] || mcpPokeLeft=1
+	while [ "$mcpPokeLeft" -gt 0 ] ; do
+		printf '\n' >&9 2> /dev/null || :
+		mcpPokeLeft=$(( mcpPokeLeft - 1 ))
+	done
+	return 0
+}
 AgentsMcpWireLockAcquire(){
-	local mcpLockSpin=0 mcpLockWaited=0
+	local mcpLockWaited=0 mcpLockHolder="" mcpLockSeen=""
 	while ! mkdir "$mcpScratchRoot/wire.lock" 2>/dev/null ; do
-		mcpLockSpin=$(( mcpLockSpin + 1 ))
-		[ 500 -le "$mcpLockSpin" ] || continue
-		sleep 1
-		mcpLockSpin=0
+		## THE SPIN COSTS NO FORK, AND NO BUSY LOOP. A request waits on the server's own fifo, and the
+		## request that gives the lock back wakes it, so the wait ends in milliseconds without a retry
+		## storm. The bound stays 30 s, one wait a second, the shell's own timed read.
+		AgentsMcpShortWait 1
 		mcpLockWaited=$(( mcpLockWaited + 1 ))
+		## A holder keeps the wire for one printf, so a lock whose recorded holder is gone on two looks in a row was left by a handler
+		## that was killed: it is taken over, and a live holder is still waited for. No record at all reads as a gone holder.
+		if [ "$mcpLockWaited" -ge 2 ] ; then
+			mcpLockHolder=""
+			IFS= read -r mcpLockHolder < "$mcpScratchRoot/wire.holder" 2> /dev/null || :
+			case "$mcpLockHolder" in ''|*[!0123456789]*) mcpLockHolder=0 ;; esac
+			if [ "$mcpLockHolder" -eq 0 ] || ! kill -0 "$mcpLockHolder" 2> /dev/null ; then
+				if [ "$mcpLockSeen" = "$mcpLockHolder" ] ; then
+					rmdir "$mcpScratchRoot/wire.lock" 2> /dev/null || :
+					mcpLockSeen=""
+					continue
+				fi
+				mcpLockSeen="$mcpLockHolder"
+			else
+				mcpLockSeen=""
+			fi
+		fi
 		[ 30 -le "$mcpLockWaited" ] || continue
 		return 1
 	done
+	printf '%s\n' "$$" > "$mcpScratchRoot/wire.holder" 2> /dev/null || :
+	AgentsMcpSpinPoke
 	return 0
 }
 

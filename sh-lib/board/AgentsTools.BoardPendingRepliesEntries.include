@@ -12,6 +12,7 @@
 ## write path that sets or clears an item's `blocked-on`, so a rebuild of this registry opens its size in items that wait on
 ## a reply, never the size of a board state. An item the list names that has since lost its header is dropped by the rows awk,
 ## as it always was. No data root: none.
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 AgentsToolsBoardPendingRepliesEntries(){
 	type AgentsToolsRegistryRowsEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	type AgentsToolsBoardWaitingRepliesIndexInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardWaitingRepliesIndex.include"
@@ -21,7 +22,7 @@ AgentsToolsBoardPendingRepliesEntries(){
 	[ -f "$waitFile" ] || return 0
 	while IFS= read -r waitLine ; do
 		waitState="${waitLine%%/*}" ; waitItem="${waitLine#*/}"
-		case "$waitState" in running|blocked) ;; *) continue ;; esac
+		case " $agentsBoardWaitingReplyStates " in *" $waitState "*) ;; *) continue ;; esac
 		case "$waitItem" in ''|.|..|*/*) continue ;; esac
 		[ -f "$MDAT_DATA_ROOT/board/$waitState/$waitItem" ] || continue
 		AgentsToolsRegistryRowsEntry B "$MDAT_DATA_ROOT/board/$waitState/$waitItem"

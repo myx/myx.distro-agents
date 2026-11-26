@@ -80,6 +80,9 @@
 				3) return 0 ;;
 				*) set +e ; return 1 ;;
 			esac
+			## One line to the acting run's transcript, and the event-track feed carries the same one.
+			type AgentsTranscriptEvent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+			AgentsTranscriptEvent "$( AgentsTranscriptSessionKey )" NOTE "withdrew ask ${settleId}" 4096 by "${settleBy:-$settleMember}" 2> /dev/null || :
 			## The close moved the now-withdrawn record to closed/ (retention, T9): read its post fields from there.
 			[ -f "$settleFile" ] || settleFile="$MMDAPP/.local/agents/pending/closed/$settleId.md"
 			local settleChannel settleThread settleNote settleSession settleChat settleAsked settleIdentity="" settleRead settleUser settleKept="" settleUpdate

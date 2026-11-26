@@ -32,7 +32,7 @@ session otherwise re-derives or invents.
 
 ## A project is reachable by more names than it declares
 
-- **The index adds the `Name` value and every trailing path-segment form of the project's location.** A
+- **A project resolves under its `Name` value and every trailing path-segment form of its location.** A
   project at `<ns>/infra/common-<ns>/setup.example-machine` resolves under that whole path, under
   `infra/common-<ns>/setup.example-machine`, and under the bare `setup.example-machine`, none of which
   appear in its own `Provides:`.

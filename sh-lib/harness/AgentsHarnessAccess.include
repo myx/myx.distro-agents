@@ -28,7 +28,11 @@ AgentsHarnessResolveDir(){ ## path, name of the variable the resolved path goes 
 		fi
 		resolveIndex=$(( resolveIndex + 1 ))
 	done
-	resolveOut="$( cd "$resolveIn" 2>/dev/null && pwd -P )" || resolveOut=""
+	resolveOut=""
+	## An absolute path that is no directory cannot be entered, so it is a miss with no process to find out.
+	if [ -d "$resolveIn" ] || [ "${resolveIn#/}" = "$resolveIn" ] ; then
+		resolveOut="$( cd "$resolveIn" 2>/dev/null && pwd -P )" || resolveOut=""
+	fi
 	harnessResolveAsked[$resolveCount]="$resolveIn"
 	harnessResolveAnswered[$resolveCount]="$resolveOut"
 	[ -n "$resolveOut" ] || resolveOut="$resolveIn"

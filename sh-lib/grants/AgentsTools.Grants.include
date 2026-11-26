@@ -11,6 +11,8 @@ AgentsToolsGrantsHoldsDir(){ ## folder
 	return 1
 }
 
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
+
 ## The prose that stood here is in the package's MAGIC.md, under "AgentsTools.Grants.include".
 
 agentsGrantsHere="${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}"
@@ -522,7 +524,7 @@ AgentsToolsGrantsItemRunsLive(){ ## item, coworking session store (may be empty)
 	[ -n "$1" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 1
 	[ -z "$2" ] || ! AgentsToolsGrantsStoreEnded "$2" || return 1
 	type AgentsToolsBoardItemInStates > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-	AgentsToolsBoardItemInStates "$1" ${agentsPermissionOpenStates:-running review blocked pending backlog parked}
+	AgentsToolsBoardItemInStates "$1" $agentsBoardOpenStates
 }
 
 AgentsToolsGrantsItemRunsLines(){ ## the session's own stores, one per line; task (optional)
@@ -638,7 +640,7 @@ AgentsToolsGrantsSessionCheckRows(){ ## tool, resolved path, own session store
 				AgentsToolsGrantsToolCovers "$checkA" "$1" && [[ $2 == $checkB ]] || continue
 				[ -n "${MDAT_DATA_ROOT:-}" ] || continue
 				type AgentsToolsBoardItemInStates > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-				! AgentsToolsBoardItemInStates "$checkC" ${agentsPermissionOpenStates:-running review blocked pending backlog parked} || { agentsGrantsCheckLayer="task $checkC" ; return 0 ; }
+				! AgentsToolsBoardItemInStates "$checkC" $agentsBoardOpenStates || { agentsGrantsCheckLayer="task $checkC" ; return 0 ; }
 			;;
 			once)
 				[ "$checkA" = "$1" ] && [[ $2 == $checkB ]] || continue
@@ -812,7 +814,7 @@ AgentsToolsGrantsStoreTouchDir(){ ## session store directory
 AgentsToolsGrantsMemberList(){ ## workspace, member, session id (may be empty)
 	local listWs="${1%/}" listStores listStore listUsed listFiles=() listTtl listRest listKind listRun listItem listCow listShared="" listRecords=()
 	local agentsGrantsEnded="" agentsGrantsUsed="" agentsGrantsBoard="${MDAT_DATA_ROOT:+$MDAT_DATA_ROOT/board}" agentsGrantsItemRuns=""
-	local agentsGrantsOpenStates="${agentsPermissionOpenStates:-running review blocked pending backlog parked}"
+	local agentsGrantsOpenStates="$agentsBoardOpenStates"
 	type AgentsSessionFolderInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	AgentsToolsGrantsIndexEnsure "$listWs" || return 1
 	if [ -n "$3" ] ; then

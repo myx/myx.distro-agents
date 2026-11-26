@@ -110,6 +110,7 @@ DistroAgentsSlack	--slack-socket-status	member
 DistroAgentsSlack	--slack-socket-stop	member
 DistroAgentsAtlassian	--confluence-comment-add	coordinator
 DistroAgentsAtlassian	--confluence-comment-read	member
+DistroAgentsAtlassian	--confluence-comment-resolve	coordinator
 DistroAgentsAtlassian	--confluence-page-check	member
 DistroAgentsAtlassian	--confluence-page-create	coordinator
 DistroAgentsAtlassian	--confluence-page-delete	coordinator

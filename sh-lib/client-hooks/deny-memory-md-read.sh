@@ -54,12 +54,21 @@ HookAbsolute(){ ## path -- into hookValue
 	[ -z "$hookValue" ] || [ "${hookValue#/}" != "$hookValue" ] || hookValue="$hookCwd/$hookValue"
 }
 
+## The physical path of a directory, into hookPhysical, by the shell itself: no process. Non-zero where it cannot be entered.
+HookPhysical(){ ## directory
+	local physicalBack="$PWD"
+	hookPhysical=""
+	cd -P "$1" 2> /dev/null || return 1
+	hookPhysical="$PWD"
+	cd "$physicalBack" 2> /dev/null || :
+}
+
 ## Every memory directory on this machine, resolved, one per line.
 hookStores=""
 for hookStore in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/memory "$HOME"/.claude/projects/*/memory ; do
 	[ -d "$hookStore" ] || continue
-	hookStoreReal="$( cd -P "$hookStore" 2>/dev/null && pwd -P )" || continue
-	hookStores="$hookStores$hookStoreReal"$'\n'
+	HookPhysical "$hookStore" || continue
+	hookStores="$hookStores$hookPhysical"$'\n'
 done
 
 ## The resolved location of a path whose tail may not exist yet, into hookReal.
@@ -69,10 +78,10 @@ HookResolve(){ ## absolute path
 	while [ -n "$resolveDir" ] && [ ! -d "$resolveDir" ] ; do
 		resolveTail="${resolveDir##*/}/$resolveTail" ; resolveDir="${resolveDir%/*}"
 	done
-	hookReal="$( cd -P "${resolveDir:-/}" 2>/dev/null && pwd -P )" && hookReal="${hookReal%/}/$resolveTail" || hookReal=""
+	if HookPhysical "${resolveDir:-/}" ; then hookReal="${hookPhysical%/}/$resolveTail" ; else hookReal="" ; fi
 	hookReal="${hookReal%/.}"
 	## A tail that is itself an existing directory is resolved through, so a linked one is seen.
-	if [ -d "$hookReal" ] ; then hookReal="$( cd -P "$hookReal" 2>/dev/null && pwd -P )" || hookReal="" ; fi
+	if [ -d "$hookReal" ] ; then if HookPhysical "$hookReal" ; then hookReal="$hookPhysical" ; else hookReal="" ; fi ; fi
 }
 
 ## Zero when the path lies in a memory store.

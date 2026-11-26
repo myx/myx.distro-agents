@@ -265,7 +265,7 @@ All statements apply at the same time, always. These rules override a participan
 - Source that live runs read is written to a new file and moved into place, never rewritten where it stands.
 - No hold, pause or limit ever covers a supervision session, or the root harness session above it.
 - A process that keeps coming back after it was ended is a fault of the tooling. File it as one, and do not repeat the cleanup.
-- Every claim sent to him names what was measured, where, by its absolute path or its record, and when. A search names the view it reached: "not found in <the paths read>", never "not present" or "lost".
+- Every claim sent to him names what was measured, where, by its `<place>:<path>` or its record, and when. A search names the view it reached: "not found in <the paths read>", never "not present" or "lost".
 - An item's state is read from its own condition, its epic and its Decisions before it is moved. A parked item stays parked while its condition stands.
 - Nothing is recorded as his ruling unless it carries his own message or verdict. A reading of the supervisor's is recorded as the supervisor's.
 - The supervisor never writes into a workspace the team does not own, nor into another member's tree. A fault there goes back to the member whose work it is, with the exact change.

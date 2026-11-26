@@ -326,7 +326,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	done <<< "$controlLines"
 	[ "$controlCount" -eq 0 ] || housekeepingLog="${housekeepingLog}housekeeping: started the control thread of $controlCount session(s):$controlStarted"$'\n'
 	type AgentsSpawnedRetentionPrune > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
-	if prunedRuns="$( printf '%s\n' "$measureText" | AgentsSpawnedRetentionPrune 30 20 2> /dev/null )" && [ -n "$prunedRuns" ] ; then
+	if prunedRuns="$( printf '%s\n' "$measureText" | AgentsSpawnedRetentionPrune "$( AgentsToolsStoreRetentionDays run )" 20 2> /dev/null )" && [ -n "$prunedRuns" ] ; then
 		housekeepingLog="${housekeepingLog}housekeeping: removed $prunedRuns dead run(s) past the retention"$'\n'
 	fi
 	## THE LIVE LIST'S OWN PRUNE: a line whose thread is gone, or whose pid is another process now, leaves here -- the one place that can
@@ -335,9 +335,8 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	if prunedLive="$( AgentsToolsSessionLivePrune 2> /dev/null )" && [ -n "$prunedLive" ] ; then
 		housekeepingLog="${housekeepingLog}housekeeping: removed $prunedLive dead line(s) from the live list"$'\n'
 	fi
-	## THE SESSIONS STORE KEEPS THE SAME DAYS THE RUNS DO: a folder nothing has written for that long, whose thread is gone, is history -- and
-	## a store of thousands of them is what every rebuild walks.
-	if prunedSessions="$( AgentsToolsSessionStorePrune 30 20 2> /dev/null )" && [ -n "$prunedSessions" ] ; then
+	## THE SESSIONS STORE KEEPS ITS OWN DAYS, from its own key: a folder nothing has written for that long, whose thread is gone, is history.
+	if prunedSessions="$( AgentsToolsSessionStorePrune "$( AgentsToolsStoreRetentionDays session )" 20 2> /dev/null )" && [ -n "$prunedSessions" ] ; then
 		housekeepingLog="${housekeepingLog}housekeeping: removed $prunedSessions dead session folder(s) past the retention"$'\n'
 	fi
 	## What was done never enters the lock's output; it goes to the event-track thread of this spawn's coworking session.

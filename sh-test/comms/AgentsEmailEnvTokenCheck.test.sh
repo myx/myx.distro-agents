@@ -15,8 +15,11 @@ pass=0 fail=0
 check(){ if [ "$2" = "$3" ] ; then printf '  PASS  %s\n' "$1" ; pass=$((pass+1)) ; else printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; fail=$((fail+1)) ; fi ; }
 
 ## Scope reads fail loudly and are counted, so any reach into them is caught.
+## THE SCOPE'S SEAM IS THE SETTINGS WRAPPER: the email helper asks `AgentsToolsConfigOption <member> --select <KEY>`, and that
+## wrapper is what reaches the settings store (it no longer calls the dispatcher directly). This check stubbed the dispatcher, so
+## its no-environment cases read nothing and failed 2 of 5 (measured 2026-11-26 08:40); `$3` here is the KEY.
 scopeReads=0
-DistroAgentsTools(){ scopeReads=$((scopeReads+1)) ; echo "scope-read should not run: $*" >&2 ; return 1 ; }
+AgentsToolsConfigOption(){ scopeReads=$((scopeReads+1)) ; echo "scope-read should not run: $*" >&2 ; return 1 ; }
 AgentsToolsAssertBareName(){ return 0 ; }
 AgentsToolsCommsOwnSideCheck(){ return 0 ; }
 ## curl is the observation point: what the operation hands it, args and stdin.
@@ -38,8 +41,8 @@ check "no scope read happens when the environment holds the keys" "$scopeReads" 
 ## With no environment, the scope is asked.
 unset EMAIL_IMAP_HOST EMAIL_USER EMAIL_APP_PASSWORD
 curlArgs="" curlStdin="" scopeReads=0
-DistroAgentsTools(){
-	case "$4" in
+AgentsToolsConfigOption(){
+	case "$3" in
 		EMAIL_IMAP_HOST) printf 'scope-imap-host' ;;
 		EMAIL_USER) printf 'scope-user' ;;
 		EMAIL_APP_PASSWORD) printf 'scope-app-password' ;;

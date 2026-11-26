@@ -9,6 +9,7 @@
 
 ## One frontmatter field's value from a note, bounded to the block between the
 ## first two `---` lines; empty when the note or the field is absent.
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 AgentsToolsStateNoteField(){ ## <path> <field>
 	[ -f "$1" ] || return 0
 	LC_ALL=C awk -v fieldName="$2" '
@@ -22,7 +23,7 @@ AgentsToolsStateNoteField(){ ## <path> <field>
 ## board state, counting the *.md files directly in that state's folder.
 AgentsToolsBoardCounts(){
 	local countState countFile countN
-	for countState in backlog pending running review blocked parked processed archived retained ; do
+	for countState in $agentsBoardStates ; do
 		countN=0
 		type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" ; local countFileItems ; AgentsToolsBoardItemsInto countFileItems "" "$countState"
 		for countFile in ${countFileItems[@]+"${countFileItems[@]}"} ; do
@@ -43,17 +44,32 @@ type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 	## items shown get their token text: the rest are counted.
 	local activeItems activeKeys=() activeOne activeKey
 	type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-	AgentsToolsBoardItemsInto activeItems "" running review pending blocked
+	AgentsToolsBoardItemsInto activeItems "" $agentsBoardUnderwayStates
 	for activeOne in ${activeItems[@]+"${activeItems[@]}"} ; do activeKey="${activeOne%/*}" ; activeKeys+=( "${activeKey##*/}/${activeOne##*/}" ) ; done
 	activeRows="$( AgentsSessionTokensRollupRows ${activeKeys[@]+"${activeKeys[@]}"} 2>/dev/null )"
-	for activeKey in ${activeKeys[@]+"${activeKeys[@]}"} ; do
-		activeN=$(( activeN + 1 ))
-		[ "$activeN" -le "$activeCap" ] || continue
-		activeTokens=""
-		[ -z "$activeRows" ] || activeTokens="$( AgentsSessionTokensRollupText "$( AgentsSessionTokensRollupRowOf "$activeRows" "${activeKey##*/}" )" )"
-		printf '%s%s\n' "$activeKey" "${activeTokens:+ -- $activeTokens}"
-	done
-	[ "$activeN" -le "$activeCap" ] || printf '(+%s more)\n' "$(( activeN - activeCap ))"
-	[ "$activeN" -gt 0 ] || printf '(none)\n'
+	## ONE PASS FOR EVERY LINE (the call-path rule: no process a row). Each item's row was looked up and rendered by two
+	## processes over the same rows -- up to eighty small ones for one read (measured 2026-11-26 10:05). The wording stays
+	## `AgentsSessionTokensRollupText`'s own: `tokens: in=.. cache-read=.. cache-write=.. out=..`, and the sub-session count
+	## only where it is above zero.
+	printf '%s\n' "$activeRows" | LC_ALL=C awk -F'\t' -v keys="${activeKeys[*]}" -v cap="$activeCap" '
+		BEGIN { keyTotal = split(keys, keyList, " ") }
+		NF >= 6 { rowOf[$1] = $0 }
+		END {
+			shown = 0
+			for (keyAt = 1 ; keyAt <= keyTotal ; keyAt++) {
+				key = keyList[keyAt] ; bare = key ; sub(/^.*\//, "", bare) ; sub(/\.md$/, "", bare)
+				shown++
+				if (shown > cap) continue
+				line = key
+				if (bare in rowOf) {
+					split(rowOf[bare], field, "\t")
+					line = line " -- tokens: in=" field[2] " cache-read=" field[3] " cache-write=" field[4] " out=" field[5]
+					if (field[6] + 0 > 0) line = line " (incl. " field[6] " sub-session" (field[6] + 0 == 1 ? "" : "s") ")"
+				}
+				print line
+			}
+			if (shown > cap) print "(+" (shown - cap) " more)"
+			if (shown == 0) print "(none)"
+		}'
 	return 0
 }

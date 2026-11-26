@@ -234,8 +234,7 @@ that the code and docs do not readily tell you.
   `execute` lives here: `myx.common`'s MCP path does no environment init.
 - **Reaching a `List*` tool.** `Require <Tool> ||:`, then `var="$(Distro <Tool> …)" || status=$?`,
   which keeps `ListDistroDeclares`' own `set -e` inside the subshell. Never spawn
-  `ListDistroProjects.fn.sh` by path: a new process rebuilds every index (see `myx.distro-system`
-  MAGIC.md).
+  `ListDistroProjects.fn.sh` by path.
 - **An `MMDAPP=` prefix on such a call is checked before it is dropped.** It is a no-op where the arm
   resolves through the distro context, and load-bearing where the arm reads `$MMDAPP/...` directly
   (`DistroSourceTools --list-namespace-roots`).
@@ -1836,6 +1835,7 @@ contracts are here.
 
 ## 13. The `myx.distro` MCP server
 
+
 `--intern-mcp-server` and `--intern-mcp-execute` have no help; their contracts are here.
 
 - **`--intern-mcp-server --run`**; without `--run` it prints syntax. Registered with args
@@ -1851,7 +1851,7 @@ contracts are here.
 - **The wire is fd 3 in a request; the request's stdout is stderr.** Children get fd 3 closed, so a left
   job cannot hold the host's pipe. Each request parses into its own `req.<seq>/`.
 - **Responses are serialised by a `mkdir` lock on `wire.lock`**, held for one `printf`. The fork is before
-  the lock. A lock timeout drops or writes that one response; the server never exits on it.
+  the lock. A lock whose recorded holder (`wire.holder`, a pid) is gone on two looks in a row is taken over. So is a lock with no record. A killed handler never holds the wire. A live holder is waited for 30 s, then the response is dropped. The server never exits on it.
 - **A message with no id is a notification** and is never answered.
 - **The floor is rendered on every `tools/list` and `tools/call`.** `initialize` declares
   `tools.listChanged` false, and no `notifications/tools/list_changed` is sent: the list is fixed for the
@@ -7240,10 +7240,15 @@ keeps its minute in the store, with no per-process counter deciding it.
 
 The manager rows are built once and kept thirty seconds, written aside and put in place by one rename: `--all-sessions` on this
 store is **632 ms** cold and **39 ms** from the kept copy, so the first page a person opens is no longer the page that collects the
-store. The selection rest before the left pane reads an item is **250 ms** (`REST_SECONDS = 0.25`), so a selection running down the
-menu reads nothing for the rows it passes and only the item it stops on. An operation the screen asks for at its root is replaced
-with what the screen already holds where one exists; `list:activity` stays the session list, and the six sections of `Activity` are
-its rows.
+store. The active and waiting lists keep their own copy too, each named by its own question: on MDV at 2026-11-25 16:40 +0200
+`--spawns --active` was **15.4 s** cold, then **0.73 s** and **0.45 s** from the copy. The selection rest before the left pane
+reads an item is **250 ms** (`REST_SECONDS = 0.25`), so a selection running down the menu reads nothing for the rows it passes
+and only the item it stops on. An operation the screen asks for at its root is replaced with what the screen already holds where
+one exists; `list:activity` stays the session list, and the six sections of `Activity` are its rows.
+
+The board status read, `--tasks`, is kept thirty seconds in `.local/agents/tasks.ready`, written aside and put in place the same
+way: its token roll-up walks every board item and every run record, and on MDV at the same time it was **6.5 s** cold and
+**0.16 s** from the copy. `MDAT_TASKS_REBUILD=1` forces the read, for the checks.
 
 ## A wide retest request yields to the narrow ones waiting behind it
 
@@ -7295,3 +7300,48 @@ its rows.
 - **Without that fallback the two states feed each other.** The pointer is written only after a read succeeds. So no pointer means a whole-history read, which dies on the page cap, which leaves no pointer again (`:146` to `:148`).
 - **The `.state.txt` value is used only when it reads as a Slack timestamp.** Anything not made of digits and dots is dropped at `:151`, and the pointer takes over from the first read that completes.
 - **The check is `sh-test/comms/AgentsCommsIngestCutoffCheck.test.sh`.**
+
+## Session delivery: where to start
+
+A question about how a message, a wake or a tool call reaches a session has one file to open. This table is the index; the page it points at names the function that owns each claim.
+
+- **Start here: [docs/session-delivery.md](docs/session-delivery.md).** One page: the four files of a session's chat, the single reader, the control thread, the tool dispatch, the one channel address, the wait sources, and the registry.
+- **[docs/session-delivery-vocabulary.md](docs/session-delivery-vocabulary.md)** carries the overloaded words, one sentence each with its code home. Read it before a source header, not after.
+
+| The question | Open this |
+|---|---|
+| Where is a session's incoming message stored, and what reads it? | `sh-lib/session/AgentsTools.SessionChat.include` |
+| What happens to a message for a member whose run has ended? | `sh-lib/wait/AgentsTools.WakeMarker.include` and `sh-lib/session/AgentsTools.RegistrySpawnedSessions.include` |
+| What watches a session's runs over time, and what does it do when one dies? | `sh-lib/session/AgentsTools.InternSessionControl.include` |
+| Can a tool call return before it finishes, and how is its result collected? | `sh-lib/harness/AgentsHarnessRun.include` |
+| What is the one address a message carries across Slack, the cache, a board item and the chat? | `sh-lib/comms/AgentsTools.CommsChannel.include` |
+| Which floor sources does a participant get, and which does a duty get? | `sh-lib/wait/AgentsTools.MemberWaitSources.include` |
+| How do I decide which session owns a thread? | `sh-lib/session/AgentsTools.RegistrySpawnedSessions.include` |
+| What is the difference between a session wake and a duty rewind? | `sh-lib/harness/AgentsHarnessCheckpoint.include` and `sh-lib/wait/AgentsTools.WakeMarker.include` |
+
+This table is a pointer, never a copy. Where a mechanism needs its detail, the owning file is the authority, and the page links to it rather than restating it.
+
+## The hold floor lets an emergency through and nothing else
+
+- **An emergency item is still confirmed and advanced under a hold. An important or urgent item starts nothing.** The schedule's important-and-emergency step reads the hold from the pass's own flags (`sh-lib/schedule/AgentsTools.DispatcherSchedule.include:2119`, `:2125` to `:2137`). The pass calls it at `:2631` and `:2641`.
+- **Every emergency item is confirmed, never only the last of them.** The step collects each into `markEmergencyItems` and runs the confirmation over the whole list (`:2141` to `:2143`).
+- **A confirmation posts once per item and sets the emergency flag for 3600 s.** `AgentsToolsScheduleEmergencyConfirm` keeps one mark per item under `.local/agents/schedule/emergency-confirm` (`:2156` to `:2171`). The flag goes in through the schedule's own override. A post that fails removes its mark, so the next iteration tries that item again.
+- **The rule it builds is that only `emergency` passes `holding`, and `urgent` still waits for the pace** (`skillset/magic-team/magic-team/reference/board-model.md:92`).
+- **The check is `sh-test/session/AgentsImportantEmergencyCheck.test.sh`.** Its first row is red for a cause outside this step: an out-of-worktime pass starts the coordinator's work-duty where that row wants none. It is filed as `inquiry-20261125T121500Z-worktime-work-duty-under-a-pass`.
+
+## A killed run reads finished, and the kill mark decides it
+
+- **A killed run reads `finished`, never `failed`.** The console writes `killed-by` and `killed-at` on the run's record before it signals (`AgentsToolsManagerKillMark`, `sh-lib/run/AgentsTools.ManagerSessionKill.include:35`). The run's supervising shell then closes that record `spawn-failed`, the word a start that died on its own leaves. So the status word cannot tell an ordered end from a death.
+- **`AgentsToolsRunKilled` reads the mark from the record's frontmatter**, at rc 0 where either `killed-by` or `killed-at` is present (`sh-lib/run/AgentsTools.RunState.include:61` to `:73`).
+- **All three derivations ask it before they answer `spawn-failed`.** They are `AgentsToolsRunDeriveState` (`:83`), `AgentsToolsRunDeriveStateFromSet` (`:132`), and `killedOf` inside the row derivation of `sh-lib/session/AgentsTools.RegistrySpawnedSessions.include` (`:256`, asked at `:280`).
+- **Liveness is read first, so a live run carrying the mark is never `finished`.** Each of the three tests liveness before the mark (`:83`, `:132`, `:280`).
+- **The other two places that read a killed run's end agree.** The on-demand thread closes a record carrying the mark itself, as an ordered end, and asks nobody about it. A killed run is told as killed, by `killed-by` and `killed-at`, in the handback notice.
+
+## The scan's cost, and the rows it skips
+
+- **The scan reads the live and open run records alone.** Every record of the store passes one awk first, and the runs loop
+  reads only the rows whose record is `spawn-started` or whose process is alive. On MDV on 2026-11-25 the store held 1,171
+  records and twelve were worth a look, and that loop was 2.6 s of the scan: 26.8 s before the filter and 24.2 s after it.
+- **What is left is command count, not I/O.** One scan of that rig traced about 73,000 shell commands: 7,814 `[` tests, 5,332
+  `case`s and 4,160 `read`s. The record extraction itself is one awk over 1,171 files and costs 4 s. A cut here is fewer commands
+  in the per-record walks, and `PS4='+${SECONDS} ' bash -x` is how the walk is read.

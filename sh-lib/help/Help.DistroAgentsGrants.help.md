@@ -12,8 +12,7 @@
 ##  Options:
 
 		--list-permissions [--member <member>] [--session-id <id>]
-			The permissions a member holds, one a row, as the grants index unrolled them for
-			it. Another member's are magic-coordinator's to list, or the console's.
+			The permissions a member holds, one a row. Another member's are magic-coordinator's to list, or the console's.
 
 		--pass-permission --to <member> --tool <tool> --target <target> --kind once|session|task
 			Grants one permission to another member and prints its reference. `once` is spent

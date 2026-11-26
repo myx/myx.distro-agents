@@ -100,13 +100,17 @@ AgentsToolsSpawnedAllRecordsInto(){ ## array variable, workspace (default MMDAPP
 	## THE REGISTRY IS THE INDEX, and the list is one string until it is handed over: a `set --` a path, or an eval a path, copies the whole
 	## list each time -- 14,343 ms on a rig of 1,857 records, and what the machine swapped on. A path here holds no space or quote (the store's
 	## own names are ids), which is what makes the single expansion sound.
-	local allName="$1" allWs="${2:-${MMDAPP:-/nonexistent}}" allOne allList="" allRegistry allTracking allSession allSpawn allPath
+	local allName="$1" allWs="${2:-${MMDAPP:-/nonexistent}}" allOne allList="" allRegistry allTracking allSession allSpawn allPath allStatus allStarted=""
+	## AN AGE BOUND ANSWERS A CALL PATH: where `MDAT_RECORD_ROWS_MAX_AGE_SECONDS` is set, a record that closed longer
+	## ago than that is not handed on, and one still started is, whatever its age. One `find` weighs them all, no stat a record.
+	local allBound="${MDAT_RECORD_ROWS_MAX_AGE_SECONDS:-}"
+	case "$allBound" in ''|*[!0123456789]*) allBound="" ;; esac
 	case "$allName" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
 	allRegistry="${allWs%/}/.local/agents/spawned-sessions.registry"
 	if [ -s "$allRegistry" ] ; then
 		## A ROW'S RECORD IS NAMED BY ITS EIGHTH COLUMN, the run's own spawn id. The second column is the session, which names the record of
 		## the session's first run alone: read as the record, it points every resumed run at that first record and leaves the run unread.
-		while IFS=' ' read -r allTracking allSession _ _ _ _ _ allSpawn allRest ; do
+		while IFS=' ' read -r allTracking allSession _ _ _ allStatus _ allSpawn allRest ; do
 			[ -n "$allTracking" ] || continue
 			case "$allTracking" in -*|*[!A-Za-z0-9._-]*) continue ;; esac
 			case "$allSpawn" in ''|-) allSpawn="${allSession:-$allTracking}" ;; esac
@@ -163,11 +167,17 @@ AgentsSpawnedStartedRecords(){ ## workspace (default MMDAPP) -- the paths of the
 ## values of the keys asked, in order, each the first line of its key in the record's first frontmatter block, empty where it has none.
 ## One stat and one awk over the records the walk above hands, never a process a record.
 AgentsToolsSpawnedRecordRows(){ ## workspace (empty: MMDAPP), key...
-	local rowsRecords=()
-	AgentsToolsSpawnedAllRecordsInto rowsRecords "${1:-}" || return 1
+	local rowsRecords=() rowsWs="${1:-}" rowsBound="${MDAT_RECORD_ROWS_MAX_AGE_SECONDS:-}" rowsNow="" rowsStarted=""
+	AgentsToolsSpawnedAllRecordsInto rowsRecords "$rowsWs" || return 1
 	shift
 	[ ${#rowsRecords[@]} -gt 0 ] || return 0
-	{ LC_ALL=C stat -f '%m %N' "${rowsRecords[@]}" 2> /dev/null || LC_ALL=C stat -c '%Y %n' "${rowsRecords[@]}" 2> /dev/null ; printf '=\n' ; } | LC_ALL=C awk -v keys="$*" '
+	## AN AGE BOUND ANSWERS A CALL PATH: a record that closed longer ago than the bound is dropped from the argument
+	## list before it is opened, while one still started is kept. One pass, no stat and process a record.
+	case "$rowsBound" in ''|*[!0123456789]*) rowsBound="" ;; esac
+	[ -z "$rowsBound" ] || rowsNow="$( date +%s )"
+	[ -z "$rowsBound" ] || rowsStarted="$( AgentsSpawnedStartedRecords "$rowsWs" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+	{ LC_ALL=C stat -f '%m %N' "${rowsRecords[@]}" 2> /dev/null || LC_ALL=C stat -c '%Y %n' "${rowsRecords[@]}" 2> /dev/null ; printf '=\n' ; } | LC_ALL=C awk -v keys="$*" \
+		-v bound="$rowsBound" -v now="${rowsNow:-0}" -v startedList="$rowsStarted" '
 		function flush( ) {
 			if ( record == "" ) return
 			recordName = record ; sub( /.*\//, "", recordName ) ; sub( /\.spawn\.md$/, "", recordName )
@@ -177,8 +187,23 @@ AgentsToolsSpawnedRecordRows(){ ## workspace (empty: MMDAPP), key...
 			print line
 			split( "", keyValue ) ; record = ""
 		}
-		BEGIN { keyCount = split( keys, keyName, " " ) ; }
-		! statRead { if ( $0 == "=" ) statRead = 1 ; else { at = index( $0, " " ) ; writtenAt[ substr( $0, at + 1 ) ] = substr( $0, 1, at - 1 ) ; } ; next ; }
+		BEGIN {
+			keyCount = split( keys, keyName, " " ) ;
+			startedCount = split( startedList, startedPath, " " ) ;
+			for ( at = 1 ; at <= startedCount ; at++ ) isStarted[ startedPath[at] ] = 1 ;
+		}
+		! statRead {
+			if ( $0 == "=" ) {
+				statRead = 1 ;
+				for ( at = 1 ; at < ARGC ; at++ ) if ( ARGV[at] in dropped ) delete ARGV[at] ;
+			} else {
+				at = index( $0, " " ) ;
+				filePath = substr( $0, at + 1 ) ;
+				writtenAt[ filePath ] = substr( $0, 1, at - 1 ) ;
+				if ( bound != "" && ! ( filePath in isStarted ) && now - writtenAt[ filePath ] > bound ) dropped[ filePath ] = 1 ;
+			}
+			next ;
+		}
 		FNR == 1 { flush() ; record = FILENAME ; fence = 0 ; }
 		$0 == "---" { if ( ++fence > 1 ) { flush() ; nextfile ; } ; next ; }
 		fence != 1 { next ; }

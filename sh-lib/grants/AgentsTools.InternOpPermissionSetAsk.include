@@ -309,7 +309,7 @@ type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 			return 0
 		fi
 		## ONE ask for the extras, to the human-owner, as the team bot.
-		local setBody setOut setChannel setTs setAddressees setAsking setId
+		local setBody setOut setChannel setTs setAddressees setAsking setId setThread
 		## Its text is its own template's (sh-lib/templates/permission-set.post.format.md): what is
 		## asked grouped by place, each place once by its location root, then what it is about.
 		setBody="$( AgentsToolsPermissionSetPost "$setBy" "$setItem" "$setScope" "$setSession" "$setExtra" "$setHeld" "$setParticipants" "$setPurposes" post "$setPlaces" "$setReason" 2>/dev/null )" || setBody=""
@@ -324,6 +324,7 @@ type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 		}
 		setChannel="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' <<< "$setOut" | head -1 )"
 		setTs="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' <<< "$setOut" | head -1 )"
+		setThread="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' <<< "$setOut" | head -1 )"
 		setAddressees="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' <<< "$setOut" | head -1 )"
 		## An addressee with no Slack account of its own stands among the addressees by its member name (S21.20).
 		[ -n "$setAddressees" ] || setAddressees="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEE_MEMBERS=//p' <<< "$setOut" | head -1 )"
@@ -335,7 +336,7 @@ type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 		type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		setId="$( printf '%s\n' "$setBody" | DistroAgentsTools --intern-op-pending-reply-open "$setBy" --to "$setChannel" \
 			${setSession:+--session-id "$setSession"} --kind permission-set --address-to human-owner --channel "$setChannel" \
-			--question-ts "$setTs" --thread-ts "$setTs" --addressees "$setAddressees" ${setAsking:+--asking-accounts " $setAsking"} \
+			--question-ts "$setTs" --thread-ts "${setThread:-$setTs}" --addressees "$setAddressees" ${setAsking:+--asking-accounts " $setAsking"} \
 			--item "$setItem" ${setTaskRef:+--task-ref "$setTaskRef"} --ask-identity bot --context "$MDSC_CMD" 2>/dev/null )" || setId=""
 		if [ -z "$setId" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask was posted at $setChannel:$setTs but not recorded, so its answer cannot be applied" >&2
@@ -372,6 +373,6 @@ type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 		if [ -n "$setOwn" ] ; then
 			printf 'SCOPE: %s%s\n' "$setScope" "${setItem:+ $setItem}"
 			printf 'ENTRIES: %s\n' "$( printf '%s' "$setExtra" | LC_ALL=C grep -c . )"
-			printf 'SENT_MESSAGE_CHANNEL=%s\nSENT_MESSAGE_TS=%s\nSENT_MESSAGE_THREAD_TS=%s\nSENT_MESSAGE_ADDRESSEES=%s\n' "$setChannel" "$setTs" "$setTs" "$setAddressees"
+			printf 'SENT_MESSAGE_CHANNEL=%s\nSENT_MESSAGE_TS=%s\nSENT_MESSAGE_THREAD_TS=%s\nSENT_MESSAGE_ADDRESSEES=%s\n' "$setChannel" "$setTs" "${setThread:-$setTs}" "$setAddressees"
 		fi
 		return 0

@@ -177,9 +177,9 @@ DistroAgentsTesting(){
 
 ## The apply tool (W2, DistroAgentsTesting.fn.sh --apply-tool): one operation for the four beats of applying a lane's work to a repository, the
 ## predecessor's level.sh, mine.sh and apply.sh as one. The scratch is laid out as the predecessor's: changed-files.txt and apply-order.txt list the
-## files this work changed, one `<package>/<package-relative path>` a line, in the order definitions stand before callers; base/<path> holds live's
-## text of each marked file as the change began; source/myx/<path> holds this work's file; packages.txt lists the packages to level, one name a
-## line; levelled.sums keeps the checksum of each file level.sh put there. `mark` records a file's base and lists it, refusing a file whose scratch
+## files this work changed, one `<namespace>/<package>/<relative path>` a line, in the order definitions stand before callers; base/<path> holds live's
+## text of each marked file as the change began; source/<path> holds this work's file; packages.txt lists the packages to level, one
+## `<namespace>/<package>` a line; levelled.sums keeps the checksum of each file level.sh put there. `mark` records a file's base and lists it, refusing a file whose scratch
 ## copy is not live's text now (a base that would be taken after the edit); `level` brings the scratch packages level with live, overwriting only
 ## what it last put there, refusing an unmarked file already edited, and removing what live no longer has; `plan` is the dry run, read-only, naming
 ## each file new, at its base, or moved -- and whether the three-way merge is clean and exact now -- with the lines it removes of its base and adds
@@ -198,7 +198,7 @@ DistroAgentsTestingApply(){
 			*) break ;;
 		esac
 	done
-	[ -n "$applyVerb" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool: syntax is <mark|level|plan|apply> [--repository <path>] [--scratch <path>] [mark: <package>/<relative-path>...]" >&2 ; return 1 ; }
+	[ -n "$applyVerb" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool: syntax is <mark|level|plan|apply> [--repository <path>] [--scratch <path>] [mark: <namespace>/<package>/<relative-path>...]" >&2 ; return 1 ; }
 	case "$applyVerb" in
 		mark) DistroAgentsTestingApplyMark "$applyRepo" "$applyScratch" "$@" ; return $? ;;
 		level) DistroAgentsTestingApplyLevel "$applyRepo" "$applyScratch" ; return $? ;;
@@ -214,22 +214,22 @@ DistroAgentsTestingApply(){
 DistroAgentsTestingApplyMark(){ ## repository, scratch, package/relative...
 	local markRepo="$1" markScratch="$2" markFile markPkg markRel
 	shift 2
-	[ $# -gt 0 ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool mark: syntax is mark [--repository <path>] [--scratch <path>] <package>/<relative-path>..." >&2 ; return 1 ; }
+	[ $# -gt 0 ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool mark: syntax is mark [--repository <path>] [--scratch <path>] <namespace>/<package>/<relative-path>..." >&2 ; return 1 ; }
 	touch "$markScratch/changed-files.txt" 2> /dev/null
 	for markFile in "$@" ; do
-		markPkg="${markFile%%/*}" ; markRel="${markFile#*/}"
-		if [ "$markPkg" = "$markFile" ] || [ -z "$markRel" ] ; then
-			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool mark: not <package>/<relative-path>: $markFile" >&2 ; continue
+		markPkg="$( DistroAgentsTestingApplyKey "$markFile" )" || markPkg="" ; markRel="${markFile#"$markPkg"/}"
+		if [ -z "$markPkg" ] || [ -z "$markRel" ] ; then
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool mark: not <namespace>/<package>/<relative-path>: $markFile" >&2 ; continue
 		fi
 		if LC_ALL=C grep -Fxq -- "$markFile" "$markScratch/changed-files.txt" ; then echo "already marked: $markFile" ; continue ; fi
-		if [ -f "$markRepo/source/myx/$markPkg/$markRel" ] ; then
-			if [ -f "$markScratch/source/myx/$markPkg/$markRel" ] && ! cmp -s "$markRepo/source/myx/$markPkg/$markRel" "$markScratch/source/myx/$markPkg/$markRel" ; then
+		if [ -f "$markRepo/source/$markPkg/$markRel" ] ; then
+			if [ -f "$markScratch/source/$markPkg/$markRel" ] && ! cmp -s "$markRepo/source/$markPkg/$markRel" "$markScratch/source/$markPkg/$markRel" ; then
 				echo "🙋 WARNING: REFUSED: $markFile -- the scratch copy is not live's text now: level it before marking, and mark before editing" >&2
 				continue
 			fi
 			if [ ! -f "$markScratch/base/$markPkg/$markRel" ] ; then
 				mkdir -p "$markScratch/base/$markPkg/$( dirname "$markRel" )" 2> /dev/null || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool mark: could not record the base of $markFile" >&2 ; return 1 ; }
-				cp -p "$markRepo/source/myx/$markPkg/$markRel" "$markScratch/base/$markPkg/$markRel" 2> /dev/null || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool mark: could not record the base of $markFile" >&2 ; return 1 ; }
+				cp -p "$markRepo/source/$markPkg/$markRel" "$markScratch/base/$markPkg/$markRel" 2> /dev/null || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool mark: could not record the base of $markFile" >&2 ; return 1 ; }
 			fi
 		fi
 		printf '%s\n' "$markFile" >> "$markScratch/changed-files.txt"
@@ -244,13 +244,17 @@ DistroAgentsTestingApplyMark(){ ## repository, scratch, package/relative...
 ## where a level put it there and it is unchanged; any other unmarked file live does not hold is a builder's new one, said and kept. Ends
 ## LEVEL: OK, or LEVEL: CONFLICT (rc 1).
 DistroAgentsTestingApplyLevel(){ ## repository, scratch
-	local levelRepo="$1" levelScratch="$2" levelPkg levelF levelL levelP levelConflict=0 levelKept levelSum
+	local levelRepo="$1" levelScratch="$2" levelPkg levelPkgName levelF levelL levelP levelConflict=0 levelKept levelSum
 	[ -f "$levelScratch/packages.txt" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool level: $levelScratch/packages.txt is not there" >&2 ; return 1 ; }
 	touch "$levelScratch/changed-files.txt" "$levelScratch/levelled.sums" 2> /dev/null
 	while IFS= read -r levelPkg ; do
 		[ -n "$levelPkg" ] || continue
-		levelL="$levelRepo/source/myx/$levelPkg"
-		levelP="$levelScratch/source/myx/$levelPkg"
+		levelPkgName="${levelPkg#*/}"
+		if [ "$levelPkgName" = "$levelPkg" ] || [ -z "$levelPkgName" ] || [ "${levelPkgName#*/}" != "$levelPkgName" ] ; then
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool level: packages.txt holds <namespace>/<package>, one a line: $levelPkg" >&2 ; return 1
+		fi
+		levelL="$levelRepo/source/$levelPkg"
+		levelP="$levelScratch/source/$levelPkg"
 		[ -d "$levelL" ] || continue
 		while IFS= read -r levelF ; do
 			levelF="${levelF#./}"
@@ -278,7 +282,7 @@ DistroAgentsTestingApplyLevel(){ ## repository, scratch
 		## A file this work marked with its base and live no longer holds: another builder removed or renamed it.
 		while IFS= read -r levelF ; do
 			case "$levelF" in "$levelPkg"/*) ;; *) continue ;; esac
-			[ -f "$levelScratch/base/$levelF" ] && [ ! -e "$levelRepo/source/myx/$levelF" ] || continue
+			[ -f "$levelScratch/base/$levelF" ] && [ ! -e "$levelRepo/source/$levelF" ] || continue
 			echo "🙋 WARNING: CONFLICT: GONE on live: $levelF" ; levelConflict=1
 		done < "$levelScratch/changed-files.txt"
 		[ -d "$levelP" ] || continue
@@ -300,19 +304,58 @@ DistroAgentsTestingApplyLevel(){ ## repository, scratch
 	return 0
 }
 
+## The namespace-qualified package of a listed path, `<namespace>/<package>`: its first two parts, which is its row in packages.txt.
+## Prints it; rc 1 where the path has no third part, so it is no `<namespace>/<package>/<relative-path>`.
+DistroAgentsTestingApplyKey(){ ## <namespace>/<package>/<relative-path>
+	local keyRest="${1#*/}"
+	case "$keyRest" in
+		"$1") return 1 ;;
+		*/*) printf '%s/%s' "${1%%/*}" "${keyRest%%/*}" ; return 0 ;;
+		*) return 1 ;;
+	esac
+}
+## The caller's own grant: a live path the acting member holds no grant of this work for is refused, naming the path and the member.
+## A grant of this work is a session or task grant in the run's own stores, one its earlier runs on the same item hold, or the row of
+## the routine this run executes. The floor, a standing row and the human-owner hold many things, and none of them is this work's
+## permission to write a tree: a dispatch that applies carries a Write row for the target subtree, and a member without one asks once.
+## A human at the console acts as no member, and nothing is refused for them.
+DistroAgentsTestingApplyGrantRefused(){ ## absolute live path
+	local grantMember grantSession grantStore grantDir
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
+	grantMember="$( AgentsToolsActingMember )"
+	[ -n "$grantMember" ] || return 1
+	grantSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-}}"
+	type AgentsToolsPermissionHolds > /dev/null 2>&1 || . "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	if [ -n "$grantSession" ] ; then
+		while IFS= read -r grantStore ; do
+			[ -n "$grantStore" ] || continue
+			grantDir="$MMDAPP/.local/agents/sessions/$grantStore"
+			[ -d "$grantDir" ] || continue
+			if AgentsToolsPermissionGrantScan "$grantDir" "$grantMember" Write "$1" hold > /dev/null 2>&1 ; then return 1 ; fi
+		done <<< "$( AgentsToolsPermissionRelatedStores "$grantSession" )"
+		if AgentsToolsPermissionItemRunsScan "$grantMember" Write "$1" "$grantSession" > /dev/null 2>&1 ; then return 1 ; fi
+		if AgentsToolsPermissionRoutineHolds "$grantMember" Write "$1" "$grantSession" > /dev/null 2>&1 ; then return 1 ; fi
+	fi
+	printf 'GRANT REFUSED: %s -- %s holds no grant for it\n' "$1" "$grantMember"
+	return 0
+}
 ## The path rules, at plan, stage and put: inside a package of packages.txt, relative, with no `.` or `..` part and no blank, and no symlink on
-## live from the package down. Prints the reason; rc 0 where the path is refused.
-DistroAgentsTestingApplyPathRefused(){ ## repository, scratch, <package>/<relative-path>
-	local pathWalk="$1/source/myx/$3"
+## live from the package down, and a path the acting member holds a session or task grant for. Prints the reason; rc 0 where the path is refused.
+DistroAgentsTestingApplyPathRefused(){ ## repository, scratch, <namespace>/<package>/<relative-path>
+	local pathRepo pathWalk pathPkg
+	pathRepo="$( cd "$1" 2> /dev/null && pwd -P )" || pathRepo="$1"
+	pathWalk="$pathRepo/source/$3"
 	case "$3" in
 		/*|*/../*|../*|*/..|..|*/./*|./*|*/.|.) printf 'PATH REFUSED: %s -- absolute, or with a . or .. part\n' "$3" ; return 0 ;;
 		*[[:space:]]*) printf 'PATH REFUSED: %s -- it holds a blank\n' "$3" ; return 0 ;;
 	esac
-	LC_ALL=C grep -Fxq -- "${3%%/*}" "$2/packages.txt" 2> /dev/null || { printf 'PATH REFUSED: %s -- not inside a package of packages.txt\n' "$3" ; return 0 ; }
-	while [ "$pathWalk" != "$1/source/myx" ] ; do
+	pathPkg="$( DistroAgentsTestingApplyKey "$3" )" || { printf 'PATH REFUSED: %s -- not <namespace>/<package>/<relative-path>\n' "$3" ; return 0 ; }
+	LC_ALL=C grep -Fxq -- "$pathPkg" "$2/packages.txt" 2> /dev/null || { printf 'PATH REFUSED: %s -- not inside a package of packages.txt\n' "$3" ; return 0 ; }
+	while [ "$pathWalk" != "$pathRepo/source" ] ; do
 		[ ! -L "$pathWalk" ] || { printf 'PATH REFUSED: %s -- a symlink on live\n' "$3" ; return 0 ; }
 		pathWalk="${pathWalk%/*}"
 	done
+	DistroAgentsTestingApplyGrantRefused "$pathRepo/source/$3" && return 0
 	return 1
 }
 ## The faults of renames.txt (`<old><TAB><new>` a line) and removals.txt (a path a line): a line that is no pair, a case-only rename on macOS,
@@ -358,10 +401,10 @@ DistroAgentsTestingApplyPlan(){ ## repository, scratch
 	! DistroAgentsTestingApplyListsRefused "$planScratch" "${planLists[@]:1}" || planBad=1
 	while IFS= read -r planF ; do
 		[ -n "$planF" ] || continue
-		planPkg="${planF%%/*}" ; planRel="${planF#*/}"
-		planLive="$planRepo/source/myx/$planPkg/$planRel"
+		planPkg="$( DistroAgentsTestingApplyKey "$planF" )" || planPkg="" ; planRel="${planF#"$planPkg"/}"
+		planLive="$planRepo/source/$planPkg/$planRel"
 		planBase="$planScratch/base/$planPkg/$planRel"
-		planMine="$planScratch/source/myx/$planPkg/$planRel"
+		planMine="$planScratch/source/$planPkg/$planRel"
 		if DistroAgentsTestingApplyPathRefused "$planRepo" "$planScratch" "$planF" ; then planBad=1 ; continue ; fi
 		planRole="$( DistroAgentsTestingApplyRole "$planF" "${planLists[@]:1}" )"
 		## A removal or a rename's source: marked with its base, gone from the scratch, and live still at its base. Never merged, by design.
@@ -444,10 +487,10 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 		applyRole="$( DistroAgentsTestingApplyRole "$applyF" "${applyLists[@]:1}" )"
 		case "$applyPass:$applyRole" in write:remove|write:from*|remove:|remove:to*) continue ;; esac
 		applyN=$(( applyN + 1 )) ; printf '%s\n' "$applyF" >> "$applyStageDir/order"
-		applyPkg="${applyF%%/*}" ; applyRel="${applyF#*/}"
-		applyLive="$applyRepo/source/myx/$applyPkg/$applyRel"
+		applyPkg="$( DistroAgentsTestingApplyKey "$applyF" )" || applyPkg="" ; applyRel="${applyF#"$applyPkg"/}"
+		applyLive="$applyRepo/source/$applyPkg/$applyRel"
 		applyBase="$applyScratch/base/$applyPkg/$applyRel"
-		applyMine="$applyScratch/source/myx/$applyPkg/$applyRel"
+		applyMine="$applyScratch/source/$applyPkg/$applyRel"
 		: > "$applyStageDir/cand.$applyN"
 		if DistroAgentsTestingApplyPathRefused "$applyRepo" "$applyScratch" "$applyF" ; then applyBad=1 ; break 2 ; fi
 		## A step is recorded before it is made: recorded, and live already as it would leave it, it is done.
@@ -467,7 +510,7 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 		[ -f "$applyMine" ] || { echo "NOT IN THE SCRATCH: $applyF" ; applyBad=1 ; break 2 ; }
 		[ ! -f "$applyBase" ] || [ -e "$applyLive" ] || { echo "GONE on live: $applyF" ; applyBad=1 ; break 2 ; }
 		mkdir -p "$( dirname "$applyLive" )" 2> /dev/null || { echo "CANNOT STAGE beside $applyF" ; applyBad=1 ; break 2 ; }
-		applyCand="$( mktemp "$applyLive.XXXXXX" 2> /dev/null )"
+		applyCand="$( mktemp "$applyLive.XXXXXX" 2> /dev/null )" || applyCand=""
 		if [ -z "$applyCand" ] ; then echo "CANNOT STAGE beside $applyF" ; applyBad=1 ; break 2 ; fi
 		printf '%s\n' "$applyCand" > "$applyStageDir/cand.$applyN"
 		if [ ! -f "$applyBase" ] ; then
@@ -499,9 +542,9 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 	applyN=0 ; applyDoneList="" ; applyStopped=""
 	while IFS= read -r applyF ; do
 		applyN=$(( applyN + 1 ))
-		applyPkg="${applyF%%/*}" ; applyRel="${applyF#*/}"
-		applyLive="$applyRepo/source/myx/$applyPkg/$applyRel"
-		applyAbs="$applyRoot/source/myx/$applyPkg/$applyRel"
+		applyPkg="$( DistroAgentsTestingApplyKey "$applyF" )" || applyPkg="" ; applyRel="${applyF#"$applyPkg"/}"
+		applyLive="$applyRepo/source/$applyPkg/$applyRel"
+		applyAbs="$applyRoot/source/$applyPkg/$applyRel"
 		applyCand="$( cat "$applyStageDir/cand.$applyN" )" ; applyKind="$( cat "$applyStageDir/kind.$applyN" )"
 		[ "$applyKind" != done ] || continue
 		if [ -z "$applyStopped" ] ; then
@@ -538,10 +581,10 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 	applyN=0 ; applyStill=""
 	while IFS= read -r applyF ; do
 		applyN=$(( applyN + 1 ))
-		applyPkg="${applyF%%/*}" ; applyRel="${applyF#*/}"
-		applyLive="$applyRepo/source/myx/$applyPkg/$applyRel"
-		applyMine="$applyScratch/source/myx/$applyPkg/$applyRel"
-		applyAbs="$applyRoot/source/myx/$applyPkg/$applyRel"
+		applyPkg="$( DistroAgentsTestingApplyKey "$applyF" )" || applyPkg="" ; applyRel="${applyF#"$applyPkg"/}"
+		applyLive="$applyRepo/source/$applyPkg/$applyRel"
+		applyMine="$applyScratch/source/$applyPkg/$applyRel"
+		applyAbs="$applyRoot/source/$applyPkg/$applyRel"
 		case "$( cat "$applyStageDir/kind.$applyN" )" in
 			remove) if [ -e "$applyLive" ] ; then echo "STILL ON LIVE: $applyF" ; applyStill=1 ; else echo "read-back: $applyAbs, gone from live" ; fi ; continue ;;
 			done) [ -e "$applyMine" ] || continue ;;

@@ -17,14 +17,7 @@
 ##   5. Closed Sessions: page 1 of the closed index's window opens the same number of files at 80 closed sessions as at
 ##      1600, and a block and a record for each of the forty rows it shows. No file of a row outside that window, and the
 ##      same census pointed at --manager-session-list reports a difference
-## Red before the build, at 2026-11-23 21:07 UTC on the tree as it then stood, with `--manager-session-list` as the active
-## read: 10 files opened at 3 closed sessions against 3210 at 1600, among them 3200 of closed sessions, and 3 board items
-## opened at 3 board items against 1600 at 1600.
-## Red still at 2026-11-23 22:32 UTC, with the three stores, the board's kept index and the fixed runs-block writer in the
-## tree: 9 files at 3 closed sessions against 3209 at 1600, among them 3200 of closed sessions. The screen's own Active
-## Sessions declaration still names `--manager-session-list`, the whole-store read. The board half is measured done, at 0
-## board items opened with 3 items and with 1600, and so are the Epics and the writers. The check goes green when that
-## declaration names an operation that opens the live blocks alone.
+## The check passes when the screen's Active Sessions declaration names an operation that opens the live blocks alone.
 ## THE SCALE FIXTURES SEED THEIR CLOSED HISTORY AS FILES, and the writer case is what holds the writers to their stores. A
 ## fixture of 1600 sessions written by a writer call would be 1600 shell calls in a check of a read. The live sessions take
 ## the store's own writers in every fixture, so a broken writer reddens the scale case too.
@@ -59,9 +52,9 @@ rigMtimeMark="201001010000"
 ## THE CUTOFFS, held as two files whose content time IS the cutoff, never as a date `find` must read for itself. `touch -t`
 ## spells an instant in the machine's own zone, and `-anewer`/`-newer` compare a file's access time and content time against
 ## the content time of the file they are given. So the four marks are made by one spelling, and `find` reads no date at all.
-## A date it does read costs more than a zone: a trailing letter is the military zone of that letter, so the `T` of the ISO
-## form puts the cutoff seven hours west of UTC. Measured 2026-11-25 on this host's BSD find, at a one-minute grain: the
-## `T` spelling read as a cutoff of 2000-12-31T17:00Z, and every letter `A` to `Z` moved it to its own zone.
+## A date it does read costs more than a zone: a letter in the separator is that letter's military zone, so the `T` of the
+## ISO form puts the cutoff seven hours west of UTC. Measured 2026-11-25 on this host's BSD find: the `T` spelling read as
+## 2000-12-31T17:00Z, letters `A` to `I`, `K` to `M` and `N` to `Y` moved it to their own zones, and `J` it refuses.
 rigACutRef="$rigTmp/marks/access-time"
 rigMCutRef="$rigTmp/marks/content-time"
 rigACutStamp="200101010000"

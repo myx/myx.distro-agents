@@ -92,7 +92,9 @@ Team text carries three kinds of sentence. Keep them apart, and let the reader s
 - A fact that should stop a design is written as a constraint, never a caveat.
 - A number appears only where its reader needs it, computed where it is emitted.
 - A count's name is a label someone chose. Its definition is the code that produced it. Read the unit off the code before quoting the number.
+- A field is settled only by the computation that carries the dimension it names. A check that asserts the field's presence has answered nothing about its value.
 - A measurement whose scope and claim differ is a different measurement wearing the claim's words. Widen the run, not the wording. A difference between two counts names a cause only where it survives at the population the claim is about.
+- A claim about how far a line moved is computed from that line's two positions, never from the file's two sizes. Where only the sizes are in hand, the sentence says the file grew and not what moved.
 - A span, a gap or an age states the two instants it runs between. Where a source gives only the span, find both ends before quoting it.
 - A uniform "none anywhere" is a finding about the instrument until one known-positive subject has been put through the same probe.
 - A known-positive control is read through the same stream as the measurement. A control absent by construction tests the call's shape, never where its answer lands.
@@ -148,11 +150,13 @@ Team text carries three kinds of sentence. Keep them apart, and let the reader s
 - Establish the failing case before the passing one: construct the input the defect makes fail, watch it fail, apply the fix, watch it pass.
 - A check you would act on is not a result until it has been shown able to fail.
 - Verify what stores, not what sends. A write path's own success reports the send. Read the stored content back through a separate path.
+- A claim about a store's state is read from the store, never from a message about it. A message that names a tier, a path or a state reports one read. The store is the thing itself.
 - A read that names one folder answers about that folder. A check for an item stored anywhere names the whole store, or says which folder it read.
 - A search for wording recalled rather than copied answers about that wording, never about the rule. Read the section a rule names as its own home before calling it absent.
 - An account of an event is read from the event's own record, never from recollection.
 - A resumed run reads the store before it trusts the routine state note. Where they disagree, the store is what happened. A state note is a claim by the cycle that wrote it. A blocking conclusion in it is re-measured before a report repeats it.
 - Read the instrument before trusting the measurement. A count, a list and a probe each answer their own predicate.
+- The knowledge query ranks matches over words inside sections. It is not a locator: a heading quoted into it returns the best match, which may be another section. Read the document by line range to reach a named section.
 - An error's advice belongs to the layer that printed it. Read the caller's own syntax line before acting on advice from below it.
 - A failure on a path the skillset does not prescribe is not a measurement of the tool. Take the prescribed path first, so a failure is the tool's.
 - A declared name is read by the position its reader gives it, never by the word it matches. Establish the reader before calling a reference broken.
@@ -194,7 +198,7 @@ The floor's clauses, with their benchmarks, are stated once in `magic-team.armed
 - A conflict between a rule and a deliberate artefact is surfaced with both readings, never dissolved by rewording the artefact.
 - A load-bearing word — a rule, a name, a path, a flag, a verdict — is quoted, never paraphrased.
 - Name a line only to help a reader find wording already quoted. The quote is the citation: a line number alone is a position that one insert moves.
-- A capture that writes a file names its absolute path in the same command that writes it. A relative name plus a `cd` is two things that must agree.
+- A capture that writes a file names its place and path, as `<place>:<path>`, in the same command that writes it. A relative name plus a `cd` is two things that must agree.
 
 ## Communication: reaching the reader
 
@@ -559,6 +563,7 @@ These bind the team:
 - A majority is not `quorum-all-agree`.
 - A single maintainer's edit is not a carve-out.
 - A handback is not acceptance. The reviewer settles it.
+- An accept is a verdict, never a lookup. Read the reviewer from the tooling's own refusal, and never by calling the accept. An accept ends the run and closes the item, and a reopen takes an explicit new signal, back to `board-backlog`.
 - A `TaskStop` ends a run. It decides nothing.
 - A dead run is not a dead item. The reviewer decides resume, fresh, close or kill.
 

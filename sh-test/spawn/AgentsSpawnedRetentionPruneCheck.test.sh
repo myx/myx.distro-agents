@@ -147,7 +147,7 @@ rigCaller="$( for rigFile in "$rigPackage"/sh-lib/*/AgentsTools.BoardHousekeepin
 rigAssert "the housekeeping include is found, and one of it" "$( printf '%s\n' "$rigCaller" | LC_ALL=C grep -c . )" "1"
 rigFed="$( LC_ALL=C awk '/AgentsToolsRegistryRenderSpawnedSessionsKept agents/ { sub( /^[ \t]*/, "" ) ; print ; exit ; }' ${rigCaller:+"$rigCaller"} 2> /dev/null )"
 rigAssert "its render call names the live view in the fifth argument, leaving the state filter empty" "$rigFed" 'measureText="$( AgentsToolsRegistryRenderSpawnedSessionsKept agents "" "" "" live )"'
-rigAssert "the prune is fed that measured text" "$( LC_ALL=C grep -c 'AgentsSpawnedRetentionPrune 30 20' ${rigCaller:+"$rigCaller"} 2> /dev/null )" "1"
+rigAssert "the prune is fed that measured text, and its class's days from the one resolver" "$( LC_ALL=C grep -c 'AgentsSpawnedRetentionPrune "$( AgentsToolsStoreRetentionDays run )" 20' ${rigCaller:+"$rigCaller"} 2> /dev/null )" "1"
 
 echo "-- 7. the schedule declares a daily caller, and it invokes both prunes --"
 rigSchedule="$rigPackage/sh-lib/schedule/AgentsTools.ScheduleThread.include"
@@ -157,8 +157,9 @@ rigCallerBody="$( LC_ALL=C awk '/^AgentsToolsSpawnedRetentionRun\(\)[[:space:]]*
 rigAssert "the caller runs the session folders' prune" "$( printf '%s\n' "$rigCallerBody" | LC_ALL=C grep -c 'AgentsToolsSessionStorePrune' )" "1"
 rigAssert "the caller runs the spawn folders' prune, over the registry rows" "$( printf '%s\n' "$rigCallerBody" | LC_ALL=C grep -c 'AgentsSpawnedRetentionPrune' )" "1"
 rigAssert "the caller reads the unfiltered agents view" "$( printf '%s\n' "$rigCallerBody" | LC_ALL=C grep -c 'AgentsToolsRegistryRenderSpawnedSessionsKept agents "" "" "" live' )" "1"
-## The cut-off stays 30 days, in the caller and in the pass that feeds it.
-rigAssert "the caller's cut-off is the retention setting, 30 days by default" "$( printf '%s\n' "$rigCallerBody" | LC_ALL=C grep -c 'MDAT_CLEANUP_RETENTION_DAYS:-30' )" "1"
+## The cut-off is resolved in one place, and the caller keeps none of its own.
+rigAssert "the caller reads no retention setting of its own" "$( printf '%s\n' "$rigCallerBody" | LC_ALL=C grep -cE 'MDAT_CLEANUP_[A-Z_]*DAYS' )" "0"
+rigAssert "the caller asks the one resolver for each class's days" "$( printf '%s\n' "$rigCallerBody" | LC_ALL=C grep -c 'AgentsToolsStoreRetentionDays' )" "2"
 
 echo "-- 8. the seven-column sessions view is not the row shape --"
 rigRecord sessions-view spawn-succeeded ; rigAged sessions-view 202001010000

@@ -119,7 +119,16 @@ rigAssert "and no row of that run carries a kind at all" \
 	"$( LC_ALL=C awk -v field="$rigKindField" '{ for (part = 1 ; part <= NF ; part++) if (index($part, field) == 1) { print "kinded" ; exit ; } ; }' "$rigFolder/summary.txt" 2> /dev/null )" ""
 rigAssert "and the run holds that one test and no other" "$( rigCountOf TOTAL )" 1
 
-echo "-- 7. control: the refusal the rig speaks is the one the suite's own checks speak --"
+echo "-- 7. an unowned red is named, not just counted: the list row is what makes one owned --"
+printf 'RigAsserted\tmagic-tester\tthe row reads 0 where 1 is wanted\nRigTimedOut\tmagic-tester\tthe check or its rig stands still\n' > "$rigList"
+rigRun -t 2 RigAsserted RigRefused RigTimedOut
+rigAssert "the totals line counts the red no row of the list owns" "$( rigCountOf UNOWNED )" 1
+rigAssert "and the summary names that test under its own heading" \
+	"$( LC_ALL=C awk '$1 == "UNOWNED-TESTS" { want = $2 ; next } want && $1 == "RigRefused" { print "named" ; exit }' "$rigFolder/summary.txt" 2> /dev/null )" named
+rigAssert "and names no test the list does own" \
+	"$( LC_ALL=C awk '$1 == "UNOWNED-TESTS" { want = $2 ; next } want && ( $1 == "RigAsserted" || $1 == "RigTimedOut" ) { print "listed" ; exit }' "$rigFolder/summary.txt" 2> /dev/null )" ""
+
+echo "-- 8. control: the refusal the rig speaks is the one the suite's own checks speak --"
 rigAssert "the suite's own refusal helper says these words" \
 	"$( LC_ALL=C grep -c -F "refusing to report a result" "$rigOrigin/myx/myx.distro-agents/sh-test/common/AgentsRunTestsKnownFailuresCheck.test.sh" 2> /dev/null || : )" 1
 

@@ -1,5 +1,6 @@
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-read [--team-member <team-member>] <page-id> [--inline] [--since <iso-utc-date>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-resolve [--team-member <team-member>] <page-id> <comment-id>
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-check [--team-member <team-member>] [<page-id>...]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-delete [--team-member <team-member>] <page-id>
@@ -187,6 +188,24 @@
 			`/wiki/api/v2/inline-comments` with its parent named. The parent is read
 			on the footer leg first and the inline leg second, so an id on neither
 			is refused and nothing is posted.
+
+		--confluence-comment-resolve <page-id> <comment-id>
+			Runs only as `magic-coordinator` or `magic-librarian`; any
+			other name is refused with 1. Resolves one inline comment on
+			that page, and prints the state it is left in: `COMMENT_ID`,
+			`PAGE_ID`, `RESOLUTION_STATUS`, `WROTE`.
+
+			The comment is read first, so the write carries its text as
+			the site holds it and the next version number. A comment the
+			site answers `resolved` already is answered with success and
+			`WROTE` `no`, so a second pass is safe. A comment reading
+			`dangling` is refused with 9, because the site will not
+			update one.
+
+			An id the site does not hold, or one this identity may not
+			see, is refused with 8 and nothing is written. A comment on
+			another page is refused with 1, naming both pages. A write the
+			read-back does not show is UNKNOWN with 3, never success.
 
 		--confluence-space-create --key <space-key> --name <text> [--description <text>]
 			Creates one space on this organisation's own site, and prints its row:

@@ -409,6 +409,7 @@ case "$1" in
 
 	## The member stub and its implementation, one arm: a wait runs under the named member's own credentials.
 	--wait-for-input|--intern-op-wait-for-input)
+		type AgentsToolsActingMemberCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 		if [ "$1" = --wait-for-input ] && [ -n "${2:-}" ] && ! AgentsToolsActingMemberCheck "$2" wait-for-input ; then
 			echo "WAIT-RESULT: ERROR"
 			set +e ; return 1

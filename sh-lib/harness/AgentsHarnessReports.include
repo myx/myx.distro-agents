@@ -307,13 +307,13 @@ AgentsHarnessToolSubagentHandbackRun(){ ## task, outcome, findings, unfinished, 
 		toolUnfinished="${toolUnfinished:+$toolUnfinished$'\n\n'}Still open in this session's CheckList, and listed here as unfinished:"$'\n'"${toolOther%$'\n'}"
 	fi
 	## AN APPLY NAMES ITS TREE AND READS IT BACK (task-20261117T2241Z): a handback whose own words say a file was applied
-	## carries that file's absolute path and its read-back, else it is refused here, naming what is missing. A report that
+	## carries that file as <place>:<path> and its read-back, else it is refused here, naming what is missing. A report that
 	## claims no apply is not measured, so ordinary work reports are untouched.
 	type AgentsToolsApplyReportFaults > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ApplyReport.include"
 	local toolApplyFaults="" toolApplyRc=0
 	toolApplyFaults="$( printf '%s\n%s\n%s\n' "$toolOutcome" "$toolFindings" "$toolUnfinished" | AgentsToolsApplyReportFaults )" || toolApplyRc=$?
 	if [ "$toolApplyRc" != 0 ] ; then
-		printf 'REFUSED: this handback says a file was applied, and it does not give that file its absolute path and its read-back. Nothing was sent. A line names the file absolute path, the workspace it belongs to, and a read-back (cmp against the staged file, or its hash). What is missing:\n%s\n' "$toolApplyFaults"
+		printf 'REFUSED: this handback says a file was applied, and it does not give that file its place path and its read-back. Nothing was sent. A line names the file as <place>:<path>, a registered place name, a colon and a path relative to that place, and a read-back (cmp against the staged file, or its hash). What is missing:\n%s\n' "$toolApplyFaults"
 		return 0
 	fi
 	## A handback goes where this run reports to (AgentsHarnessReportRoute), addressed as that route says. A session with no
@@ -553,7 +553,7 @@ AgentsHarnessArtifactPublish(){
 	pubArgs+=( --document "$harnessResolvedPath" )
 	pubCount="$( AgentsHarnessArgValue "$toolArgsRaw" files.__count )"
 	if [ -z "$pubCount" ] && [ -n "$( AgentsHarnessArgValue "$toolArgsRaw" files )" ] ; then
-		printf 'ERROR: Artifact: files must be an array of absolute paths, got a single value. Nothing was published.\n' ; return 1
+		printf 'ERROR: Artifact: files must be an array of <place>:<relative path> entries, got a single value. Nothing was published.\n' ; return 1
 	fi
 	case "$pubCount" in ''|*[!0123456789]*) pubCount=0 ;; esac
 	while [ "$pubIndex" -lt "$pubCount" ] ; do

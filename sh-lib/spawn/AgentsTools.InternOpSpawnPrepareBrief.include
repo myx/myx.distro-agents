@@ -15,6 +15,7 @@
 ## dot-sourced for $1/$@/$MDSC_CMD. No --help entry (internal primitive).
 ##
 
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 case "$1" in
 
 	--intern-op-spawn-prepare-brief)
@@ -150,7 +151,7 @@ case "$1" in
 		## for relevance itself -- this emits the raw open set to filter from.
 		local warnFile warnLines="" warnFiles=() warnState
 		type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-		AgentsToolsBoardItemsInto warnFiles warning- backlog pending running review blocked parked
+		AgentsToolsBoardItemsInto warnFiles warning- $agentsBoardOpenStates
 		for warnFile in ${warnFiles[@]+"${warnFiles[@]}"} ; do
 			warnState="${warnFile%/*}" ; warnState="${warnState##*/}"
 			warnLines="$warnLines- ${warnFile##*/} [$warnState]"$'\n'

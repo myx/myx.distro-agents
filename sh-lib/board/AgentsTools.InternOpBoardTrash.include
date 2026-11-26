@@ -204,8 +204,9 @@ case "$1" in
 				;;
 			esac
 		done
-		case "$boardState" in
-			backlog|pending|running|review|blocked|parked|processed|archived|retained)
+		type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
+		case " $agentsBoardStates " in
+			*" $boardState "*)
 			;;
 			*)
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: invalid board-state: $boardState" >&2

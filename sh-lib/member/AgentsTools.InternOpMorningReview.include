@@ -20,6 +20,7 @@
 ## Where an inbox item lives (F4.3).
 
 ## Prints the path of <member>'s own morning-review cut-off record.
+type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardStates.include" ; }
 AgentsToolsMorningReviewStatePath(){ ## member
 	type AgentsToolsInboxNotePath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 	AgentsToolsInboxNotePath "$1" note-20261008T000000Z-morning-review-state.md
@@ -97,13 +98,13 @@ case "$1" in
 		## State shape: live counts, then the sample.
 		printf '\n## state shape\n\n'
 		local mrState mrFile mrN mrCounts="" mrShapeFiles=()
-		for mrState in backlog pending running review blocked parked processed archived retained ; do
+		for mrState in $agentsBoardStates ; do
 			mrN=0
 			type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" ; local mrFileItems ; AgentsToolsBoardItemsInto mrFileItems "" "$mrState"
 			for mrFile in ${mrFileItems[@]+"${mrFileItems[@]}"} ; do
 				[ -f "$mrFile" ] || continue
 				mrN=$(( mrN + 1 ))
-				case "$mrState" in running|review|blocked|parked|processed) mrShapeFiles+=( "$mrFile" ) ;; esac
+				case " $agentsBoardMovingStates " in *" $mrState "*) mrShapeFiles+=( "$mrFile" ) ;; esac
 			done
 			mrCounts="$mrCounts${mrCounts:+, }$mrState $mrN"
 		done

@@ -350,7 +350,7 @@ call the op refused.
   pipe or substitution. `magic-developer/reference/shell.md` carries the adjacent `cmd ; rc=$?` under
   `set -e` case in "Shell constructs that fail quietly". It is a different
   cause with the same result: a status that reads clean for something else.
-- **A clean exit and an empty answer share one exit status.** A project that was never indexed resolves as exit 0, with an empty sequence.
+- **A clean exit and an empty answer share one exit status.** A resolution that finds nothing exits 0 with an empty sequence.
 It is shaped exactly like a successful resolution of a project that genuinely
 requires nothing. A console
   can mask the other half: the failing call prints `exited with error status (1)`

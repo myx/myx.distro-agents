@@ -132,6 +132,10 @@ case "$1" in
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianConfluenceCommentAdd.include"
 	;;
 
+	--intern-op-atlassian-confluence-comment-resolve)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianConfluenceCommentResolve.include"
+	;;
+
 	--intern-op-atlassian-confluence-page-delete)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/atlassian/AgentsTools.InternOpAtlassianConfluencePageDelete.include"
 	;;

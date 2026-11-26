@@ -49,7 +49,8 @@
 ##   `review-limit-near` such an item whose run still lives and whose review-wait limit is close: `<ws> <item> left=<n>s rung=<...>`.
 ##   `ended-open` a session whose control thread lives while every run of it has ended: `<ws> <session> control=<pid>`.
 ##   `leftover-group` a process group of an ended run, still holding a process: `<ws> <id> pid=<n> age=<n>m`.
-##   `retest-queue` the machine's retest queue, once a scan: `<ws> waiting=<n> oldest=<n>m holder=<alive|stale|none>`.
+##   `retest-queue` the machine's retest queue, once a scan: `<ws> waiting=<n> oldest=<n>m holder=<alive|stale|none>`, and while a batch
+##           runs, ` done=<n>of<n>` of the tests it has answered (its run folder's own progress, named in the lock).
 ##   `solid-delta` the live SOLID gate's kept reading: `<ws> total=<n> at=<n>m zero=<n>m files=<n>`, and a second line naming up
 ##           to five of the files changed since it last read 0 (AgentsTools.SuperviseSolidDelta.include).
 ## A `run` line reads no file's date: its age is the run's own activity mark, else the stamp of its own transcript. The transcript is
@@ -143,7 +144,7 @@ AgentsToolsSuperviseScan(){
 		[ -d "$scanAgents" ] || { printf 'error %s - no .local/agents here\n' "${scanWs##*/}" ; continue ; }
 		## EVERY RECORD'S FIELDS IN ONE READ OF THEM ALL, before any question is read, since the asks below answer from it:
 		## `<sandbox> <name> <written> <spawn-id> <session-id> <owner> <status> <run-process> <parent-session-id> <agent-less>`, TAB-separated.
-		scanTable="$( AgentsToolsSpawnedRecordRows "$scanWs" spawn-id session-id owner status run-process parent-session-id agent-less routine 2> /dev/null )" || scanTable=""
+		scanTable="$( MDAT_RECORD_ROWS_MAX_AGE_SECONDS="${MDAT_SCAN_RECORD_MAX_AGE_SECONDS:-172800}" AgentsToolsSpawnedRecordRows "$scanWs" spawn-id session-id owner status run-process parent-session-id agent-less routine 2> /dev/null )" || scanTable=""
 		## A SESSION WHOSE STARTS KEEP FAILING, from the same table: it reads as starting while every start fails.
 		type AgentsToolsSuperviseStartFailing > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/supervise/AgentsTools.SuperviseStartFailing.include"
 		AgentsToolsSuperviseStartFailing "$scanWs" "$scanNow" "$scanTable"
@@ -262,6 +263,14 @@ AgentsToolsSuperviseScan(){
 			[ -n "$scanAskSid" ] || continue
 			scanAskSet="$scanAskSet$scanAskSid"$'\n'
 		done
+		## ONLY THE ROWS A FINDING OR A LIVE RUN CAN COME FROM: every record passes one awk, and the loop below reads the live
+		## and the open ones alone. On MDV 2026-11-25 the store held 1,171 rows and twelve were worth a look, and the bash loop
+		## over all of them was most of the scan's 25 s.
+		scanOpenRows="$( printf '%s\n' "$scanTable" | scanLive="$scanLive" scanBegan="$scanBegan" LC_ALL=C awk -F'\t' '
+			$4 == "" { next }
+			{ live = ENVIRON["scanLive"] ; began = ENVIRON["scanBegan"]
+			  if ( $7 == "spawn-started" || index( "\n" live "\n", "\n" $4 "\n" ) > 0 || ( $8 != "" && index( "\n" began "\n", "\n" $8 "\n" ) > 0 ) ) print
+			}' )"
 		while IFS= read -r scanRow ; do
 			[ -n "$scanRow" ] || continue
 			scanSandbox="${scanRow%%"$scanTab"*}" ; scanRow="${scanRow#*"$scanTab"}"
@@ -441,7 +450,7 @@ AgentsToolsSuperviseScan(){
 			[ "$scanPending" -gt 0 ] || continue
 			printf 'stall %s %s %s age=%s pending=%s plan: %s\n' "${scanWs##*/}" "${scanSpid:0:8}" \
 				"$scanMember" "$scanAgeText" "$scanPending" "$scanPlan"
-		done <<< "$scanTable"
+		done <<< "$scanOpenRows"
 		## A CONTROL THREAD THAT SHOULD HAVE ENDED ITSELF (S5.6, item 6). It ends by itself when no run of its session has been alive
 		## for SESSION_CONTROL_NO_RUN_END_SECONDS; one that has not ended has kept a process for hours. Read over the sessions of this
 		## workspace, which is what a scan is for: a thread whose pid still lives, whose log has said nothing for that limit and five
