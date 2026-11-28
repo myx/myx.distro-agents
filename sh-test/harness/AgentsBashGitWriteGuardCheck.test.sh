@@ -5,10 +5,13 @@
 ##   1. each listed write is refused with ERROR, its tree and its subcommand named, and nothing runs:
 ##      reset, checkout, restore, clean, stash, revert, commit;
 ##   2. the same write is refused through a wrapper: a shell function in the call's own text, a wrapper script that
-##      calls git, and `git -C <source path>`;
+##      calls git, and `git -C <source path>`, each in a harness process of its own, so no loaded copy can answer it;
 ##   3. the read-only forms still run: status, log, diff, show, rev-parse, ls-remote (the control);
 ##   4. a write outside a source tree runs: the team-data store and a temp folder are not source trees;
-##   5. the stop is recorded in the run's audit log and its session thread.
+##   5. the stop is recorded in the run's audit log and its session thread;
+##   6. the two other shell channels -- `mcp__myx_distro__execute` and myx.common's `lib/execShStdin` -- each wire the guard
+##      themselves, and the check supplies no guard of its own, so a passing row says the channel did the wiring;
+##   7. a flag-borne verb is read from the words after the verb, so `branch -D` and `tag -d` are refused while `branch` lists.
 ## Red: on a harness without the guard every refused row runs and writes its marker, so the row fails. A green here
 ## says the guard reads the call and its wrapper, and never a word quoted as data.
 ## Offline: a rig of this check alone, removed at its end; nothing is requested.
@@ -120,39 +123,69 @@ LC_ALL=C grep -q "STOPPED: a git reset over a source tree ($rigSource)" "$rigTmp
 rigAssert "the session thread carries the stop"           "$rigChat" "found"
 
 echo "-- 6. the other two shell channels the harness owns, each refused by the same guard --"
-## The guard first on PATH is what every channel meets: the guard folder is made from the include under test, and the two
-## channels are run as they really run, one a tooling `execute` and one myx.common's own `lib/execShStdin`.
+## THE CHANNEL WIRES ITS OWN GUARD, and the check never supplies one: each call is given the plain PATH of this rig, so a
+## row that passes says the channel put the guard there itself. A check that put `guard-bin` on PATH would answer about the
+## guard and never about the channel (magic-architect measured that shape on 2026-11-27, and it is why these rows changed).
 rigGuardBin="$rigTmp/ws/.local/agents/guard-bin"
-env -i HOME="$rigTmp/home" PATH="$rigPath" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$rigOrigin" \
-	bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.GitWrite.include" && AgentsToolsGitGuardMake "$MMDAPP/.local/agents/guard-bin"' 2>/dev/null || :
-rigAssert "the guard git is written into the guard folder" "$( [ -x "$rigGuardBin/git" ] && printf written || printf none )" "written"
-[ -x "$rigGuardBin/git" ] || rigRefuse "the guard git was not written, so the other two channels could not be judged"
-rigMyxCommon="$( command -v myx.common 2>/dev/null )" || rigMyxCommon=""
-[ -n "$rigMyxCommon" ] || rigMyxCommon="$( ls "$rigOrigin"/myx/myx.common/*/host/tarball/bin/myx.common 2>/dev/null | head -1 )"
-## The channel call: the command run with the guard folder first on PATH, and a marker it would also write.
+rigAssert "no guard folder stands in the rig before a channel is called" "$( [ -e "$rigGuardBin" ] && printf there || printf none )" "none"
 rigChannel(){ ## call name, refusal words, command text
 	rm -f "$rigTmp/ws/mark.$1"
-	( cd "$rigTmp/ws" && printf '%s' "$3 ; touch $rigTmp/ws/mark.$1" | env -i HOME="$rigTmp/home" PATH="$rigGuardBin:$rigPath" MMDAPP="$rigTmp/ws" \
+	( cd "$rigTmp/ws" && printf '%s' "$3 ; touch $rigTmp/ws/mark.$1" | env -i HOME="$rigTmp/home" PATH="$rigPath" MMDAPP="$rigTmp/ws" \
 		MDLT_ORIGIN="$rigOrigin" MDAT_GIT_SOURCE_ROOTS="$rigTmp/ws/source" MDAT_SPAWN_AGENT="$rigMember" MDAT_SPAWN_SESSION_ID="rig-session" \
 		bash "$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" || :
 	printf '%s:%s' "$( LC_ALL=C grep -c "$2" "$rigTmp/$1.out" 2>/dev/null || : )" "$( [ -f "$rigTmp/ws/mark.$1" ] && printf ran || printf none )"
 }
 rigAssert "execute: reset --hard is refused"   "$( rigChannel x1 'git write (reset)' "git -C $rigSource reset --hard HEAD" )" "1:none"
 rigAssert "execute: git status still runs"     "$( rigChannel x2 'git write (' "git -C $rigSource status --porcelain" )" "0:ran"
+rigAssert "execute wired the guard into its own tree" "$( [ -x "$rigGuardBin/git" ] && printf written || printf none )" "written"
+rigMyxCommon="$( command -v myx.common 2>/dev/null )" || rigMyxCommon=""
+[ -n "$rigMyxCommon" ] || rigMyxCommon="$( ls "$rigOrigin"/myx/myx.common/*/host/tarball/bin/myx.common 2>/dev/null | head -1 )"
 if [ -n "$rigMyxCommon" ] ; then
 	rigStdinChannel(){ ## call name, refusal words, command text
+		rm -f "$rigTmp/ws/mark.$1"
+		( cd "$rigTmp/ws" && printf '%s' "$3 ; touch $rigTmp/ws/mark.$1" | env -i HOME="$rigTmp/home" PATH="$rigPath" \
+			MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$rigOrigin" MDAT_GIT_SOURCE_ROOTS="$rigTmp/ws/source" \
+			MDAT_SPAWN_AGENT="$rigMember" MDAT_SPAWN_SESSION_ID="rig-session" "$rigMyxCommon" lib/execShStdin ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" || :
+		printf '%s:%s' "$( LC_ALL=C grep -c "$2" "$rigTmp/$1.out" 2>/dev/null || : )" "$( [ -f "$rigTmp/ws/mark.$1" ] && ran || printf none )"
+	}
+	## myx.common's own shell holds no guard of its own: what guards it is the server that started it, which this row stands
+	## in for by exporting the guard folder first, exactly as AgentsHarnessMcpClient.sh does at a launch. With the guard in
+	## its PATH the write is refused; and the read form runs, so the refusal is the guard's own judgement and not a shell
+	## that refuses everything.
+	rigStdinGuarded(){ ## call name, refusal words, command text
 		rm -f "$rigTmp/ws/mark.$1"
 		( cd "$rigTmp/ws" && printf '%s' "$3 ; touch $rigTmp/ws/mark.$1" | env -i HOME="$rigTmp/home" PATH="$rigGuardBin:$rigPath" \
 			MDAT_GIT_SOURCE_ROOTS="$rigTmp/ws/source" MDAT_SPAWN_AGENT="$rigMember" MDAT_SPAWN_SESSION_ID="rig-session" \
 			"$rigMyxCommon" lib/execShStdin ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" || :
 		printf '%s:%s' "$( LC_ALL=C grep -c "$2" "$rigTmp/$1.out" 2>/dev/null || : )" "$( [ -f "$rigTmp/ws/mark.$1" ] && printf ran || printf none )"
 	}
-	rigAssert "lib_execShStdin: reset --hard is refused" "$( rigStdinChannel s1 'git write (reset)' "git -C $rigSource reset --hard HEAD" )" "1:none"
-	rigAssert "lib_execShStdin: git log still runs"     "$( rigStdinChannel s2 'git write (' "git -C $rigSource log --oneline -1" )" "0:ran"
+	rigAssert "lib_execShStdin: with no guard on its PATH the write runs" "$( rigStdinChannel s0b 'git write (reset)' "git -C $rigSource reset --hard HEAD" )" "0:ran"	rigAssert "lib_execShStdin: with the server's guard in PATH, reset --hard is refused" "$( rigStdinGuarded s1 'git write (reset)' "git -C $rigSource reset --hard HEAD" )" "1:none"
+	rigAssert "lib_execShStdin: with the same guard, git log still runs" "$( rigStdinGuarded s2 'git write (' "git -C $rigSource log --oneline -1" )" "0:ran"
 else
-	printf '  SKIP  lib_execShStdin: myx.common is not installed in this rig, so that channel is not judged here\n'
+	printf '  SKIP  the lib_execShStdin rows: myx.common is not installed here, so that channel cannot be judged\n'
 	rigFailCount=$(( rigFailCount + 1 ))
 fi
+
+echo "-- 7. the verb is read from its own words, not from the global options before it --"
+## `git -C <tree> <verb> -<flag>` puts `-C` and the tree before the verb, so a judgement reading the whole argv starves the
+## flag: `branch -D` read as read-only and RAN on all three channels when magic-architect measured it on 2026-11-27. Each
+## row below is one that reached a write with the flags dropped, and its read form beside it is the control.
+rigAssert "branch -d is refused"        "$( rigTry v1 "git -C $rigSource branch -d rigone" 'git write (branch)' )" "1:none"
+rigAssert "branch -D is refused"        "$( rigTry v2 "git -C $rigSource branch -D rigone" 'git write (branch)' )" "1:none"
+rigAssert "branch --delete is refused"  "$( rigTry v3 "git -C $rigSource branch --delete rigone" 'git write (branch)' )" "1:none"
+rigAssert "branch -m is refused"        "$( rigTry v4 "git -C $rigSource branch -m rigone rigtwo" 'git write (branch)' )" "1:none"
+rigAssert "branch -f is refused"        "$( rigTry v5 "git -C $rigSource branch -f rigone HEAD" 'git write (branch)' )" "1:none"
+rigAssert "tag -d is refused"           "$( rigTry v6 "git -C $rigSource tag -d rigtag" 'git write (tag)' )" "1:none"
+rigAssert "tag -f is refused"           "$( rigTry v7 "git -C $rigSource tag -f rigtag" 'git write (tag)' )" "1:none"
+rigAssert "config --unset is refused"   "$( rigTry v8 "git -C $rigSource config --unset user.name" 'git write (config)' )" "1:none"
+rigAssert "stash pop is refused"        "$( rigTry v9 "git -C $rigSource stash pop" 'git write (stash)' )" "1:none"
+rigAssert "notes prune is refused"      "$( rigTry v10 "git -C $rigSource notes prune" 'git write (notes)' )" "1:none"
+rigAssert "remote remove is refused"    "$( rigTry v11 "git -C $rigSource remote remove origin" 'git write (remote)' )" "1:none"
+rigAssert "branch still lists"          "$( rigRuns v12 "git -C $rigSource branch" 'git write (' )" "0:ran"
+rigAssert "tag still lists"             "$( rigRuns v13 "git -C $rigSource tag" 'git write (' )" "0:ran"
+rigAssert "stash list still runs"       "$( rigRuns v14 "git -C $rigSource stash list" 'git write (' )" "0:ran"
+rigAssert "notes still lists"           "$( rigRuns v15 "git -C $rigSource notes" 'git write (' )" "0:ran"
+rigAssert "config still reads"          "$( rigRuns v16 "git -C $rigSource config --get user.name 2>&1 || true" 'git write (' )" "0:ran"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ BASH GIT WRITE GUARD CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

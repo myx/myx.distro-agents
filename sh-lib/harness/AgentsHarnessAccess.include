@@ -9,32 +9,28 @@ type AgentsOwnPostsHas > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents
 ## Each distinct path is resolved once for the life of the process, so a repeat costs no fork.
 ## A path that did not resolve is kept as a miss, and its entry is retried the moment the path exists:
 ## one created later in this process then resolves as a fresh call always did.
+## ONE LOOKUP A PATH, never a scan of the paths before it: the entry is a variable named after the path, holding `<path><TAB><answer>`,
+## and a name two paths share, or a path holding a TAB, only misses and resolves again.
 AgentsHarnessResolveDir(){ ## path, name of the variable the resolved path goes in
-	local resolveIn="$1" resolveOut resolveIndex=0 resolveCount=0
-	[ -z "${harnessResolveAsked[@]+asked}" ] || resolveCount="${#harnessResolveAsked[@]}"
-	while [ "$resolveIndex" -lt "$resolveCount" ] ; do
-		if [ "${harnessResolveAsked[$resolveIndex]}" = "$resolveIn" ] ; then
-			resolveOut="${harnessResolveAnswered[$resolveIndex]}"
-			if [ -n "$resolveOut" ] ; then
-				printf -v "$2" '%s' "$resolveOut"
-				return 0
-			fi
-			if [ ! -d "$resolveIn" ] ; then
-				printf -v "$2" '%s' "$resolveIn"
-				return 0
-			fi
-			resolveCount="$resolveIndex"
-			break
+	local resolveIn="$1" resolveOut resolveKey="harnessResolved_${1//[!A-Za-z0-9]/_}"
+	resolveOut="${!resolveKey-}"
+	if [ -n "$resolveOut" ] && [ "${resolveOut%%$'\t'*}" = "$resolveIn" ] ; then
+		resolveOut="${resolveOut#*$'\t'}"
+		if [ -n "$resolveOut" ] ; then
+			printf -v "$2" '%s' "$resolveOut"
+			return 0
 		fi
-		resolveIndex=$(( resolveIndex + 1 ))
-	done
+		if [ ! -d "$resolveIn" ] ; then
+			printf -v "$2" '%s' "$resolveIn"
+			return 0
+		fi
+	fi
 	resolveOut=""
 	## An absolute path that is no directory cannot be entered, so it is a miss with no process to find out.
 	if [ -d "$resolveIn" ] || [ "${resolveIn#/}" = "$resolveIn" ] ; then
 		resolveOut="$( cd "$resolveIn" 2>/dev/null && pwd -P )" || resolveOut=""
 	fi
-	harnessResolveAsked[$resolveCount]="$resolveIn"
-	harnessResolveAnswered[$resolveCount]="$resolveOut"
+	printf -v "$resolveKey" '%s\t%s' "$resolveIn" "$resolveOut"
 	[ -n "$resolveOut" ] || resolveOut="$resolveIn"
 	printf -v "$2" '%s' "$resolveOut"
 }

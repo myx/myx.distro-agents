@@ -19,9 +19,8 @@
 AgentsToolsWaitDefaultSources(){
 	local defaultThread defaultList="" defaultSeen=" " defaultChat="" defaultKind=""
 	type AgentsToolsCommsPrintbackSessionInUse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include"
-	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/chat/AgentsTools.RootHarnessKind.include"
-	AgentsToolsSessionChatKeyInto ; defaultChat="$agentsSessionChatKey"
+	defaultChat="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	if [ -n "$defaultChat" ] ; then
 		## THE KIND THE SESSION RECORDED (F3.1), before any thread or conversation: `none` and `track` are read
 		## from the one chat file, and only another kind reaches the Slack sources.

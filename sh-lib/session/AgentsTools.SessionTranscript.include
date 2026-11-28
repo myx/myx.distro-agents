@@ -3,7 +3,7 @@
 
 ##
 ## AgentsTools.SessionTranscript.include -- the tooling-written session transcript
-## and the session token totals. Sourced, never run; functions only, and every one
+## (the session token totals are AgentsTools.SessionTokens.include's). Sourced, never run; functions only, and every one
 ## returns 0 on its own failure, so a hook can never fail the call it observes.
 ##
 ## One transcript per spawned session, in the team data:
@@ -19,52 +19,97 @@
 ## Committed at milestones only -- start, a message out or handback, a Wait going idle,
 ## DISMISSED, a restart, the end -- never per line. A failed commit only warns.
 ##
-## Tokens: $MMDAPP/.local/agents/sessions/<sid>/tokens holds the session's running sum,
-## `<in> <cache-read> <cache-write> <out>`; at each milestone it becomes the
-## dispatch item's `tokens:` header. Totals over a task, epic or parent session are summed
-## when shown (AgentsSessionTokensRollup.awk), never written up the chain.
-##
 
 agentsTranscriptT0=""
 agentsTranscriptRoundText=""
 ## Set by the harness (AgentsHarnessContext.include) when its rounds are rendered from its kept context.
 agentsTranscriptFromLog=""
 
-## The session a call belongs to, by the same rule as AgentsHarnessSessionKey.
-AgentsTranscriptSessionKey(){
-	printf '%s' "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+## THE CLOCK OF A PROCESS: date is read once a minute, the epoch and the local zone in one reading, with the shell's SECONDS beside it,
+## and every reading between is arithmetic, so a call starts no process for its time. SECONDS counts wall-clock seconds, so a reading
+## never drifts from date's; bash 3.2 has no EPOCHSECONDS. The zone is at most a minute old, so a change of daylight saving shows within
+## a minute. A load of this file keeps the clock. A caller that read the clock already hands it over in agentsTranscriptClockEpoch,
+## agentsTranscriptClockSeconds and agentsTranscriptClockZone. Taken in a subshell, the clock is that subshell's alone: a caller whose
+## reading is inside a $( ) takes it outside first.
+AgentsTranscriptNowInto(){ ## variable: epoch seconds, now
+	local intoClock=""
+	case "${agentsTranscriptClockEpoch:-}${agentsTranscriptClockSeconds:-x}" in
+		*[!0-9]*) intoClock=read ;;
+		*) [ "$(( SECONDS - agentsTranscriptClockSeconds ))" -lt 60 ] || intoClock=read ;;
+	esac
+	if [ -n "$intoClock" ] ; then
+		intoClock="$( date '+%s %z' )"
+		agentsTranscriptClockEpoch="${intoClock%% *}" ; agentsTranscriptClockZone="${intoClock#* }" ; agentsTranscriptClockSeconds="$SECONDS"
+	fi
+	printf -v "$1" '%s' "$(( agentsTranscriptClockEpoch + SECONDS - agentsTranscriptClockSeconds ))"
 }
 
-AgentsTranscriptSessionDir(){ ## session id
-	case "$1" in
+## An epoch as UTC, `YYYY-MM-DDTHH:MM:SSZ`, or `YYYYMMDDTHHMMSSZ` with compact, by the civil-from-days rule that
+## AgentsCommsEventIdStamp writes by: arithmetic only, so it starts no process.
+AgentsTranscriptUtcInto(){ ## variable, epoch seconds, compact (optional)
+	case "${2:-}" in ''|*[!0-9]*) return 1 ;; esac
+	local utcDay=$(( $2 / 86400 + 719468 )) utcSec=$(( $2 % 86400 )) utcEra utcDoe utcYoe utcDoy utcMp utcYear utcMonth utcDate
+	utcEra=$(( utcDay / 146097 )) ; utcDoe=$(( utcDay - utcEra * 146097 ))
+	utcYoe=$(( ( utcDoe - utcDoe / 1460 + utcDoe / 36524 - utcDoe / 146096 ) / 365 ))
+	utcYear=$(( utcYoe + utcEra * 400 )) ; utcDoy=$(( utcDoe - ( 365 * utcYoe + utcYoe / 4 - utcYoe / 100 ) ))
+	utcMp=$(( ( 5 * utcDoy + 2 ) / 153 )) ; utcDate=$(( utcDoy - ( 153 * utcMp + 2 ) / 5 + 1 ))
+	utcMonth=$(( utcMp < 10 ? utcMp + 3 : utcMp - 9 )) ; [ "$utcMonth" -gt 2 ] || utcYear=$(( utcYear + 1 ))
+	if [ -n "${3:-}" ] ; then
+		printf -v "$1" '%04d%02d%02dT%02d%02d%02dZ' "$utcYear" "$utcMonth" "$utcDate" "$(( utcSec / 3600 ))" "$(( utcSec % 3600 / 60 ))" "$(( utcSec % 60 ))"
+	else
+		printf -v "$1" '%04d-%02d-%02dT%02d:%02d:%02dZ' "$utcYear" "$utcMonth" "$utcDate" "$(( utcSec / 3600 ))" "$(( utcSec % 3600 / 60 ))" "$(( utcSec % 60 ))"
+	fi
+}
+
+## THE HELPERS A CALL TAKES ARE `...Into` FORMS, each setting the variable it is given by printf -v: every tool call takes them, and one
+## through $( ) was a subshell each, eight a call. The printing forms stand for the callers outside the call path, and print what the
+## `...Into` form sets. A variable given is never one of the form's own locals, which all begin with `into`.
+
+## The session a call belongs to, by the same rule as AgentsHarnessSessionKey.
+AgentsTranscriptSessionKeyInto(){ ## variable
+	printf -v "$1" '%s' "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+}
+AgentsTranscriptSessionKey(){
+	local intoKey ; AgentsTranscriptSessionKeyInto intoKey ; printf '%s' "$intoKey"
+}
+
+AgentsTranscriptSessionDirInto(){ ## variable, session id
+	case "${2:-}" in
 		''|*/*|.|..|*' '*) return 1 ;;
 	esac
 	[ -n "${MMDAPP:-}" ] || return 1
-	printf '%s' "$MMDAPP/.local/agents/sessions/$1"
+	printf -v "$1" '%s' "$MMDAPP/.local/agents/sessions/$2"
+}
+AgentsTranscriptSessionDir(){ ## session id
+	local intoDir ; AgentsTranscriptSessionDirInto intoDir "${1:-}" || return 1 ; printf '%s' "$intoDir"
 }
 
+AgentsTranscriptBaseToolInto(){ ## variable, tool name -- mcp__<server>__Read is Read
+	local intoRest="${2:-}"
+	case "$intoRest" in mcp__*__*) intoRest="${intoRest#mcp__}" ; intoRest="${intoRest#*__}" ;; esac
+	printf -v "$1" '%s' "$intoRest"
+}
 AgentsTranscriptBaseTool(){ ## tool name -- mcp__<server>__Read is Read
-	local baseRest
-	case "$1" in
-		mcp__*__*) baseRest="${1#mcp__}" ; printf '%s' "${baseRest#*__}" ;;
-		*) printf '%s' "$1" ;;
-	esac
+	local intoTool ; AgentsTranscriptBaseToolInto intoTool "${1:-}" ; printf '%s' "$intoTool"
 }
 
 ## The base file of a session's transcript, from its pointer; rc 1 when it has none.
+AgentsTranscriptBaseInto(){ ## variable, session id
+	local intoSessionDir intoBase=""
+	AgentsTranscriptSessionDirInto intoSessionDir "${2:-}" || return 1
+	[ -s "$intoSessionDir/transcript" ] || return 1
+	IFS= read -r intoBase < "$intoSessionDir/transcript" || :
+	[ -n "$intoBase" ] && [ -f "$intoBase" ] || return 1
+	printf -v "$1" '%s' "$intoBase"
+}
 AgentsTranscriptBase(){ ## session id
-	local sessionDir basePath=""
-	sessionDir="$( AgentsTranscriptSessionDir "$1" )" || return 1
-	[ -s "$sessionDir/transcript" ] || return 1
-	IFS= read -r basePath < "$sessionDir/transcript" || :
-	[ -n "$basePath" ] && [ -f "$basePath" ] || return 1
-	printf '%s' "$basePath"
+	local intoBasePath ; AgentsTranscriptBaseInto intoBasePath "${1:-}" || return 1 ; printf '%s' "$intoBasePath"
 }
 
 ## Every part, base first, one per line.
 AgentsTranscriptParts(){ ## session id
 	local basePath partNumber=2
-	basePath="$( AgentsTranscriptBase "$1" )" || return 1
+	AgentsTranscriptBaseInto basePath "$1" || return 1
 	printf '%s\n' "$basePath"
 	while [ -f "${basePath%.log}-part$partNumber.log" ] ; do
 		printf '%s\n' "${basePath%.log}-part$partNumber.log"
@@ -72,70 +117,55 @@ AgentsTranscriptParts(){ ## session id
 	done
 }
 
-## The last tool line of a session's transcript over all its parts, `<stamp> <tool name>`; nothing where it has none.
-AgentsTranscriptLastTool(){ ## session id
-	local lastParts=() lastPart lastFound="" lastIndex=0
-	while IFS= read -r lastPart ; do
-		[ -z "$lastPart" ] || lastParts+=( "$lastPart" )
-	done <<< "$( AgentsTranscriptParts "$1" )"
-	[ ${#lastParts[@]} -gt 0 ] || return 0
-	## THE NEWEST PART ANSWERS FOR MOST RUNS, and the walk reaches an earlier part only when it holds no tool line:
-	## reading every part of every run's transcript is the scan's whole cost, and a roll keeps the newest work last.
-	lastIndex=${#lastParts[@]}
-	while [ "$lastIndex" -ge 1 ] ; do
-		lastFound="$( LC_ALL=C awk '$2 == "TOOL" { at = $1 ; name = $3 ; } END { if ( at != "" ) print at " " name ; }' "${lastParts[$(( lastIndex - 1 ))]}" )" || lastFound=""
-		[ -z "$lastFound" ] || break
-		lastIndex=$(( lastIndex - 1 ))
-	done
-	printf '%s\n' "$lastFound"
-}
-
-## The last lines of a run's transcript over all its parts: first its base file, then the lines. rc 1 where the run keeps none.
-## The run's own `transcript:` header under the data root first, then the pointer in its sandbox, then its session's.
-AgentsTranscriptRunTail(){ ## run, sandbox, session (may be empty), lines
-	type AgentsSessionRunHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-	local tailOwn="" tailPointer tailBase tailParts=()
-	AgentsSessionRunHeadersInto "${1:-}" tailOwn=transcript || tailOwn=""
-	case "$tailOwn" in ''|-|/*) tailOwn="" ;; *) [ -n "${MDAT_DATA_ROOT:-}" ] && tailOwn="$MDAT_DATA_ROOT/$tailOwn" || tailOwn="" ;; esac
-	for tailPointer in "$tailOwn" "${MMDAPP:-/nonexistent}/.local/agents/spawned/${2:-}/transcript" "${MMDAPP:-/nonexistent}/.local/agents/sessions/${3:-$1}/transcript" ; do
-		[ -n "$tailPointer" ] && [ -s "$tailPointer" ] || continue
-		if [ "$tailPointer" = "$tailOwn" ] ; then tailBase="$tailPointer" ; else IFS= read -r tailBase < "$tailPointer" || tailBase="" ; fi
-		[ -n "$tailBase" ] && [ -f "$tailBase" ] || continue
-		tailParts=( "$tailBase" )
-		while [ -f "${tailBase%.log}-part$(( ${#tailParts[@]} + 1 )).log" ] ; do
-			tailParts+=( "${tailBase%.log}-part$(( ${#tailParts[@]} + 1 )).log" )
-		done
-		printf '%s\n' "$tailBase"
-		cat "${tailParts[@]}" 2> /dev/null | tail -n "$4"
-		return 0
-	done
-	return 1
-}
-
 ## The part to append to now. A part at or over the roll size starts the next one,
 ## created exclusively, so of two writers rolling at once only one writes its header.
-AgentsTranscriptPath(){ ## session id
-	local basePath currentPath nextPath partNumber=1 currentBytes rollBytes
-	basePath="$( AgentsTranscriptBase "$1" )" || return 1
-	currentPath="$basePath"
+AgentsTranscriptPathInto(){ ## variable, session id
+	local intoBasePath intoCurrent intoNext intoPart=1 intoBytes intoRoll intoStamp intoSizeDir intoNow intoKeptAt intoKeptBytes intoKept
+	AgentsTranscriptBaseInto intoBasePath "${2:-}" || return 1
+	intoCurrent="$intoBasePath"
 	while : ; do
-		nextPath="${basePath%.log}-part$(( partNumber + 1 )).log"
-		[ -f "$nextPath" ] || break
-		currentPath="$nextPath"
-		partNumber=$(( partNumber + 1 ))
+		intoNext="${intoBasePath%.log}-part$(( intoPart + 1 )).log"
+		[ -f "$intoNext" ] || break
+		intoCurrent="$intoNext"
+		intoPart=$(( intoPart + 1 ))
 	done
-	currentBytes="$( wc -c < "$currentPath" 2>/dev/null | tr -d ' ' )"
-	case "$currentBytes" in ''|*[!0123456789]*) currentBytes=0 ;; esac
-	rollBytes="${MDAT_TRANSCRIPT_ROLL_BYTES:-8388608}"
-	case "$rollBytes" in ''|*[!0123456789]*) rollBytes=8388608 ;; esac
-	if [ "$currentBytes" -ge "$rollBytes" ] ; then
-		if ( set -C ; : > "$nextPath" ) 2>/dev/null ; then
-			printf '%s ROLL -> %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${nextPath##*/}" >> "$currentPath" 2>/dev/null
-			printf '%s CONTINUED from %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${currentPath##*/}" >> "$nextPath" 2>/dev/null
+	## THE PART'S SIZE IS KEPT A MINUTE, in the process (agentsTranscriptSized*) and beside the session (`transcript.size`, `<epoch> <bytes>
+	## <part>`), by the process clock: every tool call measured it with wc and tr, two processes a call, and a served call is a process of its
+	## own. A part measured within the minute, by this process or another, is taken at that size; past it the file is measured again and the
+	## size written back. The other writers of the part are counted at the next measure, so a part overshoots the roll size by a minute.
+	if [ "$intoCurrent" = "${agentsTranscriptSizedPath:-}" ] && [ "$(( SECONDS - ${agentsTranscriptSizedAt:--100} ))" -lt 60 ] ; then
+		intoBytes="${agentsTranscriptSizedBytes:-0}"
+	else
+		AgentsTranscriptNowInto intoNow
+		intoKeptAt="" ; intoKeptBytes="" ; intoKept="" ; intoSizeDir=""
+		AgentsTranscriptSessionDirInto intoSizeDir "${2:-}" || intoSizeDir=""
+		[ -z "$intoSizeDir" ] || { read -r intoKeptAt intoKeptBytes intoKept < "$intoSizeDir/transcript.size" ; } 2> /dev/null || :
+		case "$intoKeptAt:$intoKeptBytes" in *[!0123456789:]*|:*|*:) intoKept="" ;; esac
+		if [ -n "$intoKept" ] && [ "$intoKept" = "$intoCurrent" ] && [ "$(( intoNow - intoKeptAt ))" -ge 0 ] && [ "$(( intoNow - intoKeptAt ))" -lt 60 ] ; then
+			intoBytes="$intoKeptBytes"
+			agentsTranscriptSizedAt="$(( SECONDS - ( intoNow - intoKeptAt ) ))"
+		else
+			intoBytes="$( wc -c < "$intoCurrent" 2>/dev/null | tr -d ' ' )"
+			case "$intoBytes" in ''|*[!0123456789]*) intoBytes=0 ;; esac
+			agentsTranscriptSizedAt="$SECONDS"
+			[ -z "$intoSizeDir" ] || printf '%s %s %s\n' "$intoNow" "$intoBytes" "$intoCurrent" > "$intoSizeDir/transcript.size" 2> /dev/null || :
 		fi
-		currentPath="$nextPath"
+		agentsTranscriptSizedPath="$intoCurrent" ; agentsTranscriptSizedBytes="$intoBytes"
 	fi
-	printf '%s' "$currentPath"
+	intoRoll="${MDAT_TRANSCRIPT_ROLL_BYTES:-8388608}"
+	case "$intoRoll" in ''|*[!0123456789]*) intoRoll=8388608 ;; esac
+	if [ "$intoBytes" -ge "$intoRoll" ] ; then
+		if ( set -C ; : > "$intoNext" ) 2>/dev/null ; then
+			AgentsTranscriptNowInto intoStamp ; AgentsTranscriptUtcInto intoStamp "$intoStamp"
+			printf '%s ROLL -> %s\n' "$intoStamp" "${intoNext##*/}" >> "$intoCurrent" 2>/dev/null
+			printf '%s CONTINUED from %s\n' "$intoStamp" "${intoCurrent##*/}" >> "$intoNext" 2>/dev/null
+		fi
+		intoCurrent="$intoNext"
+	fi
+	printf -v "$1" '%s' "$intoCurrent"
+}
+AgentsTranscriptPath(){ ## session id
+	local intoPathOut ; AgentsTranscriptPathInto intoPathOut "${1:-}" || return 1 ; printf '%s' "$intoPathOut"
 }
 
 ## One block. 4 KB or less is a single O_APPEND write and takes no lock; a bigger
@@ -172,8 +202,9 @@ AgentsTranscriptAppend(){ ## file, text
 ## (8 of 95) and of every transcript line's. Proved equal to the `tr` on bash 3.2 for a
 ## control with none, one with all three, and the empty value.
 AgentsTranscriptEventLine(){ ## kind, then key value pairs
-	local eventKind="$1" eventValue
+	local eventKind="$1" eventValue eventStamp
 	shift
+	AgentsTranscriptNowInto eventStamp ; AgentsTranscriptUtcInto eventStamp "$eventStamp"
 	{
 		while [ $# -ge 2 ] ; do
 			eventValue="$2"
@@ -183,16 +214,18 @@ AgentsTranscriptEventLine(){ ## kind, then key value pairs
 			printf '%s\t%s\n' "$1" "$eventValue"
 			shift 2
 		done
-	} | STL_TS="$( date -u +%Y-%m-%dT%H:%M:%SZ )" STL_KIND="$eventKind" LC_ALL=C awk -v stlStandalone=event -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk"
+	} | STL_TS="$eventStamp" STL_KIND="$eventKind" LC_ALL=C awk -v stlStandalone=event -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk"
 }
 
 ## A text as `> ` lines, cut at cap bytes (0: whole): the whole body in one pipe.
 ## One string field of a JSON object, unescaped: the one field in one pipe.
 ## One event, with an optional body, to the session's transcript; nothing when it has none.
 AgentsTranscriptEvent(){ ## session id, kind, body ('' for none), body cap, then key value pairs
-	local eventSession="$1" eventKind="$2" eventBody="$3" eventCap="$4" eventPath eventBlock
+	local eventSession="$1" eventKind="$2" eventBody="$3" eventCap="$4" eventPath eventBlock eventNow
 	shift 4
-	eventPath="$( AgentsTranscriptPath "$eventSession" )" || return 0
+	## The clock is taken here, outside the substitution below, so the process keeps it.
+	AgentsTranscriptNowInto eventNow
+	AgentsTranscriptPathInto eventPath "$eventSession" || return 0
 	eventBlock="$( AgentsTranscriptEventLine "$eventKind" "$@" )" || return 0
 	[ -n "$eventBlock" ] || return 0
 	[ -z "$eventBody" ] || eventBlock="$eventBlock"$'\n'"$( printf '%s' "$eventBody" | STL_CAP="${eventCap:-0}" LC_ALL=C awk -v stlStandalone=body -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" )"
@@ -213,73 +246,43 @@ AgentsTranscriptFeed(){ ## session id, block
 
 ## How a call came out: ok, error, or refused (a hook, the arm gate, an access root, a
 ## REFUSAL-ID). A preset outcome wins. The first line defaults to the result's own.
-AgentsTranscriptOutcomeOf(){ ## result, preset outcome (optional), first line (optional)
-	[ -z "${2:-}" ] || { printf '%s' "$2" ; return 0 ; }
-	case "$1" in
+AgentsTranscriptOutcomeOfInto(){ ## variable, result, preset outcome (optional), first line (optional)
+	[ -z "${3:-}" ] || { printf -v "$1" '%s' "$3" ; return 0 ; }
+	case "${2:-}" in
 		ERROR:*)
-			case "$1" in *REFUSAL-ID:*) printf 'refused' ; return 0 ;; esac
-			case "${3:-${1%%$'\n'*}}" in
-				*'read your duty file first'*|*REFUSAL-ID*|*'PreToolUse'*|*' hook '*|*'refused'*|*'denied'*|*'not allowed'*|*'access-root'*) printf 'refused' ;;
-				*) printf 'error' ;;
+			case "$2" in *REFUSAL-ID:*) printf -v "$1" 'refused' ; return 0 ;; esac
+			case "${4:-${2%%$'\n'*}}" in
+				*'read your duty file first'*|*REFUSAL-ID*|*'PreToolUse'*|*' hook '*|*'refused'*|*'denied'*|*'not allowed'*|*'access-root'*) printf -v "$1" 'refused' ;;
+				*) printf -v "$1" 'error' ;;
 			esac
 		;;
 		## A change held for approval: neither refused nor applied.
-		HELD:*) printf 'held' ;;
-		*) printf 'ok' ;;
+		HELD:*) printf -v "$1" 'held' ;;
+		*) printf -v "$1" 'ok' ;;
 	esac
 }
-
-## A new transcript's path under the team data root: its name, and its month folder by the one
-## audit lookup (AgentsToolsAuditMonth, AgentsTools.InternOpDataRead.include) every reader finds it by.
-AgentsTranscriptNewRel(){ ## member, session id
-	local relName relMonth
-	type AgentsToolsAuditMonth > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include" || return 1
-	relName="session-$( date -u +%Y%m%dT%H%M%SZ )-${1:-unknown}-${2:0:8}.log"
-	relMonth="$( AgentsToolsAuditMonth "$relName" )" || return 1
-	printf 'audit/%s/%s' "$relMonth" "$relName"
-}
-
-## Opens a session's transcript: the file with its START line, and the pointers every
-## later writer resolves it by. The extra arguments are key value pairs for START.
-AgentsTranscriptStart(){ ## session id, data root, path relative to it, member, then key value pairs
-	local startSession="$1" startRoot="$2" startRel="$3" startMember="$4" startDir startPath startLine
-	shift 4
-	startDir="$( AgentsTranscriptSessionDir "$startSession" )" || return 0
-	[ -n "$startRoot" ] && [ -n "$startRel" ] || return 0
-	startPath="$startRoot/$startRel"
-	mkdir -p "${startPath%/*}" "$startDir" 2>/dev/null || return 0
-	startLine="$( AgentsTranscriptEventLine START session "$startSession" member "$startMember" "$@" )" || return 0
-	printf '%s\n' "$startLine" >> "$startPath" 2>/dev/null || return 0
-	printf '%s\n' "$startPath" > "$startDir/transcript" 2>/dev/null || :
-	printf '%s\n' "$startRoot" > "$startDir/data-root" 2>/dev/null || :
-	return 0
-}
-
-## The dispatch item a session's tokens header lives on, recorded at its start.
-AgentsTranscriptSetItem(){ ## session id, item file name
-	local itemDir
-	itemDir="$( AgentsTranscriptSessionDir "$1" )" || return 0
-	[ -n "$2" ] || return 0
-	mkdir -p "$itemDir" 2>/dev/null && printf '%s\n' "${2##*/}" > "$itemDir/dispatch-item" 2>/dev/null || :
-	return 0
+AgentsTranscriptOutcomeOf(){ ## result, preset outcome (optional), first line (optional)
+	local intoOutcome ; AgentsTranscriptOutcomeOfInto intoOutcome "${1:-}" "${2:-}" "${3:-}" ; printf '%s' "$intoOutcome"
 }
 
 ## A milestone: the line the console reads, written whatever the run keeps of a transcript, then the tokens header brought up to date
 ## and every transcript part committed. Nothing changed is no commit; a failure warns and goes on.
 AgentsTranscriptMilestone(){ ## session id, reason
-	local milestoneSession="$1" milestoneReason="$2" milestoneDir milestoneRoot="" milestonePart milestoneParts=()
+	local milestoneSession="$1" milestoneReason="$2" milestoneDir milestoneRoot="" milestonePart milestoneParts=() milestoneStamp
 	## The commit helper names its caller by this; a harness process has none of its own.
 	local MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}"
-	milestoneDir="$( AgentsTranscriptSessionDir "$milestoneSession" )" || return 0
+	AgentsTranscriptSessionDirInto milestoneDir "$milestoneSession" || return 0
 	## THE LINE IS WRITTEN BEFORE ANY TRANSCRIPT IS ASKED FOR (): a run idle in a Wait or an ask is read
 
 	## from these lines alone, and a run whose harness keeps no transcript has no other record that it waits.
 	mkdir -p "$milestoneDir" 2>/dev/null || :
-	printf '%s %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$milestoneReason" >> "$milestoneDir/milestones" 2>/dev/null || return 0
+	AgentsTranscriptNowInto milestoneStamp ; AgentsTranscriptUtcInto milestoneStamp "$milestoneStamp"
+	printf '%s %s\n' "$milestoneStamp" "$milestoneReason" >> "$milestoneDir/milestones" 2>/dev/null || return 0
 	[ -s "$milestoneDir/transcript" ] || return 0
 	[ ! -s "$milestoneDir/data-root" ] || IFS= read -r milestoneRoot < "$milestoneDir/data-root" || :
 	[ -n "$milestoneRoot" ] || milestoneRoot="${MDAT_DATA_ROOT:-}"
 	[ -n "$milestoneRoot" ] || return 0
+	type AgentsSessionTokensHeaderUpdate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTokens.include"
 	MDAT_DATA_ROOT="$milestoneRoot" AgentsSessionTokensHeaderUpdate "$milestoneSession" || :
 	while IFS= read -r milestonePart ; do
 		[ -z "$milestonePart" ] || milestoneParts+=( "$milestonePart" )
@@ -292,11 +295,13 @@ AgentsTranscriptMilestone(){ ## session id, reason
 
 ## Called before a tool runs: starts its clock, and a tool about to block on a person is a milestone.
 AgentsTranscriptToolStart(){ ## tool name
+	local startBase startKey
 	## Milliseconds since the epoch, whole seconds: bash 3.2 has no EPOCHREALTIME, so the '000' is a literal.
-	agentsTranscriptT0="$( printf '%s000' "$( date +%s )" )"
-	case "$( AgentsTranscriptBaseTool "$1" )" in
-		Wait) AgentsTranscriptMilestone "$( AgentsTranscriptSessionKey )" "wait going idle" ;;
-		AskUserQuestion|AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission|ProposeApprove) AgentsTranscriptMilestone "$( AgentsTranscriptSessionKey )" "ask going idle" ;;
+	AgentsTranscriptNowInto agentsTranscriptT0 ; agentsTranscriptT0="${agentsTranscriptT0}000"
+	AgentsTranscriptBaseToolInto startBase "$1" ; AgentsTranscriptSessionKeyInto startKey
+	case "$startBase" in
+		Wait) AgentsTranscriptMilestone "$startKey" "wait going idle" ;;
+		AskUserQuestion|AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission|ProposeApprove) AgentsTranscriptMilestone "$startKey" "ask going idle" ;;
 	esac
 	return 0
 }
@@ -309,13 +314,14 @@ AgentsTranscriptToolStart(){ ## tool name
 AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcome (optional), comment (optional), first line (optional)
 	local LC_ALL=C
 	local doneTool="$1" doneArgs="${2:-}" doneResult="$3" doneSource="${4:-loop}" doneOutcome="${5:-}" doneComment="${6:-}"
-	local doneSession doneDur="" doneFirst doneLine doneBlock donePath doneBase doneDir doneCap=0 doneBody
-	doneSession="$( AgentsTranscriptSessionKey )"
-	[ -z "$agentsTranscriptT0" ] || doneDur=$(( $( printf '%s000' "$( date +%s )" ) - agentsTranscriptT0 ))
+	local doneSession doneDur="" doneFirst doneLine doneBlock donePath doneBase doneDir doneCap=0 doneBody doneNow doneStamp
+	AgentsTranscriptSessionKeyInto doneSession
+	AgentsTranscriptNowInto doneNow
+	[ -z "$agentsTranscriptT0" ] || doneDur=$(( doneNow * 1000 - agentsTranscriptT0 ))
 	agentsTranscriptT0=""
-	doneBase="$( AgentsTranscriptBaseTool "$doneTool" )"
+	AgentsTranscriptBaseToolInto doneBase "$doneTool"
 	doneFirst="${7:-${doneResult%%$'\n'*}}"
-	[ -n "$doneOutcome" ] || doneOutcome="$( AgentsTranscriptOutcomeOf "$doneResult" "" "$doneFirst" )"
+	[ -n "$doneOutcome" ] || AgentsTranscriptOutcomeOfInto doneOutcome "$doneResult" "" "$doneFirst"
 	## A harness loop whose context is kept (AgentsHarnessContext.include): its tool lines and
 	## message events are written from that log as it gains records (AgentsHarnessContextFeed), so only the milestone is here.
 	## THE MILESTONE WAITS FOR THE FEED: taken here it committed before the feed wrote this tool's lines, with nothing new (the ask's
@@ -331,15 +337,16 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 	fi
 	## Counted by awk, not by a pattern substitution: bash 3.2 takes quadratic time on a big result.
 	[ -n "$doneComment" ] || doneComment="${agentsTranscriptRoundText:0:400}"
-	doneLine="$( printf '%s' "$doneArgs" | STL_TS="$( date -u +%Y-%m-%dT%H:%M:%SZ )" STL_TOOL="$doneTool" STL_OUTCOME="$doneOutcome" \
+	AgentsTranscriptUtcInto doneStamp "$doneNow"
+	doneLine="$( printf '%s' "$doneArgs" | STL_TS="$doneStamp" STL_TOOL="$doneTool" STL_OUTCOME="$doneOutcome" \
 		STL_FIRST="${doneFirst:0:400}" STL_BYTES="${#doneResult}" STL_LINES="$( printf '%s' "$doneResult" | awk 'END { print NR + 0 ; }' )" STL_DUR_MS="$doneDur" STL_COMMENT="$doneComment" \
 		awk -v stlStandalone=tool -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTranscriptFormat.awk" 2>/dev/null )" || doneLine=""
 	[ -n "$doneLine" ] || return 0
 	if [ "$doneSource" = "mcp" ] ; then
 		printf '%s%s\n' "${doneSession:+${doneSession:0:8} }" "$doneLine" >&2
 	fi
-	donePath="$( AgentsTranscriptPath "$doneSession" )" || return 0
-	doneDir="$( AgentsTranscriptSessionDir "$doneSession" )" || return 0
+	AgentsTranscriptPathInto donePath "$doneSession" || return 0
+	AgentsTranscriptSessionDirInto doneDir "$doneSession" || return 0
 	if [ "$doneSource" != "mcp" ] || [ ! -e "$doneDir/transcript.stream" ] ; then
 		doneBlock="$doneLine"
 		## Errors and refusals in full; a failed command's own output is held to 16 KB.
@@ -415,275 +422,6 @@ AgentsTranscriptMcpCallDone(){ ## tool name, raw request line, output, is error 
 	return 0
 }
 
-## The harness model loop's own events, read from its globals and scratch files.
-AgentsTranscriptHarnessStart(){
-	local hsSession hsDir
-	hsSession="$( AgentsTranscriptSessionKey )"
-	hsDir="$( AgentsTranscriptSessionDir "$hsSession" )" || return 0
-	## Only the spawn proxy opens a transcript: a run it did not start writes none, so a
-	## harness run by hand, or by a check, never reaches the team data.
-	AgentsTranscriptBase "$hsSession" > /dev/null || return 0
-	## A HARNESS STARTED FROM INSIDE A RUN (a Bash call of the run testing a preset, a check) inherits the run's
-	## environment and so its session key, and would write the run's model file and MODEL event with its own
-	## model. The run exports the pid of its harness and its session key here; a harness that finds another live
-	## pid there under its own session key is nested in that run and writes nothing of the run's. A run spawned
-	## from inside another inherits that run's pair under another key, and writes its own. A restarted leg of
-	## the same run finds the pid dead, or its own, and writes as before.
-	if [ -n "${MDAT_HARNESS_RUN_PID:-}" ] && [ "${MDAT_HARNESS_RUN_KEY:-}" = "$hsSession" ] && [ "$MDAT_HARNESS_RUN_PID" != "$$" ] && kill -0 "$MDAT_HARNESS_RUN_PID" 2> /dev/null ; then
-		return 0
-	fi
-	## A run started before this export existed leaves no pid: its ancestry tells the same, once, at this start alone.
-	local hsAncestor="$PPID" hsAncestorCmd
-	while [ "${hsAncestor:-0}" -gt 1 ] 2> /dev/null ; do
-		hsAncestorCmd="$( ps -o command= -p "$hsAncestor" 2> /dev/null )" || break
-		case "$hsAncestorCmd" in *"/sh-lib/harness/Agents"*"Harness.sh"*) return 0 ;; esac
-		hsAncestor="$( ps -o ppid= -p "$hsAncestor" 2> /dev/null | tr -d ' ' )" || break
-	done
-	export MDAT_HARNESS_RUN_PID="$$" MDAT_HARNESS_RUN_KEY="$hsSession"
-	printf '%s\n' "${harnessModel:-}" > "$hsDir/model" 2>/dev/null || :
-	AgentsTranscriptEvent "$hsSession" MODEL "" 0 model "${harnessModel:-}" service "${harnessProviderName:-}" host "${harnessHost:-}" tier "${harnessTier:-}" member "${harnessAgent:-}"
-	return 0
-}
-
-## After a round's stream: its tokens and the model's visible text, about 1 KB.
-AgentsTranscriptHarnessRound(){ ## round number, scratch dir
-	local roundSession roundIn=0 roundCr=0 roundCw=0 roundOut=0 roundText=""
-	roundSession="$( AgentsTranscriptSessionKey )"
-	[ ! -s "$2/stream.usage.detail" ] || read -r roundIn roundCr roundCw roundOut < "$2/stream.usage.detail" || :
-	[ ! -s "$2/stream.content" ] || roundText="$( cat "$2/stream.content" 2>/dev/null )"
-	agentsTranscriptRoundText="$( printf '%s' "$roundText" | tr '\n\t\r' '   ' )"
-	agentsTranscriptRoundText="${agentsTranscriptRoundText:0:400}"
-	AgentsSessionTokensAdd "$roundSession" "${roundIn:-0}" "${roundCr:-0}" "${roundCw:-0}" "${roundOut:-0}"
-	## Kept context: the ROUND line is written from the log (AgentsHarnessContextFeed).
-	[ -z "${agentsTranscriptFromLog:-}" ] || return 0
-	AgentsTranscriptEvent "$roundSession" ROUND "$roundText" 1024 n "$1" in "${roundIn:-0}" cache-read "${roundCr:-0}" cache-write "${roundCw:-0}" out "${roundOut:-0}"
-	return 0
-}
-
-AgentsTranscriptHarnessRestart(){ ## restart number, summary bytes
-	local restartSession
-	restartSession="$( AgentsTranscriptSessionKey )"
-	AgentsTranscriptEvent "$restartSession" RESTART "" 0 n "$1" summary "${2}B"
-	AgentsTranscriptMilestone "$restartSession" "restart $1"
-	return 0
-}
-
-## A rewind of the model path (F10.5): the conversation put back to a snapshot, so the rounds after it are no more in the run's array.
-AgentsTranscriptHarnessRewind(){ ## snapshot name, messages dropped, kind
-	local rewindSession
-	rewindSession="$( AgentsTranscriptSessionKey )"
-	AgentsTranscriptEvent "$rewindSession" REWIND "" 0 to "$1" dropped "$2" kind "$3"
-	AgentsTranscriptMilestone "$rewindSession" "rewind $1"
-	return 0
-}
-
-AgentsTranscriptHarnessFinal(){ ## answer text
-	local finalSession
-	finalSession="$( AgentsTranscriptSessionKey )"
-	AgentsTranscriptEvent "$finalSession" FINAL "$1" 4096
-	AgentsTranscriptMilestone "$finalSession" "final answer"
-	return 0
-}
-
-## The spawn proxy's close: the END line with the session's tokens, and the last milestone.
-AgentsTranscriptSpawnEnd(){ ## session id, outcome, exit code
-	AgentsTranscriptEvent "$1" END "" 0 outcome "$2" exit "$3" tokens "$( AgentsSessionTokensHeaderValue "$1" )"
-	AgentsTranscriptMilestone "$1" "end"
-	return 0
-}
-
-## One event written into a run's transcript AFTER that run ended -- its verdict, its return, its dismissal -- so no milestone of
-## that run will ever come to commit the line. The block is committed here instead, through the one team-data thread as every other
-## write is (AgentsToolsTeamDataCommitPaths). Only such a writer uses this one: a live run's lines are carried by its next milestone,
-## and committing each of those here would put a commit on the path every tool call takes.
-AgentsTranscriptEventAfterEnd(){ ## session id, kind, body cap, then key value pairs
-	local afterSession="$1" afterKind="$2" afterCap="$3" afterPart afterDir afterRoot=""
-	shift 3
-	afterPart="$( AgentsTranscriptPath "$afterSession" )" || return 0
-	AgentsTranscriptEvent "$afterSession" "$afterKind" "" "$afterCap" "$@"
-	afterDir="$( AgentsTranscriptSessionDir "$afterSession" )" || return 0
-	[ ! -s "$afterDir/data-root" ] || IFS= read -r afterRoot < "$afterDir/data-root" || :
-	[ -n "$afterRoot" ] || afterRoot="${MDAT_DATA_ROOT:-}"
-	[ -n "$afterRoot" ] || return 0
-	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-	MDAT_DATA_ROOT="$afterRoot" AgentsToolsTeamDataCommitPaths "transcript ${afterSession:0:8} after its end: $afterKind" "$afterPart" 2> /dev/null || :
-	return 0
-}
-
-## One NOTE line in the current session's transcript (--append-transcript with
-## no --transcript-name); rc 1 and an ERROR line when no session or no transcript resolves.
-## Prints where it went. The optional time the speaker gave goes on the line as at=.
-AgentsTranscriptNote(){ ## session id, author, text, time given (optional)
-	local noteSession="$1" noteAuthor="$2" noteText="$3" noteAt="${4:-}" notePath
-	if [ -z "$noteSession" ] ; then
-		printf 'ERROR: no session resolves for this call (no session id in this process), so there is no transcript to note in. Nothing was written.\n'
-		return 1
-	fi
-	if [ -z "$noteText" ] ; then
-		printf 'ERROR: the note is empty. Nothing was written.\n'
-		return 1
-	fi
-	notePath="$( AgentsTranscriptPath "$noteSession" )" || {
-		printf 'ERROR: session %s has no transcript (only a spawned session has one), so there is nowhere to note. Nothing was written.\n' "$noteSession"
-		return 1
-	}
-	AgentsTranscriptEvent "$noteSession" NOTE "$noteText" 4096 by "$noteAuthor" at "$noteAt"
-	printf 'OK: appended to %s\n' "${notePath##*/}"
-	return 0
-}
-
-## ---- tokens ----
-
-## Every run's token sums, into the named variable, `<run><TAB><in><TAB><cache-read><TAB><cache-write><TAB><out>` a line: the running sum the
-## harness keeps in the run's own folder. A file that holds no four numbers names no line. One read of the store, on the schedule's
-## own index pass, and no path built outside it.
-AgentsSessionTokensRowsInto(){ ## variable, workspace (default MMDAPP)
-	local tokensVar="$1" tokensWs="${2:-${MMDAPP:-}}" tokensFile tokensRun tokensIn tokensCr tokensCw tokensOut tokensRest tokensAll=""
-	case "$tokensVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
-	case "${tokensWs%/}" in ''|/) return 1 ;; esac
-	printf -v "$tokensVar" '%s' ""
-	for tokensFile in "${tokensWs%/}/.local/agents/sessions"/*/tokens ; do
-		[ -f "$tokensFile" ] || continue
-		tokensIn="" ; tokensCr="" ; tokensCw="" ; tokensOut="" ; tokensRest=""
-		read -r tokensIn tokensCr tokensCw tokensOut tokensRest < "$tokensFile" || :
-		case "$tokensIn$tokensCr$tokensCw$tokensOut" in ''|*[!0123456789]*) continue ;; esac
-		tokensRun="${tokensFile%/tokens}" ; tokensRun="${tokensRun##*/}"
-		tokensAll="$tokensAll$tokensRun"$'\t'"$tokensIn"$'\t'"$tokensCr"$'\t'"$tokensCw"$'\t'"$tokensOut"$'\n'
-	done
-	printf -v "$tokensVar" '%s' "$tokensAll"
-}
-
-## The runs whose token sums were written after a marker file, into the named variable, one run id a line: a reader's own index catches up
-## from the runs whose sum moved since that index was taken.
-AgentsSessionTokensNewRunsInto(){ ## variable, marker file, workspace (default MMDAPP)
-	local newVar="$1" newMarker="${2:-}" newWs="${3:-${MMDAPP:-}}" newFile newRun newAll=""
-	case "$newVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
-	printf -v "$newVar" '%s' ""
-	[ -f "$newMarker" ] || return 0
-	case "${newWs%/}" in ''|/) return 1 ;; esac
-	while IFS= read -r newFile ; do
-		[ -n "$newFile" ] || continue
-		newRun="${newFile%/tokens}" ; newRun="${newRun##*/}"
-		newAll="$newAll$newRun"$'\n'
-	done <<< "$( find "${newWs%/}/.local/agents/sessions" -mindepth 2 -maxdepth 2 -name tokens -newer "$newMarker" 2> /dev/null )"
-	printf -v "$newVar" '%s' "$newAll"
-}
-
-## Adds one round to the session's running sum.
-AgentsSessionTokensAdd(){ ## session id, in, cache-read, cache-write, out
-	local addDir addIn=0 addCr=0 addCw=0 addOut=0 addRest=""
-	addDir="$( AgentsTranscriptSessionDir "$1" )" || return 0
-	mkdir -p "$addDir" 2>/dev/null || return 0
-	[ ! -s "$addDir/tokens" ] || read -r addIn addCr addCw addOut addRest < "$addDir/tokens" || :
-	printf '%s %s %s %s\n' "$(( ${addIn:-0} + ${2:-0} ))" "$(( ${addCr:-0} + ${3:-0} ))" "$(( ${addCw:-0} + ${4:-0} ))" "$(( ${addOut:-0} + ${5:-0} ))" \
-		> "$addDir/tokens.$$" 2>/dev/null && mv -f "$addDir/tokens.$$" "$addDir/tokens" 2>/dev/null || :
-	return 0
-}
-
-## The `tokens:` header value.
-AgentsSessionTokensHeaderValue(){ ## session id
-	local valueDir valueIn valueCr valueCw valueOut valueRest
-	valueDir="$( AgentsTranscriptSessionDir "$1" )" || return 0
-	[ -s "$valueDir/tokens" ] || return 0
-	read -r valueIn valueCr valueCw valueOut valueRest < "$valueDir/tokens" || :
-	printf 'in=%s cache-read=%s cache-write=%s out=%s' "${valueIn:-0}" "${valueCr:-0}" "${valueCw:-0}" "${valueOut:-0}"
-}
-
-## The session's dispatch item, wherever it sits on the board now; rc 1 for none.
-AgentsSessionTokensHeaderUpdate(){ ## session id
-	local updateValue updatePath updateState updateItem updateNow="" updateItemPath
-	updateValue="$( AgentsSessionTokensHeaderValue "$1" )"
-	[ -n "$updateValue" ] || return 0
-	updateItemPath="$( AgentsTranscriptSessionDir "$1" )" || return 0
-	[ -s "$updateItemPath/dispatch-item" ] || return 0
-	IFS= read -r updateItem < "$updateItemPath/dispatch-item" || :
-	[ -n "$updateItem" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 0
-	type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-	AgentsToolsBoardItemInto updatePath "$updateItem" || :
-	[ -n "$updatePath" ] || return 0
-	updateNow="$( LC_ALL=C awk 'NR == 1 && $0 != "---" { exit ; } NR > 1 && $0 == "---" { exit ; } NR > 1 && index( $0, "tokens: " ) == 1 { print substr( $0, 9 ) ; exit ; }' "$updatePath" 2>/dev/null )"
-	[ "$updateNow" != "$updateValue" ] || return 0
-	updateItem="${updatePath##*/}"
-	updateState="${updatePath%/*}"
-	updateState="${updateState##*/}"
-	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-board-upsert-move-edit "$updateState" "$updateItem" \
-		--from-state:"$updateState" --context --session-tokens --header:upsert:tokens:"$updateValue" --log-verb:updated > /dev/null 2>&1 \
-		|| echo "# session transcript: ⚠️ WARNING: the tokens header of $updateItem was not updated" >&2
-	return 0
-}
-
-## Totals for items, summed when shown: one tab-separated row per item that has any
-## (AgentsSessionTokensRollup.awk). Board items and spawn records are read once per store change, and answered from a kept
-## index in between: the call-path rule is "a kept measure or an index, never a walk of a store", and the walk per read is
-## what made `--spawns` cost ten seconds on a quiet machine (measured 2026-11-26 07:15).
-AgentsSessionTokensRollupRows(){ ## item name...
-	[ $# -gt 0 ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 0
-	local rollupItems=() rollupRecords=() rollupCache rollupWant rollupRows=""
-	rollupCache="${MMDAPP%/}/.local/agents/tokens-rollup.rows"
-	## THE KEPT INDEX, ANSWERED WHILE NO INPUT IS NEWER THAN IT: a board item or a run record written since the rows were
-	## summed makes them stale, and the walk is paid then, not on every read.
-	if [ -f "$rollupCache" ] \
-		&& [ -z "$( find "$MDAT_DATA_ROOT/board" -type f -name '*.md' -newer "$rollupCache" 2> /dev/null | LC_ALL=C head -1 )" ] \
-		&& [ -z "$( find "${MMDAPP%/}/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.spawn.md' -newer "$rollupCache" 2> /dev/null | LC_ALL=C head -1 )" ] ; then
-		for rollupWant in "$@" ; do
-			rollupWant="${rollupWant##*/}" ; rollupWant="${rollupWant%.md}"
-			LC_ALL=C awk -F'\t' -v item="$rollupWant" '$1 == item { print ; exit ; }' "$rollupCache" 2> /dev/null
-		done
-		return 0
-	fi
-	## EVERY BOARD ITEM AND EVERY RUN RECORD, BY GLOB (call-path audit row 31): the sum of an item takes in the items that track it
-	## or follow it up and the records whose parent is its session, relations only the files carry. This walk fills the index.
-	type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-	type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
-	AgentsToolsBoardItemsInto rollupItems ""
-	[ -z "${MMDAPP:-}" ] || AgentsToolsSpawnedAllRecordsInto rollupRecords
-	rollupRows="$( {
-		[ ${#rollupItems[@]} -eq 0 ] || printf '%s\n' "${rollupItems[@]}"
-		[ ${#rollupRecords[@]} -eq 0 ] || printf '%s\n' "${rollupRecords[@]}"
-	} | LC_ALL=C awk -v want="$( { [ ${#rollupItems[@]} -eq 0 ] || printf '%s\n' "${rollupItems[@]}" ; [ ${#rollupRecords[@]} -eq 0 ] || printf '%s\n' "${rollupRecords[@]}" ; } | LC_ALL=C sed 's#^.*/##' | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" \
-		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTokensRollup.awk" 2> /dev/null )"
-	## The index is best effort: a store the caller cannot write still answers from the walk above, never empty.
-	if [ -n "$rollupRows" ] && mkdir -p "${rollupCache%/*}" 2> /dev/null ; then
-		printf '%s\n' "$rollupRows" > "$rollupCache.tmp.$$" 2> /dev/null && mv -f "$rollupCache.tmp.$$" "$rollupCache" 2> /dev/null || rm -f "$rollupCache.tmp.$$" 2> /dev/null
-	fi
-	for rollupWant in "$@" ; do
-		rollupWant="${rollupWant##*/}" ; rollupWant="${rollupWant%.md}"
-		printf '%s\n' "$rollupRows" | LC_ALL=C awk -F'\t' -v item="$rollupWant" '$1 == item { print ; exit ; }'
-	done
-	return 0
-}
-
-## One row of AgentsSessionTokensRollupRows output, by item name; empty for none.
-AgentsSessionTokensRollupRowOf(){ ## rows, item name
-	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v item="${2%.md}" '$1 == item { print ; exit ; }'
-}
-
-## One display line from a rollup row: `tokens: in=... out=... (incl. N sub-sessions)`.
-AgentsSessionTokensRollupText(){ ## rollup row, label (default tokens)
-	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v label="${2:-tokens}" 'NF >= 6 {
-		printf "%s: in=%s cache-read=%s cache-write=%s out=%s", label, $2, $3, $4, $5
-		if ( $6 > 0 ) printf " (incl. %d sub-session%s)", $6, ( $6 == 1 ? "" : "s" )
-		printf "\n"
-	}'
-}
-
-## The line for one item -- the session's own dispatch item where none is named -- or,
-## for a session with no item, its own running sum.
-AgentsSessionTokensLine(){ ## item name, or empty; session id
-	local lineRow lineValue lineItem="$1" lineDir
-	if [ -z "$lineItem" ] && [ -n "${2:-}" ] && lineDir="$( AgentsTranscriptSessionDir "$2" )" && [ -s "$lineDir/dispatch-item" ] ; then
-		IFS= read -r lineItem < "$lineDir/dispatch-item" || :
-	fi
-	if [ -n "$lineItem" ] ; then
-		lineRow="$( AgentsSessionTokensRollupRows "$lineItem" | head -1 )"
-		[ -z "$lineRow" ] || { AgentsSessionTokensRollupText "$lineRow" ; return 0 ; }
-	fi
-	[ -n "${2:-}" ] || return 0
-	lineValue="$( AgentsSessionTokensHeaderValue "$2" )"
-	[ -z "$lineValue" ] || printf 'tokens: %s\n' "$lineValue"
-	return 0
-}
-
 ## The reply layer (F2.3 and F2.4 of the refactorings epic). Every tool result passes through
 ## AgentsTranscriptReplyFinish on its way to its caller: the harness's served exit and its model
 ## loop (AgentsUniversalHarness.sh, AgentsHarnessReply), and the MCP server's own tools
@@ -740,9 +478,10 @@ agentsReplyClosing='^NEXT: |^[A-Za-z_]+ pending_id=[^ ]+$|^BATCH-RESULT: '
 ## where a result says how it ended (a job's status, Read's footer). With no session to keep it
 ## in, or a file that cannot be written, the result is printed whole: no result is lost to its reply.
 AgentsTranscriptReplyLong(){ ## tool name, result text, the file a Read read (optional)
-	local LC_ALL=C longDir longTool longFile=""
+	local LC_ALL=C longDir longTool longFile="" longStamp longKey
 	[ "${#2}" -gt "$agentsReplyLongBytes" ] || { printf '%s\n' "$2" ; return 0 ; }
-	if ! longDir="$( AgentsTranscriptSessionDir "$( AgentsTranscriptSessionKey )" )" || ! mkdir -p "$longDir/results" 2>/dev/null ; then
+	AgentsTranscriptSessionKeyInto longKey
+	if ! AgentsTranscriptSessionDirInto longDir "$longKey" || ! mkdir -p "$longDir/results" 2>/dev/null ; then
 		## A run with no session still has somewhere to put a long result: its own
 		## sandbox, which its tools may already read. Without one, the result stays inline.
 		longDir=""
@@ -753,8 +492,9 @@ AgentsTranscriptReplyLong(){ ## tool name, result text, the file a Read read (op
 			printf '%s\n' "$2" ; return 0
 		fi
 	fi
-	longTool="$( AgentsTranscriptBaseTool "$1" | tr -c 'A-Za-z0-9_.-' '_' )"
-	longFile="$( mktemp "$longDir/results/$( date -u +%Y%m%dT%H%M%SZ )-${longTool:-tool}.XXXXXX" 2>/dev/null )" || longFile=""
+	AgentsTranscriptBaseToolInto longTool "$1" ; longTool="${longTool//[!A-Za-z0-9_.-]/_}"
+	AgentsTranscriptNowInto longStamp ; AgentsTranscriptUtcInto longStamp "$longStamp" compact
+	longFile="$( mktemp "$longDir/results/$longStamp-${longTool:-tool}.XXXXXX" 2>/dev/null )" || longFile=""
 	if [ -z "$longFile" ] || ! printf '%s\n' "$2" > "$longFile" 2>/dev/null || ! AgentsTranscriptReplyRef "$longFile" "${3:-}" ; then
 		[ -z "$longFile" ] || rm -f "$longFile"
 		printf '%s\n' "$2" ; return 0
@@ -775,8 +515,19 @@ AgentsTranscriptReplyLong(){ ## tool name, result text, the file a Read read (op
 ## started-at, `YYYY-MM-DD HH:MM +ZZZZ`: the content of the part a reply carries beside its
 ## result. The caller makes it a part of its own and puts it after the result; it is never
 ## written into the result, so the result's closing lines (agentsReplyClosing) stay last in it.
+## The local time is the process clock's epoch moved by its zone (AgentsTranscriptNowInto), written by the civil-from-days rule
+## (AgentsTranscriptUtcInto): no process. A zone not in date's own +ZZZZ form is left to date.
 AgentsTranscriptReplyDate(){
-	printf 'current-date: %s' "$( date '+%Y-%m-%d %H:%M %z' )"
+	local dateNow dateZone dateLocal=""
+	AgentsTranscriptNowInto dateNow
+	dateZone="${agentsTranscriptClockZone:-}"
+	case "$dateZone" in
+		[+-][0-9][0-9][0-9][0-9]) ;;
+		*) printf 'current-date: %s' "$( date '+%Y-%m-%d %H:%M %z' )" ; return 0 ;;
+	esac
+	AgentsTranscriptUtcInto dateLocal "$(( dateNow + ( 10#${dateZone:1:2} * 3600 + 10#${dateZone:3:2} * 60 ) * ${dateZone:0:1}1 ))"
+	dateLocal="${dateLocal%:*}"
+	printf 'current-date: %s %s' "${dateLocal/T/ }" "$dateZone"
 }
 
 ## THE FLOOR ON A TOOL RETURN (F3.3, F9.1): every tool that returns delivers the floor's new messages with its result, and only
@@ -792,7 +543,7 @@ AgentsTranscriptReplyFloor(){
 	floorMember="${harnessAgent:-${MDAT_SPAWN_AGENT:-magic-coordinator}}"
 	[ -n "${MMDAPP:-}" ] || return 0
 	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-	AgentsToolsSessionChatKeyInto ; floorKey="$agentsSessionChatKey"
+	floorKey="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	[ -n "$floorKey" ] || return 0
 	## A workspace that is selected -- the tooling stands in its .local -- and a run with a session id: the session's folder is made
 
@@ -801,13 +552,13 @@ AgentsTranscriptReplyFloor(){
 	## THE THREAD IS KEPT OF INTEREST, AND FILLS THE FLOOR BETWEEN WAITS (S21.23). The session's own thread is marked of interest, so
 	## the rig's own pull (AgentsToolsCommsCachePullWatched) keeps it fresh. A session the communications reader is not serving has
 	## the messages the thread's cache holds, past what its chat file imported, brought into the file here (AgentsToolsSessionChatImport),
-	## with one pull of its own left detached for the next return: this return itself reaches no network.
+	## and no pull of its own: a reader never starts a refresh, so this return reaches no network.
 	( local floorThread="" floorNow="" floorLooked="" floorSeen="" floorRender=""
 	  ## The communications reader's own rule: where it is off, no read of a thread is made and none is started.
 	  [ "${MDAT_COMMS_READER:-}" != "off" ] || exit 0
 	  floorThread="$( AgentsToolsSessionChatThread "$floorKey" 2> /dev/null )" || floorThread=""
 	  case "$floorThread" in *:*:*|'') exit 0 ;; esac
-	  floorNow="$( date +%s )"
+	  AgentsTranscriptNowInto floorNow
 	  ## The member's pointer first, as the Wait's own chat source does: what the file holds before this fill is not new to it.
 	  AgentsToolsSessionChatReaderInit "$floorKey" "$floorMember"
 	  type AgentsToolsCommsCacheInterest > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsCache.include"
@@ -834,10 +585,7 @@ AgentsTranscriptReplyFloor(){
 			exit 0
 		fi
 	  fi
-	  ## The cache holds nothing this session has not got, or there is none yet: it is brought up to date here, detached, and this
-	  ## return carries nothing new of it. A pull another holds is waited out by that one, so one pull runs at a time.
-	  [ ! -d "$agentsCommsCacheDir" ] || [ $(( floorNow - agentsCommsCacheAt )) -ge 15 ] || exit 0
-	  ( MDAT_COMMS_CACHE_STALE_OK="" AgentsToolsCommsCacheSlackThread "$floorMember" "$floorThread" "$agentsCommsCacheDir/.fill.rendered" false "$floorNow" ) > /dev/null 2>&1 < /dev/null &
+	  ## A STALE OR MISSING CACHE IS FILLED BY THE COMMS THREAD (the standing ruling): its interest is registered above, and no pull starts here.
 	  exit 0
 	) > /dev/null 2>&1 || :
 	floorText="$( AgentsToolsSessionChatFloor "$floorKey" "$floorMember" "" deliver 2> /dev/null )" || floorText=""
@@ -861,12 +609,14 @@ AgentsTranscriptReplyBeside(){
 ## it read (AgentsTranscriptReplyRef). Every other tool keeps the rule. An empty result stays
 ## empty, for its caller to report as the broken contract it is.
 AgentsTranscriptReplyFinish(){ ## tool name, result text, path a Read read (optional), `ranged` for a Read given offset or limit (optional)
-	local finishText="$2"
+	local finishText="$2" finishBase
 	[ -n "$2" ] || return 0
-	case "$( AgentsTranscriptBaseTool "$1" ):${3:-}:${4:-}" in
+	AgentsTranscriptBaseToolInto finishBase "$1"
+	case "$finishBase:${3:-}:${4:-}" in
 		Skill:*|ToolSearch:*|Read:*/.local/agents/sessions/*/results/*) ;;
 		Read:*:ranged) ;;
 		*) finishText="$( AgentsTranscriptReplyLong "$1" "$2" "${3:-}" )" ;;
 	esac
 	printf '%s\n' "$finishText"
 }
+

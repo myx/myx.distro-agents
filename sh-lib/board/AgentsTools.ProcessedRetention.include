@@ -1,0 +1,58 @@
+##
+## AgentsTools.ProcessedRetention.include -- the day the processed stores forget: an item in board/processed/ or an inbox's processed/ is
+## deleted once it is older than MDAT_PROCESSED_RETENTION_DAYS (30) AND no live item, incoming item or vault item names it. The sketch
+## (20261102-refactorings, "board and inbox items that can go to processed -- move, then delete the unreferenced") asks for exactly this:
+## the move is the member's, the deletion of what nobody names is the tooling's.
+##
+## Measured 2026-11-27: board/processed 2,523 items of which 2,518 unreferenced (25.5 MB), the coordinator's inbox/processed 5,489 items
+## (24 MB), and nothing deleted either store.
+##
+## A name is read from the live text, never guessed: one grep builds the set of item names the live states mention, and a processed file
+## whose name is not in it and whose mtime is past the days is removed. A referenced item is never removed, however old.
+##
+
+AgentsToolsProcessedRetentionRun(){
+	local retentionRoot="${MDAT_DATA_ROOT:-${MMDAPP:-.}/.local/agents/team-data-root}" retentionDays="${MDAT_PROCESSED_RETENTION_DAYS:-30}"
+	local retentionNow retentionCutoff retentionRefs retentionFile retentionName retentionNameBase retentionRemoved=0 retentionStore
+	case "$retentionDays" in ''|*[!0123456789]*|0) retentionDays=30 ;; esac
+	retentionNow="$( date +%s )" || return 0
+	retentionCutoff=$(( retentionNow - retentionDays * 86400 ))
+	[ -d "$retentionRoot" ] || return 0
+	retentionRefs="$( mktemp "${TMPDIR:-/tmp}/agents-processed-refs.XXXXXX" )" || return 0
+	trap 'rm -f -- "$retentionRefs" 2> /dev/null' RETURN
+	{
+		grep -rhoE '[a-z]+-[0-9]{8}T[0-9]{4}Z-[A-Za-z0-9._-]+' \
+			"$retentionRoot"/board/pending "$retentionRoot"/board/running "$retentionRoot"/board/review \
+			"$retentionRoot"/board/blocked "$retentionRoot"/board/parked \
+			"$retentionRoot"/inboxes/*/incoming "$retentionRoot"/vault 2> /dev/null
+	} | LC_ALL=C sort -u > "$retentionRefs"
+	for retentionStore in "$retentionRoot"/board/processed "$retentionRoot"/inboxes/*/processed ; do
+		[ -d "$retentionStore" ] || continue
+		for retentionFile in "$retentionStore"/*.md ; do
+			[ -f "$retentionFile" ] || continue
+			retentionName="${retentionFile##*/}"
+			LC_ALL=C grep -qxF -- "$retentionName" "$retentionRefs" && continue
+			{ [ "$( stat -f %m "$retentionFile" 2> /dev/null || stat -c %Y "$retentionFile" 2> /dev/null )" -le "$retentionCutoff" ] ; } 2> /dev/null || continue
+			rm -f "$retentionFile" 2> /dev/null && retentionRemoved=$(( retentionRemoved + 1 ))
+		done
+	done
+	[ "$retentionRemoved" -eq 0 ] || printf 'processed retention: removed %s unreferenced item(s) past %s days\n' "$retentionRemoved" "$retentionDays"
+	return 0
+}
+
+## The pass asks once an hour, detached as the copy sweep is, so no call path pays for the walk.
+AgentsToolsProcessedRetentionRunDetached(){
+	local detachAsked="${MMDAPP:-.}/.local/agents/processed-retention.asked" detachNow detachWas=""
+	detachNow="$( date +%s )" || return 0
+	{ IFS= read -r detachWas < "$detachAsked" ; } 2> /dev/null || detachWas=""
+	case "$detachWas" in ''|*[!0123456789]*) detachWas=0 ;; esac
+	[ $(( detachNow - detachWas )) -ge 3600 ] || return 0
+	mkdir -p "${detachAsked%/*}" 2> /dev/null && printf '%s\n' "$detachNow" > "$detachAsked" 2> /dev/null || return 0
+	(
+		trap '' HUP
+		set +e
+		AgentsToolsProcessedRetentionRun
+	) < /dev/null > /dev/null 2>&1 &
+	disown "$!" 2> /dev/null || :
+	return 0
+}

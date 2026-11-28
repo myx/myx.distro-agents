@@ -60,7 +60,7 @@ AgentsToolsTaskMessagePending(){ ## session, member, mark file, seconds between 
 	local pendingText pendingSession
 	[ -n "$2" ] || return 1
 	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
-	AgentsToolsSessionChatKeyInto ; pendingSession="$agentsSessionChatKey"
+	pendingSession="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	[ -n "$pendingSession" ] && [ -f "$MMDAPP/.local/agents/sessions/$pendingSession/session.chat" ] || pendingSession="$1"
 	AgentsToolsSessionChatWaiting "$pendingSession" 2> /dev/null || :
 	## The long tick is for a post held back by time alone (a pending post opens after its hold), which no write to the chat announces.

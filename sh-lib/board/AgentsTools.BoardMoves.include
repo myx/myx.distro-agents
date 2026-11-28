@@ -92,8 +92,8 @@ AgentsToolsBoardToProcessed(){ ## <team-member> <item-filename> --from-state:<st
 			*) printf 'ACCEPT-DISMISS: not done: the run keeps its session, because %s frame(s) still ask for work\n' "$acceptFramesLeft" ;;
 		esac
 	fi
-	## The closed item's token totals, summed now over its sessions and sub-items, for the closing message.
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	## The closed item's token totals, summed now over its sessions and sub-items, for the closing message (AgentsTools.SessionTokens.include).
+	type AgentsSessionTokensLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTokens.include"
 	if [ "$processedRc" = "0" ] ; then
 		AgentsSessionTokensLine "$itemName" "" 2>/dev/null || :
 	fi

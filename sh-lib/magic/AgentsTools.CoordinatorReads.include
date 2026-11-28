@@ -38,8 +38,8 @@ AgentsToolsBoardCounts(){
 AgentsToolsBoardActiveItems(){
 type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	local activeN=0 activeCap=40 activeRows="" activeTokens
-	## Token totals, summed now over what sits under each item (AgentsTools.SessionTranscript.include).
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	## Token totals, summed now over what sits under each item (AgentsTools.SessionTokens.include).
+	type AgentsSessionTokensRollupRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTokens.include"
 	## The items by `<state>/<name>`, as the roll-up keys them, from the board's one walk, in state order. Only the
 	## items shown get their token text: the rest are counted.
 	local activeItems activeKeys=() activeOne activeKey

@@ -50,8 +50,18 @@ printf -- '---\ntype: dispatch\nowner: rig-member\nspawn-id: rigcl-zombie\n---\n
 	| rigStoreItem "$rigData" board processed dispatch-rigcl-zombie.md || rigRefuse "the closed board item was not written"
 
 ## THE UNDO RECORD: one open record of the rig's own session store, named by the marker of its sandbox.
+## A record is written as AgentsTools.OpUndoRecord.include writes it: `<key>: <value>` lines and no fence.
+## The reader stops at the first line equal to `---`, so a fenced record reads as no state at all.
 mkdir -p "$rigSess/rigcl-undo/undo/rigcl-record" || exit 1
-printf -- '---\nstate: open\n---\n\n# rig undo record\n' > "$rigSess/rigcl-undo/undo/rigcl-record/record" || exit 1
+{
+	printf 'record-id: rigcl-record\n'
+	printf 'session-id: rigcl-undo\n'
+	printf 'actor: none\n'
+	printf 'kind: prune\n'
+	printf 'state: open\n'
+	printf 'at: 2026-11-27T04:00:00Z\n'
+	printf 'target: a run folder\n'
+} > "$rigSess/rigcl-undo/undo/rigcl-record/record" || exit 1
 
 ## THE FOUR SANDBOXES: the same age, past both settings, each with one file in its output/ so a pass has
 ## something of its own to take.
@@ -62,7 +72,9 @@ rigSandbox(){ ## run, its linked board item `dispatch-<run>` (`-` for none), its
 	[ "$2" = - ] || printf 'spawned-by: dispatch-%s\n' "$1" >> "$rigSp/$1/$1.spawn.md"
 	printf -- '---\n' >> "$rigSp/$1/$1.spawn.md"
 	[ "$3" != yes ] || printf 'rigcl-undo/rigcl-record\n' > "$rigSp/$1/undo.hold"
-	touch -t 202611200000 "$rigSp/$1/$1.spawn.md" "$rigSp/$1" || return 1
+	## The output tree is aged with the folder: the sweep reads the newest entry inside it, so a file written now
+	## keeps the sandbox whatever the folder's own time says.
+	touch -t 202611200000 "$rigSp/$1/$1.spawn.md" "$rigSp/$1" "$rigSp/$1/output" "$rigSp/$1/output/rig-member" "$rigSp/$1/output/rig-member/note.md" || return 1
 	[ "$3" = yes ] || true
 }
 rigSandbox rigcl-running - no || rigRefuse "the running sandbox was not made"
@@ -89,6 +101,8 @@ echo "-- one apply pass over the four sandboxes --"
 printf '%s' "$?" > "$rigTmp/sweep.rc"
 rigOutcome="running=$( rigSurvives rigcl-running ) undo=$( rigSurvives rigcl-undo ) review=$( rigSurvives rigcl-review ) zombie=$( rigSurvives rigcl-zombie )"
 rigAssert "the guards hold and the dead sandbox goes" "$rigOutcome" "running=kept undo=kept review=kept zombie=removed"
+## The word, not only the folder: `missing` keeps a folder too, so the outcome above passes on a record no reader can parse.
+rigAssert "the marker of the rig's open record reads held" "$( MMDAPP="$rigWs" bash -c '. "$1" ; AgentsToolsUndoHoldState "$2"' rig "$rigPackage/sh-lib/undo/AgentsTools.UndoHold.include" "$rigSp/rigcl-undo/undo.hold" 2> /dev/null )" "held"
 printf '  # the pass returned %s%s\n' "$( cat "$rigTmp/sweep.rc" )" \
 	"$( [ ! -s "$rigTmp/sweep.err" ] || printf ', saying: %s' "$( LC_ALL=C grep -e 'ERROR' -e 'invalid option' "$rigTmp/sweep.err" 2> /dev/null | LC_ALL=C sed -n 1p )" )"
 

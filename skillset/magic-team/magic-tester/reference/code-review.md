@@ -52,12 +52,12 @@ Look for:
 A finding is a new function that meets none of the three reasons it stays. Those
 are: a trap or a similar shell mechanism needs one, an API needs a function
 whatever its content, or it carries non-obvious knowledge that needs its gotcha
-comments. An API needs the function called by name from another file, through a
-variable, from a dispatch table, or stubbed by a check. A function whose only
-claim is that a fragment is easier to name is a finding. The finding names the
-lines that belong at the call site. A finding is a function inlined while a call
-site sits in another file. It is also a body inlined at one site where two or
-more places need it.
+comments. An API runs the function by a name held as data: through a variable,
+from a dispatch table, or stubbed by a check. A direct call from another file is
+no API. A function whose only claim is that a fragment is easier to name is a
+finding. The finding names the lines that belong at the call site. A trivial
+function kept because a caller sits in another file is a finding too: it is
+inlined at every call site.
 
 ## A variable derived from another
 

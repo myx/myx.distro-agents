@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the newest-part-first transcript read (sh-lib/session/AgentsTools.SessionTranscript.include, AgentsTranscriptLastTool):
+## Behavioural check on the newest-part-first transcript read (sh-lib/session/AgentsTools.SessionTranscriptRead.include, AgentsTranscriptLastTool):
 ## the scan asks every live run for its last tool line, and reading every part of every transcript is the scan's whole cost.
 ## Held, with the parts list stubbed so the files are the subject:
 ##   1. THE NEWEST PART ANSWERS, AND NO EARLIER PART IS OPENED: an unreadable older part still answers cleanly, with no
@@ -11,7 +11,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
-rigInclude="$rigPackage/sh-lib/session/AgentsTools.SessionTranscript.include"
+rigInclude="$rigPackage/sh-lib/session/AgentsTools.SessionTranscriptRead.include"
 [ -f "$rigInclude" ] || { echo "⛔ ERROR: no $rigInclude" >&2 ; exit 1 ; }
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTranscriptLastToolCheck )" || exit 1

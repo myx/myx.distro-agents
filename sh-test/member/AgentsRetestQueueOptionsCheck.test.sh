@@ -5,7 +5,7 @@
 ## AgentsRetestQueueCheck. Held:
 ##   1. PRIORITY. A request is of the priority no-wait unless it is made with --wait, and the request says so; the last of the two flags counts.
 ##   2. PROJECT. --project queues the tests the testbed has registered for that project, with any test named beside it and each test once; a project
-##      nothing is registered for is refused and queues nothing.
+##      nothing is registered for is refused and queues nothing, and a row whose script has gone is left out and named once.
 ##   3. A WAITING CALL. A request made with --wait is the first the next drain takes, and takes alone: what waits without --wait is left for the one
 ##      after. The call stays until its request is run, then says how it came out and ends with rc 0 for a pass.
 ##   4. A FAILURE. A call with --wait whose test fails says FAIL and ends with rc 1.
@@ -81,6 +81,14 @@ rigAssert "a test named beside it is queued too, each test once" "$rigRc [$( rig
 rm -f "$rigQueue"/waiting/*.request
 rigAsk "$rigTmp/j2d" --by rig-builder --why 'a project that is not' --project other/project
 rigAssert "another project is another set of tests: none registered, refused" "$rigRc $( rigHolds waiting )" "1 0"
+rm -f "$rigQueue"/waiting/*.request
+## A ROW WHOSE SCRIPT HAS GONE. The testbed lets a row outlive its script, and the expansion reads
+## every row of the project: one such row refused the whole project, naming a test nobody asked for.
+rigRegister RigThree
+rm -f "$( rigRoot live )/myx/myx.distro-agents/sh-test/RigThree.test.sh"
+rigAsk "$rigTmp/j2e" --by rig-builder --why 'one row has no script' --project "$rigProject"
+rigAssert "a row whose script is gone is left out and named once, and the rest of the project queues" \
+	"$rigRc [$( rigWaitingTests )] $( LC_ALL=C grep -c -F -- 'RigThree, whose script is not there any more' "$rigTmp/j2e.err" )" "0 [RigOne RigTwo] 1"
 
 echo "-- 3. a waiting call --"
 rigFresh

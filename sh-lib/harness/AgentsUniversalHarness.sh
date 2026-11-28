@@ -582,8 +582,6 @@ if ! type DistroAgentsTools >/dev/null 2>&1 ; then
 	DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
 fi
 export -f DistroAgentsTools
-## The grants index and the session permission index (AgentsTools.Grants.include): functions only.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
 harnessGateIndexed=""
 ## What a named member's file gate admits beside its permission index: what is known only
 ## at run time -- its children's input and output -- and its own member directory.
@@ -734,6 +732,14 @@ fi
 ## every other one is resolved here, one subshell each, as always.
 if [ -z "$harnessFromContext" ] ; then
 harnessRoots=""
+## THE INDEX'S READY ANSWER IS TAKEN WHOLE: the rows it left open are resolved here, and the set is one printf.
+if [ -n "${harnessRootsFromIndex:-}" ] && [ -n "${harnessRootsReadyRead:-}" ] ; then
+	for harnessRootIdx in ${harnessAccessRootsOpen[@]+"${harnessAccessRootsOpen[@]}"} ; do
+		AgentsHarnessResolveDir "${harnessAccessRoots[$harnessRootIdx]}" harnessRootReal
+		harnessAccessRootsReal[$harnessRootIdx]="$harnessRootReal"
+	done
+	[ "${#harnessAccessRootsReal[@]}" -eq 0 ] || printf -v harnessRoots '%s\n' "${harnessAccessRootsReal[@]}"
+else
 harnessRootIdx=0
 for harnessRoot in ${harnessAccessRoots[@]+"${harnessAccessRoots[@]}"} ; do
 	if [ -n "${harnessRootsFromIndex:-}" ] && [ -n "${harnessAccessRootsReal[$harnessRootIdx]-}" ] ; then
@@ -744,6 +750,7 @@ for harnessRoot in ${harnessAccessRoots[@]+"${harnessAccessRoots[@]}"} ; do
 	fi
 	harnessRootIdx=$(( harnessRootIdx + 1 ))
 done
+fi
 fi
 if [ -z "$harnessRoots" ] ; then
 	[ -z "$harnessToolOnly" ] || printf 'ERROR: no access roots resolved, so nothing was done -- sh-lib/client/AgentsTools.ClientAccessRoots.include yielded an empty set; check MDAT_SKILLSET_ROOT, HOME and MMDAPP in the MCP server environment\n'
@@ -757,6 +764,13 @@ fi
 if [ -z "$harnessFromContext" ] ; then
 harnessWriteRoots=""
 if [ "${#harnessWriteAccessRoots[@]}" -gt 0 ] ; then
+	if [ -n "${harnessWriteFromIndex:-}" ] && [ -n "${harnessRootsReadyWrite:-}" ] ; then
+		for harnessRootIdx in ${harnessWriteAccessRootsOpen[@]+"${harnessWriteAccessRootsOpen[@]}"} ; do
+			AgentsHarnessResolveDir "${harnessWriteAccessRoots[$harnessRootIdx]}" harnessWriteRootReal
+			harnessWriteAccessRootsReal[$harnessRootIdx]="$harnessWriteRootReal"
+		done
+		printf -v harnessWriteRoots '%s\n' "${harnessWriteAccessRootsReal[@]}"
+	else
 	harnessRootIdx=0
 	for harnessWriteRoot in ${harnessWriteAccessRoots[@]+"${harnessWriteAccessRoots[@]}"} ; do
 		if [ -n "${harnessWriteFromIndex:-}" ] && [ -n "${harnessWriteAccessRootsReal[$harnessRootIdx]-}" ] ; then
@@ -767,6 +781,7 @@ if [ "${#harnessWriteAccessRoots[@]}" -gt 0 ] ; then
 		fi
 		harnessRootIdx=$(( harnessRootIdx + 1 ))
 	done
+	fi
 	## A named member writes its own directory by definition, without being granted it.
 	[ -z "$harnessAgentRealDir" ] || harnessWriteRoots="${harnessWriteRoots}$harnessAgentRealDir"$'\n'
 fi
@@ -1987,6 +2002,7 @@ harnessSpendIn=0 harnessSpendRead=0 harnessSpendWrite=0 harnessSpendOut=0
 harnessQuietRounds=0
 harnessClosingRound=0
 ## The session transcript's MODEL line, where the spawn proxy opened one.
+type AgentsTranscriptHarnessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLoop.include"
 AgentsTranscriptHarnessStart || :
 
 while : ; do
@@ -2229,6 +2245,7 @@ while : ; do
 		printf '%s\n' "${harnessWarn}⚠️  no token usage in this stream${harnessOff} ${harnessDim}-- MDAT_HARNESS_CONTEXT_TOKENS is $harnessContextTokens, but nothing here measures the context, so no summarise-and-restart can fire${harnessOff}" >&2
 	fi
 	## The round's tokens and visible text to the session transcript, usage or none.
+	type AgentsTranscriptHarnessRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLoop.include"
 	AgentsTranscriptHarnessRound "$harnessRound" "$harnessScratch" || :
 
 	if [ "$harnessStreamOk" != "1" ] && [ ! -s "$harnessScratch/stream.rawother" ] ; then
@@ -2311,6 +2328,7 @@ while : ; do
 		harnessFinal="$( AgentsWireFinalContent )"
 		[ -z "$harnessFinal" ] || AgentsHarnessEmitAnswer "$harnessFinal"
 		AgentsHarnessContextReply
+		type AgentsTranscriptHarnessFinal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLoop.include"
 		AgentsTranscriptHarnessFinal "$harnessFinal" || :
 		exit 3
 	fi
@@ -2341,6 +2359,7 @@ while : ; do
 		harnessSummariseRound=0
 		harnessOutputTokens="$harnessOutputBudget"
 		harnessRestartCount=$(( harnessRestartCount + 1 ))
+		type AgentsTranscriptHarnessRestart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLoop.include"
 		AgentsTranscriptHarnessRestart "$harnessRestartCount" "${#harnessSummary}" || :
 		AgentsHarnessRestartKeep "$harnessRestartCount" "$harnessContextTokens" || :
 		## The new leg's array replaces the old one in the kept context.
@@ -2393,6 +2412,7 @@ while : ; do
 				harnessMessages+=( "$( AgentsWireUserRecord "$harnessSummary" )" )
 				harnessResultAt=() ; harnessResultId=() ; harnessResultDate=() ; harnessResultImageAt=() ; harnessResultSeen=() ; harnessResultsRoundFrom=0 ; harnessSummaryWithheld=0
 				harnessRestartCount=$(( harnessRestartCount + 1 ))
+				type AgentsTranscriptHarnessRestart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLoop.include"
 				AgentsTranscriptHarnessRestart "$harnessRestartCount" "${#harnessSummary}" || :
 				## The new leg's array replaces the old one in the kept context, and the signal the growth bound reads starts afresh.
 				AgentsHarnessContextBegin 0
@@ -2475,6 +2495,7 @@ while : ; do
 				continue
 			fi
 		fi
+		type AgentsTranscriptHarnessFinal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLoop.include"
 		AgentsTranscriptHarnessFinal "$harnessFinal" || :
 		harnessExitClean=1 ; exit 0
 	fi
@@ -2570,6 +2591,12 @@ while : ; do
 		## it, so a line rendered from the context is the line the hook writes; every check
 		## below still reads the result itself.
 		AgentsHarnessReply "$harnessFuncName" "$harnessResult"
+		## The date and the floor beside the reply: the model is given them, and the floor moves its pointer, so only this loop takes them.
+		harnessReplyDate=""
+		if [ -n "$harnessResult" ] ; then
+			type AgentsTranscriptReplyBeside > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+			harnessReplyDate="$( AgentsTranscriptReplyBeside )"
+		fi
 		harnessMessages+=( "$( AgentsWireToolResultRecord "$harnessCallId" "$harnessReply" "$harnessReplyDate" "${harnessImageMime:-}" "${harnessImageData:-}" )" )
 		## The image part: on the Anthropic wire it rides the tool_result above (the extra fields are no-ops); on the
 		## chat-completions wire the tool result carries text only, so the image rides one user message right after it.

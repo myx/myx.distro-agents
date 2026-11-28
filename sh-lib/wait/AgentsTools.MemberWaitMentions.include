@@ -139,8 +139,8 @@ AgentsWaitProbeMentions(){
 	## A quiet round writes no file: the result and its newest are put only where their content changed (AgentsWaitPut).
 	AgentsWaitEmpty "$probeOut" || return 2
 	[ ! -e "$probeOut.newest" ] || rm -f "$probeOut.newest"
-	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 2
-	AgentsToolsSessionChatKeyInto ; probeKey="$agentsSessionChatKey"
+	type AgentsToolsSessionChatPointer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 2
+	probeKey="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	AgentsSessionKnown "$probeKey" || probeKey=""
 	probeNow="${agentsWaitRoundNow:-$( date +%s )}"
@@ -301,8 +301,8 @@ AgentsWaitMentionsCommit(){ ## member, the file holding the newest ts
 	local commitTs="" commitKey
 	[ -f "$2" ] && IFS= read -r commitTs < "$2" || return 0
 	[ -n "$commitTs" ] || return 0
-	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-	AgentsToolsSessionChatKeyInto ; commitKey="$agentsSessionChatKey"
+	type AgentsToolsSessionChatPointerSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	commitKey="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	if AgentsSessionKnown "$commitKey" ; then
 		AgentsToolsSessionChatPointerSet "$commitKey" "mentions:$1" "$commitTs"
@@ -374,7 +374,7 @@ AgentsWaitProbeTagged(){
 	## The session thread: a message that mentions the member. A session thread where the member's own instance is present is
 	## no work for a duty: its instance reads that thread itself, and the run reads it as its own chat. Those messages are
 	## returned for knowledge only, every row marked FYI (AgentsWaitTaggedPart), and no duty acts on them.
-	AgentsToolsSessionChatKeyInto ; probeSession="$agentsSessionChatKey"
+	probeSession="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	probeThread=""
 	[ -z "$probeSession" ] || probeThread="$( AgentsToolsSessionChatThread "$probeSession" )" || probeThread=""
 	if [ -n "$probeThread" ] ; then

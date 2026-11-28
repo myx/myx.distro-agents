@@ -3,7 +3,7 @@
 
 ##
 ## AgentsTools.McpToolList.include -- the tool list of an MCP server run: rendered once as the server starts, kept in its scratch tools.d/,
-## and read by every request, so the list is the same for the whole run. A new list is a new server. Functions only.
+## read whole by tools/list and tested by name by each call, so the list is the same for the whole run. A new list is a new server. Functions only.
 ##
 ## The pieces: the harness floor (AgentsHarnessMcpMirror.sh), the tools the harness lists but does not serve, the secondary tools (AgentsMcpSecondaryMirror.sh).
 ## A render that fails leaves its piece empty for the whole run, said once on stderr.
@@ -51,17 +51,3 @@ AgentsToolsMcpToolListRender(){ ## dir
 	[ -f "$renderDir/ready" ]
 }
 
-## Reads the run's list into mcpServedToolsJson, mcpUnservedEntriesJson, mcpSecondaryToolsJson and mcpUnservedToolNames. A run whose server did not render it (a request
-## reached directly) renders it now, once, and every later request reads that.
-AgentsToolsMcpToolListLoad(){ ## dir
-	local loadDir="$1"
-	type AgentsToolsUnservedInHarness > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessUnserved.include"
-	mcpUnservedToolNames="$( printf '%s' "$agentsUnservedOnMcp" | LC_ALL=C tr '\n' ' ' )"
-	mcpServedToolsJson='' ; mcpUnservedEntriesJson='' ; mcpSecondaryToolsJson=''
-	[ -f "$loadDir/ready" ] || AgentsToolsMcpToolListRender "$loadDir" || return 1
-	[ -z "${MDAT_MCP_SERVED_MARKER:-}" ] || return 0
-	mcpServedToolsJson="$( cat "$loadDir/served"; printf x )" ; mcpServedToolsJson="${mcpServedToolsJson%x}"
-	mcpUnservedEntriesJson="$( cat "$loadDir/unserved"; printf x )" ; mcpUnservedEntriesJson="${mcpUnservedEntriesJson%x}"
-	mcpSecondaryToolsJson="$( cat "$loadDir/secondary"; printf x )" ; mcpSecondaryToolsJson="${mcpSecondaryToolsJson%x}"
-	return 0
-}

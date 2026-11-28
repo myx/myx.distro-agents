@@ -9,6 +9,7 @@
 ##   4. a thread the read cannot answer is refused as unverified-thread: a check that cannot reach its subject never passes
 ## Red: on the package before this guard, rows 1, 2 and 4 all read `deleted` with chat.delete in the log.
 ## Offline: the fake curl opens no socket, and the rig is a folder of the workspace's own scratch.
+## Guards: sh-lib/slack/AgentsTools.InternOpCommsSlackDelete.include
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"

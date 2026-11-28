@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionTokens.include -- the session token totals. Sourced, never run; functions only.
+##
+## $MMDAPP/.local/agents/sessions/<sid>/tokens holds the session's running sum, `<in> <cache-read> <cache-write> <out>`; at each
+## milestone it becomes the dispatch item's `tokens:` header. Totals over a task, epic or parent session are summed when shown
+## (AgentsSessionTokensRollup.awk), never written up the chain. A session's own folder is the transcript's
+## (AgentsTranscriptSessionDirInto, AgentsTools.SessionTranscript.include), loaded where it is called.
+##
+
+## Every run's token sums, into the named variable, `<run><TAB><in><TAB><cache-read><TAB><cache-write><TAB><out>` a line: the running sum the
+## harness keeps in the run's own folder. A file that holds no four numbers names no line. One read of the store, on the schedule's
+## own index pass, and no path built outside it.
+AgentsSessionTokensRowsInto(){ ## variable, workspace (default MMDAPP)
+	local tokensVar="$1" tokensWs="${2:-${MMDAPP:-}}" tokensFile tokensRun tokensIn tokensCr tokensCw tokensOut tokensRest tokensAll=""
+	case "$tokensVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	case "${tokensWs%/}" in ''|/) return 1 ;; esac
+	printf -v "$tokensVar" '%s' ""
+	for tokensFile in "${tokensWs%/}/.local/agents/sessions"/*/tokens ; do
+		[ -f "$tokensFile" ] || continue
+		tokensIn="" ; tokensCr="" ; tokensCw="" ; tokensOut="" ; tokensRest=""
+		read -r tokensIn tokensCr tokensCw tokensOut tokensRest < "$tokensFile" || :
+		case "$tokensIn$tokensCr$tokensCw$tokensOut" in ''|*[!0123456789]*) continue ;; esac
+		tokensRun="${tokensFile%/tokens}" ; tokensRun="${tokensRun##*/}"
+		tokensAll="$tokensAll$tokensRun"$'\t'"$tokensIn"$'\t'"$tokensCr"$'\t'"$tokensCw"$'\t'"$tokensOut"$'\n'
+	done
+	printf -v "$tokensVar" '%s' "$tokensAll"
+}
+
+## The runs whose token sums were written after a marker file, into the named variable, one run id a line: a reader's own index catches up
+## from the runs whose sum moved since that index was taken.
+AgentsSessionTokensNewRunsInto(){ ## variable, marker file, workspace (default MMDAPP)
+	local newVar="$1" newMarker="${2:-}" newWs="${3:-${MMDAPP:-}}" newFile newRun newAll=""
+	case "$newVar" in ''|*[!A-Za-z0-9_]*) return 1 ;; esac
+	printf -v "$newVar" '%s' ""
+	[ -f "$newMarker" ] || return 0
+	case "${newWs%/}" in ''|/) return 1 ;; esac
+	while IFS= read -r newFile ; do
+		[ -n "$newFile" ] || continue
+		newRun="${newFile%/tokens}" ; newRun="${newRun##*/}"
+		newAll="$newAll$newRun"$'\n'
+	done <<< "$( find "${newWs%/}/.local/agents/sessions" -mindepth 2 -maxdepth 2 -name tokens -newer "$newMarker" 2> /dev/null )"
+	printf -v "$newVar" '%s' "$newAll"
+}
+
+## Adds one round to the session's running sum.
+AgentsSessionTokensAdd(){ ## session id, in, cache-read, cache-write, out
+	local addDir addIn=0 addCr=0 addCw=0 addOut=0 addRest=""
+	type AgentsTranscriptSessionDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	AgentsTranscriptSessionDirInto addDir "$1" || return 0
+	mkdir -p "$addDir" 2>/dev/null || return 0
+	[ ! -s "$addDir/tokens" ] || read -r addIn addCr addCw addOut addRest < "$addDir/tokens" || :
+	printf '%s %s %s %s\n' "$(( ${addIn:-0} + ${2:-0} ))" "$(( ${addCr:-0} + ${3:-0} ))" "$(( ${addCw:-0} + ${4:-0} ))" "$(( ${addOut:-0} + ${5:-0} ))" \
+		> "$addDir/tokens.$$" 2>/dev/null && mv -f "$addDir/tokens.$$" "$addDir/tokens" 2>/dev/null || :
+	return 0
+}
+
+## The `tokens:` header value.
+AgentsSessionTokensHeaderValue(){ ## session id
+	local valueDir valueIn valueCr valueCw valueOut valueRest
+	type AgentsTranscriptSessionDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	AgentsTranscriptSessionDirInto valueDir "$1" || return 0
+	[ -s "$valueDir/tokens" ] || return 0
+	read -r valueIn valueCr valueCw valueOut valueRest < "$valueDir/tokens" || :
+	printf 'in=%s cache-read=%s cache-write=%s out=%s' "${valueIn:-0}" "${valueCr:-0}" "${valueCw:-0}" "${valueOut:-0}"
+}
+
+## The session's dispatch item, wherever it sits on the board now; rc 1 for none.
+AgentsSessionTokensHeaderUpdate(){ ## session id
+	local updateValue updatePath updateState updateItem updateNow="" updateItemPath
+	type AgentsTranscriptSessionDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	updateValue="$( AgentsSessionTokensHeaderValue "$1" )"
+	[ -n "$updateValue" ] || return 0
+	AgentsTranscriptSessionDirInto updateItemPath "$1" || return 0
+	[ -s "$updateItemPath/dispatch-item" ] || return 0
+	IFS= read -r updateItem < "$updateItemPath/dispatch-item" || :
+	[ -n "$updateItem" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	type AgentsToolsBoardItemInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	AgentsToolsBoardItemInto updatePath "$updateItem" || :
+	[ -n "$updatePath" ] || return 0
+	updateNow="$( LC_ALL=C awk 'NR == 1 && $0 != "---" { exit ; } NR > 1 && $0 == "---" { exit ; } NR > 1 && index( $0, "tokens: " ) == 1 { print substr( $0, 9 ) ; exit ; }' "$updatePath" 2>/dev/null )"
+	[ "$updateNow" != "$updateValue" ] || return 0
+	updateItem="${updatePath##*/}"
+	updateState="${updatePath%/*}"
+	updateState="${updateState##*/}"
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-board-upsert-move-edit "$updateState" "$updateItem" \
+		--from-state:"$updateState" --context --session-tokens --header:upsert:tokens:"$updateValue" --log-verb:updated > /dev/null 2>&1 \
+		|| echo "# session transcript: ⚠️ WARNING: the tokens header of $updateItem was not updated" >&2
+	return 0
+}
+
+## Totals for items, summed when shown: one tab-separated row per item that has any
+## (AgentsSessionTokensRollup.awk). Board items and spawn records are read once per store change, and answered from a kept
+## index in between: the call-path rule is "a kept measure or an index, never a walk of a store", and the walk per read is
+## what made `--spawns` cost ten seconds on a quiet machine (measured 2026-11-26 07:15).
+AgentsSessionTokensRollupRows(){ ## item name...
+	[ $# -gt 0 ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	local rollupItems=() rollupRecords=() rollupCache rollupWant rollupRows=""
+	rollupCache="${MMDAPP%/}/.local/agents/tokens-rollup.rows"
+	## THE KEPT INDEX, ANSWERED WHILE NO INPUT IS NEWER THAN IT: a board item or a run record written since the rows were
+	## summed makes them stale, and the walk is paid then, not on every read.
+	if [ -f "$rollupCache" ] \
+		&& [ -z "$( find "$MDAT_DATA_ROOT/board" -type f -name '*.md' -newer "$rollupCache" 2> /dev/null | LC_ALL=C head -1 )" ] \
+		&& [ -z "$( find "${MMDAPP%/}/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.spawn.md' -newer "$rollupCache" 2> /dev/null | LC_ALL=C head -1 )" ] ; then
+		for rollupWant in "$@" ; do
+			rollupWant="${rollupWant##*/}" ; rollupWant="${rollupWant%.md}"
+			LC_ALL=C awk -F'\t' -v item="$rollupWant" '$1 == item { print ; exit ; }' "$rollupCache" 2> /dev/null
+		done
+		return 0
+	fi
+	## EVERY BOARD ITEM AND EVERY RUN RECORD, BY GLOB (call-path audit row 31): the sum of an item takes in the items that track it
+	## or follow it up and the records whose parent is its session, relations only the files carry. This walk fills the index.
+	type AgentsToolsBoardItemsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+	type AgentsToolsSpawnedAllRecordsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	AgentsToolsBoardItemsInto rollupItems ""
+	[ -z "${MMDAPP:-}" ] || AgentsToolsSpawnedAllRecordsInto rollupRecords
+	rollupRows="$( {
+		[ ${#rollupItems[@]} -eq 0 ] || printf '%s\n' "${rollupItems[@]}"
+		[ ${#rollupRecords[@]} -eq 0 ] || printf '%s\n' "${rollupRecords[@]}"
+	} | LC_ALL=C awk -v want="$( { [ ${#rollupItems[@]} -eq 0 ] || printf '%s\n' "${rollupItems[@]}" ; [ ${#rollupRecords[@]} -eq 0 ] || printf '%s\n' "${rollupRecords[@]}" ; } | LC_ALL=C sed 's#^.*/##' | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/transcript/AgentsSessionTokensRollup.awk" 2> /dev/null )"
+	## The index is best effort: a store the caller cannot write still answers from the walk above, never empty.
+	if [ -n "$rollupRows" ] && mkdir -p "${rollupCache%/*}" 2> /dev/null ; then
+		printf '%s\n' "$rollupRows" > "$rollupCache.tmp.$$" 2> /dev/null && mv -f "$rollupCache.tmp.$$" "$rollupCache" 2> /dev/null || rm -f "$rollupCache.tmp.$$" 2> /dev/null
+	fi
+	for rollupWant in "$@" ; do
+		rollupWant="${rollupWant##*/}" ; rollupWant="${rollupWant%.md}"
+		printf '%s\n' "$rollupRows" | LC_ALL=C awk -F'\t' -v item="$rollupWant" '$1 == item { print ; exit ; }'
+	done
+	return 0
+}
+
+## One row of AgentsSessionTokensRollupRows output, by item name; empty for none.
+AgentsSessionTokensRollupRowOf(){ ## rows, item name
+	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v item="${2%.md}" '$1 == item { print ; exit ; }'
+}
+
+## One display line from a rollup row: `tokens: in=... out=... (incl. N sub-sessions)`.
+AgentsSessionTokensRollupText(){ ## rollup row, label (default tokens)
+	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v label="${2:-tokens}" 'NF >= 6 {
+		printf "%s: in=%s cache-read=%s cache-write=%s out=%s", label, $2, $3, $4, $5
+		if ( $6 > 0 ) printf " (incl. %d sub-session%s)", $6, ( $6 == 1 ? "" : "s" )
+		printf "\n"
+	}'
+}
+
+## The line for one item -- the session's own dispatch item where none is named -- or,
+## for a session with no item, its own running sum.
+AgentsSessionTokensLine(){ ## item name, or empty; session id
+	local lineRow lineValue lineItem="$1" lineDir
+	type AgentsTranscriptSessionDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	if [ -z "$lineItem" ] && [ -n "${2:-}" ] && AgentsTranscriptSessionDirInto lineDir "$2" && [ -s "$lineDir/dispatch-item" ] ; then
+		IFS= read -r lineItem < "$lineDir/dispatch-item" || :
+	fi
+	if [ -n "$lineItem" ] ; then
+		lineRow="$( AgentsSessionTokensRollupRows "$lineItem" | head -1 )"
+		[ -z "$lineRow" ] || { AgentsSessionTokensRollupText "$lineRow" ; return 0 ; }
+	fi
+	[ -n "${2:-}" ] || return 0
+	lineValue="$( AgentsSessionTokensHeaderValue "$2" )"
+	[ -z "$lineValue" ] || printf 'tokens: %s\n' "$lineValue"
+	return 0
+}

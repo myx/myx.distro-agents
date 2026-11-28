@@ -189,12 +189,14 @@ AgentsToolsFrontKnows(){ ## entry function name, arguments...
 	local knowsOp="${2:-}"
 	[ "${2:-}" != --mdat-output-format ] || [ "${3:-}" != json ] || knowsOp="${4:-}"
 	[ -n "$knowsOp" ] || return 1
-	local knowsFile knowsName knowsWho
-	while IFS=$'\t' read -r knowsFile knowsName knowsWho ; do
-		[ "$knowsFile" = "$1" ] || continue
-		[ "$knowsName" = "$knowsOp" ] || [ "$knowsOp" = "--help-syntax" ] || continue
-		return 0
-	done <<< "${agentsFrontTable}"$'\n'"${agentsFrontStubs}"
+	## THE TABLE IS MATCHED, NEVER WALKED: one pattern over its text, the file the first column and the name the second, tab-bounded. A
+	## walk of its rows, here and in AgentsToolsFrontAny, read every row on every start of a tool file.
+	local knowsAll=$'\n'"${agentsFrontTable}"$'\n'"${agentsFrontStubs}"$'\n'
+	if [ "$knowsOp" = "--help-syntax" ] ; then
+		case "$knowsAll" in *$'\n'"$1"$'\t'*) return 0 ;; esac
+		return 1
+	fi
+	case "$knowsAll" in *$'\n'"$1"$'\t'"$knowsOp"$'\t'*|*$'\n'"$1"$'\t'"$knowsOp"$'\n'*) return 0 ;; esac
 	return 1
 }
 
@@ -208,10 +210,7 @@ AgentsToolsFrontAny(){ ## arguments...
 	local anyOp="${1:-}"
 	[ "${1:-}" != --mdat-output-format ] || [ "${2:-}" != json ] || anyOp="${3:-}"
 	[ -n "$anyOp" ] || return 1
-	local anyFile anyOpName anyWho
-	while IFS=$'\t' read -r anyFile anyOpName anyWho ; do
-		[ "$anyOpName" = "$anyOp" ] && return 0
-	done <<< "$agentsFrontTable"
+	case $'\n'"$agentsFrontTable"$'\n' in *$'\t'"$anyOp"$'\t'*|*$'\t'"$anyOp"$'\n'*) return 0 ;; esac
 	return 1
 }
 

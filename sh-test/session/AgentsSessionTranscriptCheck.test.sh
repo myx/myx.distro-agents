@@ -60,6 +60,7 @@ rigHas(){ ## file, fixed text -- 1 when some line holds it
 rigCommits(){ git -C "$rigStore" rev-list --count HEAD ; }
 
 . "$rigHere/session/AgentsTools.SessionTranscript.include"
+. "$rigHere/session/AgentsTools.SessionTranscriptLife.include"
 
 echo "-- the one formatter --"
 rigLine="$( printf '%s' '{"file_path":"/a/b c.txt","offset":10,"limit":5,"content":"SECRET-BODY"}' \

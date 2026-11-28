@@ -24,6 +24,9 @@ done
 
 rigPasses=0
 rigFails=0
+rigMilliNow(){ ## -- the wall clock in whole milliseconds
+	python3 -I -B -c 'import time ; print(int(time.time()*1000))' 2> /dev/null
+}
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
 		printf '  PASS  %s\n' "$1" ; rigPasses=$(( rigPasses + 1 ))
@@ -110,11 +113,13 @@ rigAssert "so the backlog folder drains by the whole bound, not one post of it" 
 
 echo "-- a pass with nothing to drain --"
 rigStore "$rigTmp/empty" 0
-rigStarted="$( date +%s )"
+rigStarted="$( rigMilliNow )"
 rigMade="$( rigOnePass "$rigTmp/empty" "$rigBound" )" || rigMade="error"
 rigAssert "posts nothing" "$rigMade" 0
 rigAssert "leaves no lane behind it: no push lock is held" "$( LC_ALL=C ls -A "$rigTmp/empty/.local/cache/comms/slack/slack-CRIG" | LC_ALL=C grep -c '^\.pushlock\.txt$' || : )" 0
-rigAssert "and ends at once, well inside a second" "$(( $( date +%s ) - rigStarted <= 1 ))" 1
+## The pass measures the machine, not the claim, so the claim is milliseconds: an empty pass measured
+## 80 to 219 ms idle, and the bound leaves room for a loaded machine without letting a real wait through.
+rigAssert "and ends at once, inside 1000 ms" "$(( $( rigMilliNow ) - rigStarted < 1000 ))" 1
 
 echo "-- the control: with no bound the same store drains whole --"
 rigStore "$rigTmp/unbounded" 200

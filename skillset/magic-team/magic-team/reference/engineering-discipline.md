@@ -26,6 +26,8 @@ Evidence:
 - Tell competing readings apart: find the observation they disagree on. Answer per state where the question is per state.
 - Coverage is the union of what the team can reach. Name the member who can reach a target instead of calling it untestable.
 - Evidence written for an external reader names which system it describes. Two installations that share a product name are two subjects, never one.
+- **A statement about what a mechanism does is a claim of intent, never current behaviour.** Where the two differ, the mechanism is what happens.
+- **An instrument keyed on a spawn id answers about launches, never about live work.** A question about live work is a question about runs, so read the run's own state. An instrument answers about the population its key selects.
 
 Dispatch and relay:
 - The dispatching session checks a dispatched write against the conventions before it reports it done. The report is a direct message to whoever asked, in that member's own words.

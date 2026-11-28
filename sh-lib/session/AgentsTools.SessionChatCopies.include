@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionChatCopies.include -- the copies of a message sent into the thread of another session: the sessions that keep the
+## thread, the copy written into each of their chat files, the ts Slack gave the post set on each, the copies of a queued post kept for the
+## comms writer, and the runs that took a copy woken. A send loads it; a served call never does. Sourced, never run. Functions only.
+## Its functions write through the session chat file's own (AgentsTools.SessionChat.include), which they call.
+##
+type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+
+## THE CHAT FILE IS THE SESSION'S PRIMARY CHANNEL, ITS SLACK THREAD THE COPY (S12.15). A message one session sends into the thread
+## of ANOTHER session is recorded in that session's chat file as well as in the sender's own, before Slack is called, so it reaches
+## the runs of that session whatever Slack lets them read. The block is the receiving session's own: origin `delivered`, its
+## conversation that session's thread from the start, so its floor gives it at once (AgentsSessionChatRead.awk); it takes the ts
+## Slack gave the post once there is one (AgentsToolsSessionChatDeliverStamp), so a later read of the thread never records it twice.
+## A send whose post fails leaves the copy as it is: it was delivered where the session reads first.
+
+## The workspace roots a session thread is looked for in, one a line: this workspace's, then every other root the machine's
+## directories registry names (AgentsTools.TeamRegistry.include) that keeps sessions. A member of one workspace sends into the
+## sessions of another, so the thread is the session's address across them.
+AgentsToolsSessionChatThreadRoots(){
+	local rootsFile="" rootsName="" rootsPath=""
+	[ -n "${MMDAPP:-}" ] || return 0
+	printf '%s\n' "${MMDAPP%/}"
+	rootsFile="${HOME:-}/.agents/magic-team/directories.registry"
+	[ -f "$rootsFile" ] || return 0
+	while IFS=$'\t' read -r rootsName rootsPath ; do
+		rootsPath="${rootsPath%/}"
+		case "$rootsPath" in /?*) ;; *) continue ;; esac
+		[ "$rootsPath" != "${MMDAPP%/}" ] && [ -d "$rootsPath/.local/agents/sessions" ] || continue
+		printf '%s\n' "$rootsPath"
+	done < "$rootsFile" | LC_ALL=C awk '! seen[$0]++'
+}
+
+## The sessions whose session thread is <conversation:thread>, one `<workspace root><TAB><session>` a line: those of this
+## workspace, and only where it holds none, those of the other roots (AgentsToolsSessionChatThreadRoots). The sending session
+## itself is never listed. rc 1, nothing printed, for a thread no other session keeps.
+AgentsToolsSessionChatThreadSessions(){ ## conversation:thread, the sending session (may be empty)
+	local ownerThread="$1" ownerRoot="" ownerFile="" ownerSession="" ownerFound=""
+	case "$ownerThread" in [ABCDEFGHIJKLMNOPQRSTUVWXYZ]*:[0123456789]*.[0123456789]*) ;; *) return 1 ;; esac
+	while IFS= read -r ownerRoot ; do
+		[ -n "$ownerRoot" ] || continue
+		## The first match wins: this workspace's sessions are asked first, and another root only where it has none.
+		[ -z "$ownerFound" ] || break
+		for ownerFile in $( LC_ALL=C grep -l -x -F -- "$ownerThread" "$ownerRoot"/.local/agents/sessions/*/session.thread 2> /dev/null ) ; do
+			ownerSession="${ownerFile%/session.thread}" ; ownerSession="${ownerSession##*/}"
+			[ "$ownerRoot" != "${MMDAPP%/}" ] || [ "$ownerSession" != "${2:-}" ] || continue
+			printf '%s\t%s\n' "$ownerRoot" "$ownerSession"
+			ownerFound="true"
+		done
+	done <<< "$( AgentsToolsSessionChatThreadRoots )"
+	[ -n "$ownerFound" ]
+}
+
+## The run of <member> that is live in <session> of <workspace root>, by its newest spawn record still `spawn-started`: its spawn id.
+## Nothing printed, rc 1, for none.
+AgentsToolsSessionChatLiveRun(){ ## workspace root, session, member
+	local liveRecord=""
+	for liveRecord in $( ls -t "$1/.local/agents/spawned/$2/"*.spawn.md 2> /dev/null ) ; do
+		LC_ALL=C awk -v who="$3" '
+			$0 == "---" { fence++ ; if ( fence > 1 ) { exit ; } ; next ; }
+			$0 == "owner: " who { owner = 1 ; }
+			$0 == "status: spawn-started" { started = 1 ; }
+			END { exit ( owner && started ) ? 0 : 1 ; }' "$liveRecord" 2> /dev/null || continue
+		liveRecord="${liveRecord##*/}"
+		printf '%s' "${liveRecord%.spawn.md}"
+		return 0
+	done
+	return 1
+}
+
+## The member a session's own newest record names: its executor, one file read and never a walk of the store. Prints nothing, rc 1,
+## for a session this host keeps no record of, which is a thread of someone else's session and none of our wakes.
+AgentsToolsSessionChatSessionMember(){ ## workspace root, session
+	local memberRecord="$1/.local/agents/spawned/$2/$2.spawn.md"
+	## The session's OWN record first: the newest record in its folder is a child a member was spawned as, whose
+	## owner is that child. A session folder that keeps no record of its own falls back to the one it holds.
+	[ -f "$memberRecord" ] || memberRecord="$( ls -t "$1/.local/agents/spawned/$2/"*.spawn.md 2> /dev/null | head -1 )"
+	[ -n "$memberRecord" ] && [ -f "$memberRecord" ] || return 1
+	LC_ALL=C awk -F': ' '$1 == "owner" { print $2 ; exit }' "$memberRecord" 2> /dev/null
+	return 0
+}
+
+## The runs that took a copy of a message are woken at once (AgentsTools.WakeMarker.include): a post into a session's own thread is
+## that run's mail, and a run napping on its next look at the costly source reads it only when that look comes -- minutes, on the
+## backoff. A copy's row names the workspace root and the session, and the session's own record names its member, so this reads one
+## file a copy and walks no store. A thread of no session here takes no copy and wakes nobody.
+AgentsToolsSessionChatWakeCopies(){ ## copies' rows, who wrote it
+	local wakeRoot="" wakeSession="" wakeBlock="" wakeThread="" wakeMember=""
+	[ -n "${1:-}" ] || return 0
+	type AgentsToolsWakeTouch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.WakeMarker.include"
+	while IFS=$'\t' read -r wakeRoot wakeSession wakeBlock wakeThread ; do
+		[ -n "$wakeRoot" ] && [ -n "$wakeSession" ] || continue
+		wakeMember="$( AgentsToolsSessionChatSessionMember "$wakeRoot" "$wakeSession" )" || continue
+		[ -n "$wakeMember" ] || continue
+		MMDAPP="$wakeRoot" AgentsToolsWakeTouch "$wakeMember" "${2:-}" || :
+	done <<< "$1"
+	return 0
+}
+
+## The copies of one message sent into the thread of another session (above): appended to the chat file of each session that keeps
+## <conversation:thread>, from the sender, to the addressees, origin `delivered`. Where the sender is among the addressees, one run
+## of a member dismissing another of the same member, the header names both runs (S27.8, AgentsHarnessWaitDismissed.awk): the
+## sender's, and the live run of that member in the receiving session. Prints one `<root><TAB><session><TAB><block><TAB><thread>`
+## for each copy, for AgentsToolsSessionChatDeliverStamp. Quiet, and never a reason for a send to fail.
+## A SESSION NAMED BY ITS ADDRESS IS REACHED BY ITS ID (S12.15): the sixth argument is the session the address itself named, and then
+## that session's file is the one written, in this workspace. Thread files are never matched for it, and no other workspace is read.
+AgentsToolsSessionChatDeliverCopy(){ ## sending session (may be empty), member, addressees (spaced; may be empty), conversation:thread, body, the session the address named (optional)
+	local copyRows="" copyRoot="" copySession="" copyNo="" copyFrom="" copyTo="" copyRun="" copyTheirs=""
+	## A post into the sender's own session thread is that session's already: nothing is looked for.
+	[ -z "$1" ] || [ "$( AgentsToolsSessionChatThread "$1" 2> /dev/null )" != "$4" ] || return 0
+	if [ -n "${6:-}" ] ; then
+		copyRows="$( printf '%s\t%s\n' "${MMDAPP%/}" "$6" )"
+	else
+		copyRows="$( AgentsToolsSessionChatThreadSessions "$4" "$1" )" || return 0
+	fi
+	copyRun="${MDAT_SPAWN_SESSION_ID:-${harnessSessionId:-${CLAUDE_CODE_SESSION_ID:-}}}"
+	while IFS=$'\t' read -r copyRoot copySession ; do
+		[ -n "$copyRoot" ] && [ -n "$copySession" ] || continue
+		copyFrom="$2" copyTo="$( AgentsToolsSessionChatTo $3 )"
+		case " $3 " in
+			*" $2 "*)
+				copyTheirs="$( AgentsToolsSessionChatLiveRun "$copyRoot" "$copySession" "$2" )" || copyTheirs=""
+				if [ -n "$copyRun" ] && [ -n "$copyTheirs" ] && [ "$copyTheirs" != "$copyRun" ] ; then
+					copyFrom="$2 [author-run=$copyRun]" copyTo="$copyTo [addressee-run=$copyTheirs]"
+				fi
+			;;
+		esac
+		copyNo="$( printf '%s' "$5" | MMDAPP="$copyRoot" AgentsToolsSessionChatAppend "$copySession" "$copyFrom" "$copyTo" - "$4" delivered 2> /dev/null )" || continue
+		[ -z "$copyNo" ] || printf '%s\t%s\t%s\t%s\n' "$copyRoot" "$copySession" "$copyNo" "$4"
+	done <<< "$copyRows"
+	return 0
+}
+
+## The ts Slack gave the post, set on each of its copies (AgentsToolsSessionChatDeliverCopy's rows). Each keeps its conversation,
+## the receiving session's thread, so a read of that thread into the file knows the message as the block it holds already.
+AgentsToolsSessionChatDeliverStamp(){ ## the copies' rows, ts
+	local stampRoot="" stampSession="" stampNo="" stampThread=""
+	[ -n "$1" ] && [ -n "$2" ] || return 0
+	while IFS=$'\t' read -r stampRoot stampSession stampNo stampThread ; do
+		[ -n "$stampNo" ] && [ -n "$stampThread" ] || continue
+		( MMDAPP="$stampRoot" ; AgentsToolsSessionChatStamp "$stampSession" "$stampNo" "$2" "$stampThread" ) 2> /dev/null || :
+	done <<< "$1"
+	return 0
+}
+
+## THE COPIES OF A QUEUED POST (the Slack copy is deferred, the chat file is the channel): a message queued for the comms writer that went into
+## the thread of another session leaves its copies' rows in chat.copies/<block number> of the sending session, which the writer takes when it has
+## posted the message and sets the ts on (AgentsToolsSessionChatDeliverStamp). Quiet, rc 1 where it could not be kept.
+AgentsToolsSessionChatCopiesKeep(){ ## session, block number, the copies' rows
+	local keepDir
+	keepDir="$( AgentsToolsSessionChatDir "$1" )/chat.copies" || return 1
+	case "$2" in ''|*[!0123456789]*) return 1 ;; esac
+	mkdir -p "$keepDir" 2> /dev/null || return 1
+	{ printf '%s\n' "$3" > "$keepDir/$2.aside" && mv -f "$keepDir/$2.aside" "$keepDir/$2" ; } 2> /dev/null || { rm -f "$keepDir/$2.aside" 2> /dev/null ; return 1 ; }
+	return 0
+}

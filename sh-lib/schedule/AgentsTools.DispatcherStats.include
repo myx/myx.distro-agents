@@ -48,13 +48,13 @@ AgentsToolsStatsDerive(){ ## folder, full|refresh
 	deriveTokens="$( mktemp "$MMDAPP/.local/temp/mdat-stats-tokens.XXXXXX" )" || { rm -f "$deriveRef" "$deriveList" "$deriveRows" ; return 1 ; }
 	deriveOld="$deriveDir/runs.index"
 	## The token sums come from the transcript's own reading of them, never from a path built here.
-	type AgentsSessionTokensRowsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	type AgentsSessionTokensRowsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTokens.include"
 	AgentsSessionTokensRowsInto deriveTokenRows "$MMDAPP"
 	if [ "$deriveMode" = refresh ] && [ -f "$deriveOld" ] ; then
 		## what changed since the index: the records, and the records of the runs whose token sum was written after it.
 		## A RECORD IS TESTED, NOT WALKED FOR: the registry's rows are the candidates, and the test is whether the file
 		## is newer than the index. One `find` over 1,150 folders bought nothing the registry does not list.
-		type AgentsSessionTokensNewRunsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+		type AgentsSessionTokensNewRunsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTokens.include"
 		AgentsSessionTokensNewRunsInto deriveNewRuns "$deriveOld" "$MMDAPP"
 		deriveChanged="$( { AgentsToolsStatsRecordPaths 2> /dev/null | while IFS= read -r deriveRec ; do
 			[ -n "$deriveRec" ] || continue

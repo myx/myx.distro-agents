@@ -239,7 +239,7 @@ rigAssert "a file's own operation with no row is taken through the syntax reader
 rigAssert "a word a call may begin with, the first of a query, is taken though it is not the line's first word" \
 	"$( rigHolds "$( rigValue "$rigTmp/gate13" error.message )$( rigValue "$rigTmp/gate13" result.content.0.text )" 'not an operation of that tool file' )" no
 rigAssert "the syntax reader is loaded before the gate calls it, in the secondary arm itself" \
-	"$( LC_ALL=C awk '/elif \[ -n "\$mcpIsSecondaryTool" \]/ { arm = 1 ; next ; } arm && /type AgentsToolsFrontSyntaxLines/ { print "loaded-first" ; exit ; } arm && /if \[ -z "\$mcpSecondaryOp" \]/ { print "loaded-late" ; exit ; }' "$rigHere/mcp/AgentsTools.InternMcpRequest.include" ):$( LC_ALL=C grep -c 'command not found' "$rigTmp/gateerr" || : )" "loaded-first:0"
+	"$( LC_ALL=C awk 'BEGIN { arm = 1 ; } arm && /type AgentsToolsFrontSyntaxLines/ { print "loaded-first" ; exit ; } arm && /if \[ -z "\$mcpSecondaryOp" \]/ { print "loaded-late" ; exit ; }' "$rigHere/mcp/AgentsTools.InternMcpRequestSecondary.include" ):$( LC_ALL=C grep -c 'command not found' "$rigTmp/gateerr" || : )" "loaded-first:0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SECONDARY TOOL DISPATCH CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

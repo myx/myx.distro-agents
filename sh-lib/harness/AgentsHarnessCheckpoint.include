@@ -163,7 +163,7 @@ AgentsHarnessRewindTo(){ ## name, dispatch text ('' for none)
 	AgentsHarnessContextBegin 0
 	harnessRoundTotal=0
 	harnessLegRound=0
-	type AgentsTranscriptHarnessRewind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	type AgentsTranscriptHarnessRewind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLoop.include"
 	AgentsTranscriptHarnessRewind "$rewindName" "$rewindDropped" "$rewindKind" || :
 	printf '%s\n' "${harnessValue}⏪ rewound${harnessOff} ${harnessDim}-- to snapshot $rewindName ($rewindKind, $rewindCount message(s)); $rewindDropped message(s) dropped${rewindInput:+; the next input follows}${harnessOff}" >&2
 	return 0

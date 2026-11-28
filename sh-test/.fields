@@ -1,8 +1,0 @@
-member	keeper-myx
-act	change
-file	rig-ws:held/notes.md
-purpose	Raise the second word
-task	Rework the rig widget\n`task-20261012T0000Z-before-ended` · `dispatch-20261012T0100Z-before-ended`\nThe widget drops its last line. Make it keep it.
-session	rework the rig widget · `5e55104a` · `CSES00001:1700000000.000100`
-asked-by	keeper-myx · macmyx14 / ws
-fence	```

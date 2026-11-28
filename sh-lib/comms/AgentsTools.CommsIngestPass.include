@@ -62,22 +62,26 @@ AgentsCommsIngestPassSources(){ ## the list path, the store folder
 
 ## ONE INGEST, at most <most> sources served, each one due, starting after the source the last pass served. rc 0 whether or not it served
 ## anything; rc 1 a source could not be read, and the pass went on with the rest of its turn.
-AgentsCommsIngestPass(){ ## most (0 for no bound)
-	local passMost="${1:-0}" passDir passList passTurn="" passNow passAt=0 passStep=0 passServed=0 passFailed=0 passStart=0
+## THE PASS TAKES ITS CALLER'S CLOCK, and keeps the moment it ingested each folder (agentsCommsIngestAt_<folder>): the reader's pass came
+## every thirty seconds with a date of its own, and asked stat of every due folder on every pass. A folder this process has not ingested
+## yet is asked of stat once; the moment of an ingest it ran is its own.
+AgentsCommsIngestPass(){ ## most (0 for no bound), the caller's epoch (optional)
+	local passMost="${1:-0}" passKey passDir passList passTurn="" passNow passAt=0 passStep=0 passServed=0 passFailed=0 passStart=0
 	local passLine passMember passTarget passPath passBot passIngest passIngestAt passTtl passRows=() passTab
 	case "$passMost" in ''|*[!0123456789]*) passMost=0 ;; esac
 	[ -n "${MMDAPP:-}" ] || { echo "⛔ ERROR: the comms ingest pass needs a workspace" >&2 ; set +e ; return 1 ; }
 	passDir="$( AgentsCommsIngestPassDir )" || { set +e ; return 1 ; }
 	passList="$passDir/sources.txt"
 	AgentsCommsIngestPassSources "$passList" "$MMDAPP/.local/cache/comms/slack" || { echo "⛔ ERROR: the ingest pass could not keep its list in $passDir" >&2 ; set +e ; return 1 ; }
-	passTab="$( printf '\t' )"
+	passTab=$'\t'
 	while IFS= read -r passLine ; do
 		[ -n "$passLine" ] || continue
 		passRows[${#passRows[@]}]="$passLine"
 	done < "$passList"
 	[ "${#passRows[@]}" -gt 0 ] || return 0
 	[ ! -f "$passDir/turn" ] || { IFS= read -r passTurn 2> /dev/null < "$passDir/turn" || passTurn="" ; }
-	passNow="$( date +%s )"
+	passNow="${2:-}"
+	case "$passNow" in ''|*[!0123456789]*) passNow="$( date +%s )" ;; esac
 	while [ "$passAt" -lt "${#passRows[@]}" ] ; do
 		passLine="${passRows[$passAt]}"
 		passLine="${passLine#*$passTab}"
@@ -99,11 +103,15 @@ AgentsCommsIngestPass(){ ## most (0 for no bound)
 		passBot="${passLine#*$passTab}"
 		[ "$passBot" = "true" ] || passBot=""
 		passIngest="$passPath/.ingest.txt"
+		passKey="agentsCommsIngestAt_${passPath##*/}" ; passKey="${passKey//[!A-Za-z0-9_]/_}"
 		if [ -f "$passIngest" ] ; then
 			[ "$passPath/.state.txt" -nt "$passIngest" ] || continue
-			passIngestAt="$( LC_ALL=C stat -f '%m' "$passIngest" 2> /dev/null || LC_ALL=C stat -c '%Y' "$passIngest" 2> /dev/null )" || passIngestAt=""
+			passIngestAt="${!passKey:-}"
+			if [ -z "$passIngestAt" ] ; then
+				passIngestAt="$( LC_ALL=C stat -f '%m' "$passIngest" 2> /dev/null || LC_ALL=C stat -c '%Y' "$passIngest" 2> /dev/null )" || passIngestAt=""
+			fi
 			case "$passIngestAt" in ''|*[!0123456789]*) passIngestAt=0 ;; esac
-			passTtl="$( AgentsToolsSourceTtlOf "slack:$passTarget" )"
+			AgentsToolsSourceTtlInto passTtl "slack:$passTarget"
 			case "$passTtl" in ''|*[!0123456789]*) passTtl=15 ;; esac
 			[ $(( passNow - passIngestAt )) -ge "$passTtl" ] || continue
 		fi
@@ -111,6 +119,7 @@ AgentsCommsIngestPass(){ ## most (0 for no bound)
 		## caller is the comms reader, whose own command line is that script, so a pass that could not read a source ended the
 		## reader it ran in, once every pass, and the reader's lifetime fell to the gap between starts.
 		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-comms-ingest --run "$passMember" "$passTarget" ${passBot:+--as-bot} --folder "$passPath" || passFailed=$(( passFailed + 1 ))
+		printf -v "$passKey" '%s' "$passNow"
 		printf '%s\n' "${passPath##*/}" > "$passDir/turn" 2> /dev/null || :
 		passServed=$(( passServed + 1 ))
 	done
@@ -119,9 +128,9 @@ AgentsCommsIngestPass(){ ## most (0 for no bound)
 }
 
 ## THE SWEEP: the due sources ingested, then the cache-to-inbox transfer for each reader the store names, then one commit.
-AgentsCommsSweepPass(){ ## most (0 for no bound)
+AgentsCommsSweepPass(){ ## most (0 for no bound), the caller's epoch (optional)
 	local sweepList sweepMember
-	AgentsCommsIngestPass "${1:-0}" || :
+	AgentsCommsIngestPass "${1:-0}" "${2:-}" || :
 	type AgentsCommsTransferSlack > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsTransfer.include"
 	sweepList="$MMDAPP/.local/cache/comms/.transfer/sources.txt"
 	AgentsCommsTransferSources "$sweepList" "$MMDAPP/.local/cache/comms/slack" || return 1

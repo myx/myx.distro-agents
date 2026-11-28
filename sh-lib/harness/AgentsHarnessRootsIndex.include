@@ -138,7 +138,11 @@ AgentsHarnessRootsIndexText(){ ## workspace
 	writeOut="$(
 		unset CDPATH
 		writeStart="$PWD"
-		AgentsHarnessRootsEnc "$writePrint" ; printf 'print\t%s\n' "$agentsRootsEnc"
+		## THE READY ANSWER, for the call path: the roots and resolutions of each kind on one line, joined by the unit separator, and the
+		## rows whose answer depends on the disk at call time, u unresolved and l through a link, so a call tests those alone. Written
+		## only where every root is absolute plain text; the rows follow it, as every reader of this format reads them.
+		writeRows="" writeTests="" writeReady=yes writeSep=$'\037'
+		writeList_read="" writeReals_read="" writeAt_read=0 writeList_wref="" writeReals_wref="" writeAt_wref=0 writeList_grant="" writeReals_grant="" writeAt_grant=0
 		for writeKind in read wref grant ; do
 			## Each pattern opened by its own `(`: bash 3.2 misparses a bare `x)` inside `$( )`.
 			case "$writeKind" in
@@ -151,11 +155,29 @@ AgentsHarnessRootsIndexText(){ ## workspace
 				## `cd && pwd -P` as the harness resolves, by builtins: PWD after `cd -P .` is what pwd -P prints.
 				cd "$writeStart" 2>/dev/null
 				cd "$writeRoot" 2>/dev/null && cd -P . 2>/dev/null && writeReal="$PWD" || writeReal=""
-				AgentsHarnessRootsEnc "$writeRoot" ; printf '%s\t%s' "$writeKind" "$agentsRootsEnc"
-				AgentsHarnessRootsEnc "$writeReal" ; printf '\t%s\n' "$agentsRootsEnc"
+				AgentsHarnessRootsEnc "$writeRoot" ; writeRows="$writeRows$writeKind"$'\t'"$agentsRootsEnc"
+				AgentsHarnessRootsEnc "$writeReal" ; writeRows="$writeRows"$'\t'"$agentsRootsEnc"$'\n'
+				case "$writeRoot" in (/*) ;; (*) writeReady="" ;; esac
+				case "$writeRoot$writeReal" in (*"$writeSep"*|*$'\t'*|*\\*) writeReady="" ;; esac
+				writeAtName="writeAt_$writeKind" ; writeListName="writeList_$writeKind" ; writeRealsName="writeReals_$writeKind"
+				writeAt="${!writeAtName}" ; writeJoin="" ; [ "$writeAt" = 0 ] || writeJoin="$writeSep"
+				if [ -z "$writeReal" ] ; then writeTests="$writeTests${writeTests:+$writeSep}${writeKind:0:1}${writeAt}u" ; writeReal="$writeRoot"
+				elif [ "$writeReal" != "$writeRoot" ] ; then writeTests="$writeTests${writeTests:+$writeSep}${writeKind:0:1}${writeAt}l"
+				fi
+				printf -v "$writeListName" '%s' "${!writeListName}$writeJoin$writeRoot"
+				printf -v "$writeRealsName" '%s' "${!writeRealsName}$writeJoin$writeReal"
+				printf -v "$writeAtName" '%s' "$(( writeAt + 1 ))"
 			done <<< "$writeLines"
 		done
-		printf 'end'
+		AgentsHarnessRootsEnc "$writePrint" ; printf 'print\t%s\n' "$agentsRootsEnc"
+		if [ -n "$writeReady" ] ; then
+			for writeKind in read wref grant ; do
+				writeListName="writeList_$writeKind" ; writeRealsName="writeReals_$writeKind"
+				printf 'readyroots\t%s\t%s\nreadyreals\t%s\t%s\n' "$writeKind" "${!writeListName}" "$writeKind" "${!writeRealsName}"
+			done
+			printf 'readytests\tall\t%s\n' "$writeTests"
+		fi
+		printf '%send' "$writeRows"
 	)" || return 1
 	## Whatever changed while this ran makes the index describe a set nobody computed.
 	AgentsHarnessRootsFingerprint "$writeWorkspace" && [ "$agentsRootsPrint" = "$writePrint" ] || return 1
@@ -175,13 +197,115 @@ AgentsHarnessRootsIndexUse(){ ## workspace, member name, write roots already giv
 	[ -n "$useWorkspace" ] && [ -f "$useIndex" ] || return 1
 	## Member links re-pointed in a second already gone leave their directory newer than the index.
 	[ -z "${MDAT_SKILLSET_ROOT:-}" ] || [ ! "$MDAT_SKILLSET_ROOT" -nt "$useIndex" ] || return 1
-	IFS= read -r -d '' useRaw < "$useIndex" || :
+	## One block read, by the one fork it costs: `read -d ''` reads a file a byte at a time, which costs more than the fork here.
+	useRaw="$( < "$useIndex" )" || return 1
 	case "$useRaw" in "$agentsRootsIndexHeader"$'\n'"print"$'\t'*) ;; *) return 1 ;; esac
 	useBody="${useRaw#*$'\n'}"
 	useLine="${useBody%%$'\n'*}"
 	AgentsHarnessRootsFingerprint "$useWorkspace" || return 1
 	AgentsHarnessRootsDec "${useLine#*$'\t'}"
 	[ "$agentsRootsDec" = "$agentsRootsPrint" ] || return 1
+	## THE READY ANSWER (the writer's ready lines, first after the print line): split by builtins, the rows the writer named tested
+	## against the disk, the member's extras put in their sorted place, so this call does no work per root and starts no process.
+	case "$useBody" in *$'\n'"readyroots"$'\t'*)
+		case "$useRaw" in *$'\n'end|*$'\n'end$'\n') ;; *) return 1 ;; esac
+		local LC_ALL=C useKind useField useTest useLow useHigh useMid useAt useTests=() useMergedRoots=() useMergedReals=()
+		## THE ROWS LEFT OPEN, the only ones the harness start resolves: a root made since the index, and the member's extras.
+		local useOpenRead=() useOpenWref=() useOpenGrant=() useOpenWrite=() useOpenShifted=() useOpenPlaced="" useOpenAt useOpenBase="${#harnessAccessRoots[@]}${#harnessWriteAccessRoots[@]}"
+		harnessRootsReadyRead="" harnessRootsReadyWrite=""
+		## The ready lines follow the header and the print line, in the writer's order, each taken whole by `read` from the text read
+		## above. A slice off the body rescans the whole line for each one, which is quadratic in bash 3.2 on lines this long.
+		{
+			read -r useLine && read -r useLine || return 1
+			for useKind in read wref grant ; do
+				for useField in roots reals ; do
+					IFS=$'\t' read -r useTag useRest useLine || return 1
+					[ "$useTag $useRest" = "ready$useField $useKind" ] || return 1
+					case "$useField:$useKind" in
+						roots:read) IFS=$'\037' read -r -a useReadRoots <<< "$useLine" ;;
+						reals:read) IFS=$'\037' read -r -a useReadReals <<< "$useLine" ;;
+						roots:wref) IFS=$'\037' read -r -a useWrefRoots <<< "$useLine" ;;
+						reals:wref) IFS=$'\037' read -r -a useWrefReals <<< "$useLine" ;;
+						roots:grant) IFS=$'\037' read -r -a useGrantRoots <<< "$useLine" ;;
+						reals:grant) IFS=$'\037' read -r -a useGrantReals <<< "$useLine" ;;
+					esac
+				done
+			done
+			IFS=$'\t' read -r useTag useRest useLine || return 1
+			[ "$useTag $useRest" = "readytests all" ] || return 1
+		} <<< "$useRaw"
+		[ "${#useReadRoots[@]}" = "${#useReadReals[@]}" ] && [ "${#useWrefRoots[@]}" = "${#useWrefReals[@]}" ] && [ "${#useGrantRoots[@]}" = "${#useGrantReals[@]}" ] || return 1
+		IFS=$'\037' read -r -a useTests <<< "$useLine"
+		## A stored resolution holds only while its root is still a directory; a root that is none resolves to itself.
+		for useTest in ${useTests[@]+"${useTests[@]}"} ; do
+			useAt="${useTest%?}" ; useAt="${useAt#?}"
+			case "$useTest" in r*) useRoot="${useReadRoots[$useAt]}" ;; w*) useRoot="${useWrefRoots[$useAt]}" ;; g*) useRoot="${useGrantRoots[$useAt]}" ;; *) return 1 ;; esac
+			if [ ! -d "$useRoot" ] ; then useReal="$useRoot"
+			else
+				case "$useTest" in *l) continue ;; esac
+				useReal=""
+				case "$useTest" in r*) useOpenRead+=( "$useAt" ) ;; w*) useOpenWref+=( "$useAt" ) ;; g*) useOpenGrant+=( "$useAt" ) ;; esac
+			fi
+			case "$useTest" in r*) useReadReals[$useAt]="$useReal" ;; w*) useWrefReals[$useAt]="$useReal" ;; g*) useGrantReals[$useAt]="$useReal" ;; esac
+		done
+		local useWriteRoots=() useWriteReals=()
+		if [ "$useWriteGiven" = 0 ] ; then
+			useWriteRoots=( ${useWrefRoots[@]+"${useWrefRoots[@]}"} ) ; useWriteReals=( ${useWrefReals[@]+"${useWrefReals[@]}"} )
+			useOpenWrite=( ${useOpenWref[@]+"${useOpenWref[@]}"} )
+			if [ -n "$useMember" ] ; then
+				useOpenWrite+=( "${#useWriteRoots[@]}" "$(( ${#useWriteRoots[@]} + 1 ))" )
+				useWriteRoots+=( "$useWorkspace/.local/temp/member/$useMember" "$useWorkspace/.local/temp/task/$useMember" ) ; useWriteReals+=( "" "" )
+			fi
+			for useOpenAt in ${useOpenGrant[@]+"${useOpenGrant[@]}"} ; do useOpenWrite+=( "$(( useOpenAt + ${#useWriteRoots[@]} ))" ) ; done
+			useWriteRoots+=( ${useGrantRoots[@]+"${useGrantRoots[@]}"} ) ; useWriteReals+=( ${useGrantReals[@]+"${useGrantReals[@]}"} )
+			[ "${#useWriteRoots[@]}" -gt 0 ] || return 1
+		fi
+		## The read set: the stored roots are the producer's C-sorted set, so each extra goes in at its own place, found by halving.
+		useMergedRoots=( ${useReadRoots[@]+"${useReadRoots[@]}"} ) ; useMergedReals=( ${useReadReals[@]+"${useReadReals[@]}"} )
+		[ -z "${MDLT_ORIGIN:-}" ] || useExtra+=( "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" )
+		[ -z "$useMember" ] || useExtra+=( "$useWorkspace/.local/temp/member/$useMember" "$useWorkspace/.local/temp/task/$useMember" )
+		for useRoot in ${useExtra[@]+"${useExtra[@]}"} ; do
+			case "$useRoot" in /*) ;; *) continue ;; esac
+			useLow=0 useHigh="${#useMergedRoots[@]}"
+			while [ "$useLow" -lt "$useHigh" ] ; do
+				useMid=$(( ( useLow + useHigh ) / 2 ))
+				if [[ "${useMergedRoots[$useMid]}" < "$useRoot" ]] ; then useLow=$(( useMid + 1 )) ; else useHigh="$useMid" ; fi
+			done
+			[ "${useMergedRoots[$useLow]-}" != "$useRoot" ] || continue
+			useMergedRoots=( "${useMergedRoots[@]:0:$useLow}" "$useRoot" "${useMergedRoots[@]:$useLow}" )
+			useMergedReals=( "${useMergedReals[@]:0:$useLow}" "" "${useMergedReals[@]:$useLow}" )
+			## The open rows at or past the place it went in move one on, and the place itself is open, kept in order.
+			useOpenShifted=() useOpenPlaced=""
+			for useOpenAt in ${useOpenRead[@]+"${useOpenRead[@]}"} ; do
+				if [ -z "$useOpenPlaced" ] && [ "$useOpenAt" -ge "$useLow" ] ; then useOpenShifted+=( "$useLow" ) ; useOpenPlaced=1 ; fi
+				[ "$useOpenAt" -lt "$useLow" ] || useOpenAt=$(( useOpenAt + 1 ))
+				useOpenShifted+=( "$useOpenAt" )
+			done
+			[ -n "$useOpenPlaced" ] || useOpenShifted+=( "$useLow" )
+			useOpenRead=( ${useOpenShifted[@]+"${useOpenShifted[@]}"} )
+		done
+		harnessAccessRootsReal=()
+		harnessAccessRoots+=( ${useMergedRoots[@]+"${useMergedRoots[@]}"} ) ; harnessAccessRootsReal+=( ${useMergedReals[@]+"${useMergedReals[@]}"} )
+		## Named only where the harness sets were empty before this call, so a position is the harness's own.
+		if [ "$useOpenBase" = 00 ] ; then harnessAccessRootsOpen=( ${useOpenRead[@]+"${useOpenRead[@]}"} ) ; harnessRootsReadyRead=1 ; fi
+		if [ "$useWriteGiven" = 0 ] ; then
+			harnessWriteAccessRootsReal=()
+			case "$useWorkspace" in
+				/*)
+					harnessWriteAccessRoots+=( "${useWriteRoots[@]}" ) ; harnessWriteAccessRootsReal+=( "${useWriteReals[@]}" )
+					if [ "$useOpenBase" = 00 ] ; then harnessWriteAccessRootsOpen=( ${useOpenWrite[@]+"${useOpenWrite[@]}"} ) ; harnessRootsReadyWrite=1 ; fi
+				;;
+				*)
+					useAt=0
+					while [ "$useAt" -lt "${#useWriteRoots[@]}" ] ; do
+						case "${useWriteRoots[$useAt]}" in /*) harnessWriteAccessRoots+=( "${useWriteRoots[$useAt]}" ) ; harnessWriteAccessRootsReal+=( "${useWriteReals[$useAt]}" ) ;; esac
+						useAt=$(( useAt + 1 ))
+					done
+				;;
+			esac
+		fi
+		return 0
+	;; esac
 	while IFS= read -r useLine ; do
 		useTag="${useLine%%$'\t'*}"
 		useRest="${useLine#*$'\t'}"
@@ -189,8 +313,8 @@ AgentsHarnessRootsIndexUse(){ ## workspace, member name, write roots already giv
 			read|wref|grant)
 				AgentsHarnessRootsDec "${useRest%%$'\t'*}" ; useRoot="$agentsRootsDec"
 				AgentsHarnessRootsDec "${useRest#*$'\t'}" ; useReal="$agentsRootsDec"
-				## A stored resolution holds only while its root is still a directory.
-				[ -d "$useRoot" ] || useReal=""
+				## A stored resolution holds only while its root is still a directory; a root that is none resolves to itself, as AgentsHarnessResolveDir answers it.
+				[ -d "$useRoot" ] || useReal="$useRoot"
 				case "$useTag" in
 					read) useReadRoots+=( "$useRoot" ) ; useReadReals+=( "$useReal" ) ;;
 					wref) useWrefRoots+=( "$useRoot" ) ; useWrefReals+=( "$useReal" ) ;;

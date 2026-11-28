@@ -205,8 +205,8 @@ AgentsWaitSourceModeApply(){ ## member, source, form, in, out
 		*:[0-9]*.*) applyRef="${applyTarget%%:*}" ;;
 	esac
 	applySlug="$( printf '%s' "$2" | LC_ALL=C tr -c 'A-Za-z0-9_.-' '_' )"
-	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
-	AgentsToolsSessionChatKeyInto ; applyKey="$agentsSessionChatKey"
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
+	applyKey="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	if [ -n "$applyKey" ] && applySession="$( AgentsToolsSessionChatDir "$applyKey" )" && mkdir -p "$applySession/sources" 2> /dev/null ; then
 		applyIndex="$applySession/sources/$applySlug.md"
 		applyDir="$applySession/messages/$applySlug"

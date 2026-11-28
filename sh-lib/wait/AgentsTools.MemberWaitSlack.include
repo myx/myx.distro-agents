@@ -354,7 +354,7 @@ AgentsWaitProbeSlack(){
 AgentsWaitChatImportRead(){ ## member, conversation:thread, the rendering file
 	local importSession importThread
 	type AgentsToolsSessionChatImport > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-	AgentsToolsSessionChatKeyInto ; importSession="$agentsSessionChatKey"
+	importSession="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	[ -n "$importSession" ] || return 0
 	importThread="$( AgentsToolsSessionChatThread "$importSession" )" || return 0
 	[ "$importThread" = "$2" ] || return 0

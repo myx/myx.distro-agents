@@ -159,6 +159,15 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 		fi
 		runEnv+=( "$runEnvKey=$runEnvValue" )
 	done
+	## THE GIT GUARD REACHES THE SERVER'S OWN SHELL (the owner's ruling of 26 November). A server is started with `env`, and
+	## what it starts inherits PATH from here: myx.common's `lib_execShStdin` is exactly such a shell, and this package never
+	## sees inside it. So the guard folder goes first on the PATH the server is given, made and exported at this launch, and
+	## the server's child meets the guard wherever it runs git. Made here, so the folder is current at every launch.
+	if [ -n "${MMDAPP:-}" ] && [ -f "$harnessHere/common/AgentsTools.GitWrite.include" ] ; then
+		. "$harnessHere/common/AgentsTools.GitWrite.include"
+		AgentsToolsGitGuardPath "${MMDAPP:-}"
+		runEnv+=( "PATH=$PATH" )
+	fi
 
 	## Answers go to a file, never through `$( )`: a capture returns on pipe-EOF rather
 

@@ -27,18 +27,22 @@
 ##     and the TTL only keeps a scan with nothing to report from running again and again;
 ##   - the Trello notifications of a member: 120.
 ## The session thread, the replies and the file are timed where they are read (AgentsWaitChatTopUp, AgentsWaitRepliesLookRead).
-AgentsToolsSourceTtlOf(){ ## source
-	case "$1" in
-		chat:*) printf '15\n' ;;
-		tagged:*) printf '15\n' ;;
-		mentions:*) printf '60\n' ;;
-		dms:*) printf '15\n' ;;
-		slack:*) printf '15\n' ;;
-		scan:*) printf '300\n' ;;
-		mail:*) printf '180\n' ;;
-		trello:*) printf '120\n' ;;
-		*) printf '0\n' ;;
+## The same table, set into a variable by printf -v, so a caller on a pass starts no subshell for it.
+AgentsToolsSourceTtlInto(){ ## variable, source
+	case "${2:-}" in
+		chat:*) printf -v "$1" 15 ;;
+		tagged:*) printf -v "$1" 15 ;;
+		mentions:*) printf -v "$1" 60 ;;
+		dms:*) printf -v "$1" 15 ;;
+		slack:*) printf -v "$1" 15 ;;
+		scan:*) printf -v "$1" 300 ;;
+		mail:*) printf -v "$1" 180 ;;
+		trello:*) printf -v "$1" 120 ;;
+		*) printf -v "$1" 0 ;;
 	esac
+}
+AgentsToolsSourceTtlOf(){ ## source
+	local intoTtl ; AgentsToolsSourceTtlInto intoTtl "${1:-}" ; printf '%s\n' "$intoTtl"
 }
 
 ## Prints the seconds after which a source reads as long expired, nobody having updated it here: twenty of its TTLs. 0 for a source

@@ -33,6 +33,26 @@ AgentsReviewTools(){
 	fi
 }
 
+## THE RECEIPT THAT MAKES A RUN ATTRIBUTABLE TO ITS ITEM: a restart already knows the item and the session it started, and this writes
+## `execution-receipt: spawn:<session>:<utc>` in the state the item stands in -- running, or still in review. Without it an item shows
+## `started-at` and no run, which is how a handback loses its item (28 task items measured 2026-11-27). rc 1 where the item is in no
+## work state, rc 2 where either argument is missing; nothing is written in either case.
+AgentsToolsBoardExecutionReceiptWrite(){ ## item file name, session id, [utc stamp]
+	local receiptItem="${1:-}" receiptSession="${2:-}" receiptStamp="${3:-}" receiptState="" receiptFound=""
+	[ -n "$receiptItem" ] || return 2
+	[ -n "$receiptSession" ] || return 2
+	[ -n "$receiptStamp" ] || receiptStamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+	for receiptState in running review pending blocked backlog ; do
+		[ -f "${MDAT_DATA_ROOT:-}/board/$receiptState/$receiptItem" ] || continue
+		receiptFound="$receiptState" ; break
+	done
+	[ -n "$receiptFound" ] || return 1
+	AgentsReviewTools --intern-op-board-upsert-move-edit "$receiptFound" "$receiptItem" --from-state:"$receiptFound" \
+		--header:upsert:execution-receipt:"spawn:$receiptSession:$receiptStamp" \
+		--context restart --log-verb:updated > /dev/null 2>&1 || return 1
+	return 0
+}
+
 ## REVIEW_WAIT_LIMIT from the team config: how long a child waits in review for its verdict.
 AgentsReviewWaitLimit(){
 	local limitValue
@@ -45,7 +65,7 @@ AgentsReviewWaitLimit(){
 ## transcript of the session that works it. Never fails its caller.
 AgentsReviewRecord(){ ## who, item name, decisions kind, text, transcript event, spawn id (empty: the item's own)
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-	type AgentsTranscriptEventAfterEnd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	type AgentsTranscriptEventAfterEnd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLife.include"
 	local recWho="${1:-unknown}" recItem="${2%.md}" recKind="$3" recText="$4" recEvent="$5" recSpawn="${6:-}" recPath
 	if [ -z "$recSpawn" ] && recPath="$( AgentsToolsDecisionsItemPath "$recItem" )" ; then
 		recSpawn="$( AgentsToolsDecisionsField "$recPath" spawn-id )"
@@ -469,6 +489,10 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 	fi
 	## A resume records its own path once it runs (the proxy); a new process is recorded here.
 	[ -n "$rsFrom" ] || [ -n "$rsContext" ] || AgentsReviewRecord "$rsWho" "$rsItem" review "restart: new-process ($rsWhy)" RESTART ""
+	## AND THE ITEM CARRIES THE SESSION THE RESTART MADE, so its run can be found from the item and a handback attributed: the value the
+	## RETURN line below already prints, written in the state the item stands in.
+	rsSessionNew="$( printf '%s\n' "$rsOut" | LC_ALL=C sed -n 's/^SESSION_ID=//p' | LC_ALL=C head -1 )"
+	[ -z "$rsSessionNew" ] || AgentsToolsBoardExecutionReceiptWrite "$rsItem" "$rsSessionNew" || :
 	printf 'RETURN: restarted %s on %s, session %s, sandbox %s, %s\n' "$rsMember" "${rsItem%.md}" "$( printf '%s\n' "$rsOut" | LC_ALL=C sed -n 's/^SESSION_ID=//p' | head -1 )" "${rsTracking:-new}" \
 		"$( if [ -n "$rsFrom" ] ; then printf 'resuming %s' "$rsFrom" ; elif [ -n "$rsContext" ] ; then printf 'resuming its kept context %s' "$rsContext" ; else printf 'new process (%s)' "$rsWhy" ; fi )"
 	return 0

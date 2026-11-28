@@ -147,8 +147,8 @@ AgentsWaitProbeScan(){
 	fi
 	## The sum of the report less its token counters, by the scan's own rule (AgentsToolsInputScanReportSum); the report returned is whole.
 	probeSum="$( AgentsToolsInputScanReportSum "$probeOut.report" )"
-	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-	AgentsToolsSessionChatKeyInto ; probeKey="$agentsSessionChatKey"
+	type AgentsToolsSessionChatPointer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	probeKey="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	if [ -n "$probeKey" ] ; then
 		probeStored="$( AgentsToolsSessionChatPointer "$probeKey" "scan:$probeScan:$probeMember" 2> /dev/null )" || probeStored=""
 	elif [ -f "$probeOut.stored" ] ; then
@@ -170,8 +170,8 @@ AgentsWaitScanCommit(){ ## member, scan, the file holding the report's sum
 	local commitSum="" commitKey
 	[ -f "$3" ] && IFS= read -r commitSum < "$3" || return 0
 	[ -n "$commitSum" ] || return 0
-	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-	AgentsToolsSessionChatKeyInto ; commitKey="$agentsSessionChatKey"
+	type AgentsToolsSessionChatPointerSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	commitKey="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	[ -z "$commitKey" ] || AgentsToolsSessionChatPointerSet "$commitKey" "scan:$2:$1" "$commitSum"
 	return 0
 }

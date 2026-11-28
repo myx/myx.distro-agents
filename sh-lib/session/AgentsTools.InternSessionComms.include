@@ -254,7 +254,10 @@ case "$1" in
 			commsPick=""
 			## THE CONSOLE FIRST, every pass: a message a person left for any session is taken before the sessions' turns, so it waits
 			## one pass and never a queue of sessions. A local read of folders, and no network call of its own beyond its one send.
-			[ "$commsMode" = "--one" ] || AgentsToolsSessionCommsTakeAll
+			## The marked sessions every pass; the walk over every inbox on the first pass and once a minute, as the list's sweep below.
+			if [ "$commsMode" != "--one" ] ; then
+				if [ "$(( commsLoops % 60 ))" = 0 ] ; then AgentsToolsSessionCommsTakeAll all ; else AgentsToolsSessionCommsTakeAll ; fi
+			fi
 			if [ "$commsMode" = "--one" ] ; then
 				while read -r commsOne commsThread ; do
 					[ -n "$commsOne" ] || continue
@@ -370,7 +373,7 @@ case "$1" in
 			## owner's console, so it finds a thread that ended on its idle bound at night and starts it (AgentsToolsScheduleThreadAskDue, once a minute).
 			type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
 			type AgentsToolsScheduleThreadAskDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.ScheduleThread.include"
-			AgentsToolsScheduleThreadAskDue
+			AgentsToolsScheduleThreadAskDue "" "$commsNow"
 			## A WANTED SCHEDULE THREAD KEEPS THIS READER ALIVE (S12.12): at the hour of worktime with no session of the host doing anything,
 			## this pass is the only place that asks for the schedule, so the reader's own idle bound must not end it. It reads the value the
 			## ask has just set.

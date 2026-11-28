@@ -251,6 +251,7 @@ The run-dispatch brief — a dispatch that starts work, never a plan. It shapes 
 - The brief is the worker's whole world, written for a cold reader: compact, in present tense, with what the worker needs and nothing else.
 - This member has already investigated. The brief carries the conclusions: what is true, what is lost or wrong, what is wanted. It never carries a trail of pointers to the investigation.
 - A document is pointed at only where the worker must read it in full, such as the one spec section its change is checked against. Each pointer names one file or section and says why it is read. Material the worker needs from many documents is distilled into the brief.
+- A dispatch that names a file states its path, not only the effect.
 - The brief carries these labelled sections, each present, in this order:
   - `goal:` — the wanted state, in two or three sentences.
   - `work:` — the exact items, one per line, with their counts and where each lands.

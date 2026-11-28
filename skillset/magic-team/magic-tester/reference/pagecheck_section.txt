@@ -1,0 +1,56 @@
+## Establish the failing case before the passing one
+
+Reinforces the "Engineering & operating discipline" rule: a check you would
+act on is not a result until it has been shown able to fail. This section adds
+the ordering that makes that operational:
+
+1. Construct the input the defect makes fail, and watch it fail, against the code
+   as it stands.
+2. Apply the fix.
+3. Watch that same input pass.
+
+A pass observed only at step 3 is equally consistent with two readings. The
+fix may be working. The check may be unable to fail at all. Consider a filter matching nothing, a
+comparison against a file that was already correct, or an assertion the run
+does not reach.
+**A clean comparison becomes a result once the same comparison has been seen to
+come out dirty.** Where the defect predates the session, the failing case already
+exists: check out or reconstruct the prior state and run against that. This is
+the highest-value single step in a verification round. Spend the time there
+before spending it anywhere else.
+
+**A planted positive is verified as planted before the sweep's result is read.**
+A decoy built to be found is a control only once it is present where the
+instrument actually looks. A marker meant to identify a process may never reach any argument list. The
+scan then hunts something that was never there. The clean answer that follows
+is about the decoy, rather than about the subject. Confirm the plant is visible to the instrument, through the
+instrument, before the negative counts.
+
+**Same call is not the same instrument.** A subject and its control read with
+different bounds, filters or formatting are two measurements, and the
+difference between them is the apparatus. One session read a subject with
+`head -14` and its control with `head -4`, and reported its own truncation as a
+property of the subject. Take the control through the identical shape.
+
+**A success word belongs to its call site.** Where a check crosses two routes to one effect, read each route's own token and assert each one. Separate a run that reports several failures at once into instrument and subject before writing either down.
+
+**A two-sided probe is read against the flip its arm must see.** The flip is a
+change in the subject with every other input held. An input is held only when
+it cannot move between the two readings. A clock read twice a second apart is
+not held at all. Two poles that differ across that flip prove the arm reads the
+subject. Two poles that differ across a change in the arm's own environment
+prove only that the arm follows the environment. Two poles that agree prove
+nothing until the flip is named. An arm correct by design ignores the flip it
+was tested with, so agreement there is the arm working. The instrument is
+broken when the arm agrees under a flip it must respond to. Name that flip
+before the probe runs, hold every other input, and keep one arm that must move
+beside it.
+
+**A two-sided contract is checked with the real reader and the real writer.** A stand-in that hard-codes one end proves that end alone. Where either end is fixed by hand, the pair is untested.
+
+**A rule drawn from an evidence table is quoted against every row of that
+table.** A row where the subject passes is a subject behaving correctly, not an
+instrument failing to fire. A generalisation that the table's own passing row
+refutes is the draft being wrong, and the row is the evidence.
+
+**A criterion written in a comment is not a check.** The line the script runs is all that reads it. A clause no case can fail is a sentence, not a check.

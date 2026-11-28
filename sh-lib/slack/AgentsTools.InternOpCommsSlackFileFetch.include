@@ -203,8 +203,9 @@ case "$1" in
 				## Fetch mode writes the bytes to --fetch-to and nothing to stdout, so
 				## the merged stream is the diagnostic entire -- re-emitted here, and
 				## read below for the content type the server actually sent.
+				## Cleared here: a claiming op inside $( ) chains this trap and re-runs it early.
 				fetchDiag="" ; fetchCallRc=0
-				fetchDiag="$( AgentsToolsCommsSlackRun --intern-op-slack-call ${fetchOpArgs[@]+"${fetchOpArgs[@]}"} 2>&1 )" || fetchCallRc=$?
+				fetchDiag="$( trap - EXIT ; AgentsToolsCommsSlackRun --intern-op-slack-call ${fetchOpArgs[@]+"${fetchOpArgs[@]}"} 2>&1 )" || fetchCallRc=$?
 				[ -z "$fetchDiag" ] || printf '%s\n' "$fetchDiag" >&2
 				if [ "$fetchCallRc" != "0" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --slack-file-fetch: NOT FETCHED -- the authenticated GET for $fetchFileId did not complete (see the op's own diagnostic above, which carries the HTTP status it saw). Whatever arrived was discarded with the temporary file, and '$fetchDestAbs' was not created or modified." >&2

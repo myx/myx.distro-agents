@@ -70,7 +70,7 @@ AgentsToolsManagerKillRecord(){ ## spawn id, who
 		printf '%s\n' "${recordItem%.md}"
 		return 0
 	fi
-	type AgentsTranscriptEventAfterEnd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	type AgentsTranscriptEventAfterEnd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLife.include"
 	( AgentsTranscriptEventAfterEnd "$1" ENDING 0 kind dismissed by "$2" text "manager-kill: no dispatch item, the process is stopped by manager-kill" ) > /dev/null 2>&1 || :
 	printf '%s\n' "-"
 	return 0

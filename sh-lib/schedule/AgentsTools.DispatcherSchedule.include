@@ -636,6 +636,12 @@ AgentsToolsScheduleDue(){ ## the operation as it was called, its arguments...
 		printf 'NOT-DUE: %s: it ran today (%s)\n' "$dueName" "$( printf '%s\n' "$dueRow" | LC_ALL=C cut -f3 )"
 		return 1
 	fi
+	## ONE FAILED START LEAVES THE ROUTINE DUE, as it never ran; A SECOND WITHIN THE HOUR HOLDS IT until the older is an hour old. A cause
+	## that outlives a pass, such as a provider's refusal, otherwise started it again on every pass, all day: a retry with no bound.
+	if dueRow="$( DISPATCH_MODE=failed-again DISPATCH_ROUTINE="$dueName" DISPATCH_SINCE_MINUTES="$(( ( dueEpoch - 3600 ) / 60 ))" AgentsToolsDispatcherHistory )" ; then
+		printf 'NOT-DUE: %s: its start failed twice within the hour, the last at %s\n' "$dueName" "$( printf '%s\n' "$dueRow" | LC_ALL=C cut -f6 )"
+		return 1
+	fi
 	if [ -n "$dueRunsAfter" ] ; then
 		if ! duePredFile="$( AgentsToolsSpawnRoutineResolve "$dueRunsAfter" 2> /dev/null )" ; then
 			printf 'REFUSED: %s: runs-after %s names no routine\n' "$dueName" "$dueRunsAfter"
@@ -783,6 +789,26 @@ AgentsToolsScheduleStartingAllowed(){
 	type AgentsToolsOnDemandThreadEnding > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.OnDemandThread.include"
 	type AgentsToolsOnDemandThreadEnding > /dev/null 2>&1 || { printf '⛔ ERROR: the schedule cannot ask whether its thread was told to end, so it starts nothing\n' >&2 ; return 1 ; }
 	! AgentsToolsOnDemandThreadEnding
+}
+
+## A START THAT DIED LEAVES ITS HOLD BEHIND, AND THE KEY IT HELD IS NEVER TRIED AGAIN WHILE IT STANDS: the sweep removes a hold past its ten
+## minutes whether or not a start of that key is attempted, which is what bounds a hung advance (the sketch: "heartbeat waits for advance, and a
+## hung advance is bounded"). Measured 2026-11-26: schedule/starting/advance.magic-coordinator.hold, empty and dated 24 November 22:42, had
+## blocked every start of the advance routine since, because the only reader of that mark was a start attempt the blocked phase never reached.
+AgentsToolsScheduleStaleHoldsSweep(){
+	local sweepStore="$MMDAPP/.local/agents/schedule/starting" sweepFile sweepAt sweepNow sweepRemoved=""
+	sweepNow="${agentsSchedulePassNow:-$( date +%s )}"
+	[ -d "$sweepStore" ] || return 0
+	for sweepFile in "$sweepStore"/*.hold ; do
+		[ -f "$sweepFile" ] || continue
+		sweepAt="$( stat -f %m "$sweepFile" 2> /dev/null || stat -c %Y "$sweepFile" 2> /dev/null )" || continue
+		case "$sweepAt" in ''|*[!0-9]*) continue ;; esac
+		[ $(( sweepNow - sweepAt )) -ge 600 ] || continue
+		rm -f "$sweepFile" 2> /dev/null || continue
+		sweepRemoved="$sweepRemoved ${sweepFile##*/}"
+	done
+	[ -z "$sweepRemoved" ] || printf 'schedule: cleared a start hold past its ten minutes:%s\n' "$sweepRemoved"
+	return 0
 }
 
 ## rc 0 while a start of the key is blocked: held after repeated failures (S12.12, the inquiry on it is in the coordinator's inbox), or its in-flight mark
@@ -1011,10 +1037,10 @@ AgentsToolsScheduleAutorun(){
 ## not what the call itself ran (a Bash child, a Wait's waiting), by the record's own clock. A duty start waits while that median is 4 s
 ## (MDAT_TOOL_PACE_MS, 4000) or more, because a start on a machine this slow is what the owner's throttle forbids. A rig with no live run
 ## says so and allows one start a pass (AgentsToolsScheduleWorkDuty): no measure is never a fast pace. Machinery time gates a start, never load.
-## THE MEASURE IS A READ OF THE RUN REGISTRY, never a walk of the `spawned/` store: one awk reads its `spawn-started` rows. So it is taken at most
-## once in MDAT_TOOL_PACE_CACHE_SECONDS, the median's own five-minute window, because a five-minute median gains nothing from being taken again each minute. It is kept in
-## `.local/agents/schedule/pace.measure` as `<epoch> <window> <median> <count>`. A caller reads that file, one read and no walk; the verdict is worked out
-## from the measure on each call, so a threshold of the caller's own (MDAT_TOOL_PACE_MS) still applies. 0 takes the measure on every call, as the checks do.
+## THE ONE WRITER IS THE SCHEDULE PASS (agentsSchedulePassNow set), at most once in MDAT_TOOL_PACE_CACHE_SECONDS: it reads the run registry's
+## `spawn-started` rows, never a walk of `spawned/`, and keeps `.local/agents/schedule/pace.measure` as `<epoch> <window> <median> <count>`.
+## Every other caller reads that file whatever its age and never measures; the verdict is worked out on each call, so a caller's own
+## MDAT_TOOL_PACE_MS still applies. A TTL of 0 measures on every call, as the checks do.
 AgentsToolsSchedulePaceText(){ ## -- one line: what was read, and what it decides
 	local paceRate=0 paceLimit="${MDAT_TOOL_PACE_MS:-4000}" paceWindow="${MDAT_TOOL_PACE_WINDOW_SECONDS:-300}" paceTtl="${MDAT_TOOL_PACE_CACHE_SECONDS:-300}" paceFile paceCount paceMedian paceRecord paceRegistry paceRun
 	local paceCache="$MMDAPP/.local/agents/schedule/pace.measure" paceNow="" paceAt="" paceWin="" paceHeld="" paceTemp
@@ -1026,14 +1052,14 @@ AgentsToolsSchedulePaceText(){ ## -- one line: what was read, and what it decide
 		{ read -r paceAt paceWin paceMedian paceHeld < "$paceCache" ; } 2> /dev/null || paceAt=""
 		paceNow="${agentsSchedulePassNow:-$( date +%s )}" || paceNow=""
 		case "$paceAt$paceNow" in ''|*[!0123456789]*) paceMedian="" ;; *)
-			if [ "$paceWin" = "$paceWindow" ] && [ "$(( paceNow - paceAt ))" -ge 0 ] && [ "$(( paceNow - paceAt ))" -lt "$paceTtl" ] && [ -n "$paceMedian" ] && [ -n "$paceHeld" ] ; then
+			if [ "$paceWin" = "$paceWindow" ] && [ "$(( paceNow - paceAt ))" -ge 0 ] && { [ -z "${agentsSchedulePassNow:-}" ] || [ "$(( paceNow - paceAt ))" -lt "$paceTtl" ] ; } && [ -n "$paceMedian" ] && [ -n "$paceHeld" ] ; then
 				paceMedian="$paceMedian $paceHeld"
 			else
 				paceMedian=""
 			fi
 		;; esac
 	fi
-	if [ -z "$paceMedian" ] ; then
+	if [ -z "$paceMedian" ] && { [ -n "${agentsSchedulePassNow:-}" ] || [ "$paceTtl" -eq 0 ] ; } ; then
 	case "$paceNow" in ''|*[!0123456789]*) paceNow="$( date +%s )" ;; esac
 	## THE MEASURE (the owner's ruling): the MACHINERY time of each call, mach_ms, what the tooling spent around the call and not what the
 	## call itself ran (a Bash child's run, a Wait's waiting); dur_ms only where a record predates it. Of the LIVE runs alone, those whose

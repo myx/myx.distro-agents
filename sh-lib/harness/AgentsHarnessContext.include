@@ -35,8 +35,9 @@ harnessContextLastAssistant=0
 harnessContextResumed=0
 harnessContextAwk=( -f "$harnessHere/harness/AgentsHarnessJsonField.awk" -f "$harnessHere/transcript/AgentsSessionTranscriptFormat.awk" -f "$harnessHere/harness/AgentsHarnessContextTranscript.awk" )
 
+type AgentsHarnessContextEscapeInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonEscape.include"
 AgentsHarnessContextEscape(){ ## raw text -- a JSON string body
-	printf '%s' "$1" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk"
+	local intoEscaped ; AgentsHarnessContextEscapeInto intoEscaped "${1:-}" ; printf '%s' "$intoEscaped"
 }
 
 ## The tools array exactly as AgentsWireRequestBody places it.
@@ -75,14 +76,15 @@ AgentsHarnessContextFileOf(){ ## sandbox folder, spawn id
 
 ## Decides whether this run keeps its context, and says where. Called once, before the loop.
 AgentsHarnessContextInit(){
-	local initDir
+	local initDir initKey=""
 	harnessContextFile=""
 	harnessContextFeed=""
 	[ "${MDAT_HARNESS_CONTEXT:-on}" != "off" ] || return 0
 	[ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -d "$MDAT_SPAWN_SANDBOX_ROOT" ] || return 0
 	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 0
 	[ "${MDAT_SPAWN_CALLER_WAITS:-}" != "true" ] || return 0
-	[ "$( AgentsTranscriptSessionKey 2>/dev/null )" = "$MDAT_SPAWN_SESSION_ID" ] || return 0
+	AgentsTranscriptSessionKeyInto initKey 2> /dev/null || initKey=""
+	[ "$initKey" = "$MDAT_SPAWN_SESSION_ID" ] || return 0
 	## ONE FILE A RUN: the sandbox folder is the session's, shared by every run that joined it, so a run keeps context.jsonl only in a folder
 	## named for it (the session's own executor) and context.<spawn id>.jsonl in one it joined. One name for all of them had a joined run
 	## rewrite the executor's file at its start and both append to it, so the executor's records and lines no longer matched, its transcript
@@ -93,7 +95,7 @@ AgentsHarnessContextInit(){
 	case "${MDAT_HARNESS_RESUME_CONTEXT:-}" in "${MDAT_SPAWN_SANDBOX_ROOT%/}"/context*.jsonl) harnessContextFile="$MDAT_HARNESS_RESUME_CONTEXT" ;; esac
 	## The transcript is rendered from the log from here on, not written by the per-call hooks.
 	agentsTranscriptFromLog=1
-	if initDir="$( AgentsTranscriptSessionDir "$MDAT_SPAWN_SESSION_ID" 2>/dev/null )" && mkdir -p "$initDir" 2>/dev/null ; then
+	if AgentsTranscriptSessionDirInto initDir "$MDAT_SPAWN_SESSION_ID" 2>/dev/null && mkdir -p "$initDir" 2>/dev/null ; then
 		printf '%s\n' "$harnessContextFile" > "$initDir/context" 2>/dev/null || :
 		## Its feed, while that is switched on (AgentsTools.EventTrackThread.include).
 		type AgentsEventTrackFeedPathInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/event-track/AgentsTools.EventTrackThread.include"
@@ -104,16 +106,20 @@ AgentsHarnessContextInit(){
 
 ## One message line; the record last, as its own bytes, or escaped where it holds a newline.
 AgentsHarnessContextLine(){ ## n, kind, meta fragment (starting with a comma, or empty), record
-	local lineRecord="$4" lineMs
-	lineMs="$( date +%s )000" || lineMs=0
+	local lineRecord="$4" lineMs lineNow="" lineStamp="" lineEscaped=""
+	## The clock of the process (AgentsTranscriptNowInto, loaded with the harness), date only where it is not there.
+	AgentsTranscriptNowInto lineNow 2> /dev/null || lineNow="$( date +%s )" || lineNow=0
+	lineMs="${lineNow}000"
+	AgentsTranscriptUtcInto lineStamp "$lineNow" 2> /dev/null || lineStamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
 	case "$lineRecord" in
 		*$'\n'*)
+			AgentsHarnessContextEscapeInto lineEscaped "$lineRecord"
 			printf '{"type":"message","n":%s,"leg":%s,"kind":"%s","round":%s,"ts":"%s","ms":%s%s,"record_text":"%s"}\n' \
-				"$1" "$harnessContextLeg" "$2" "${harnessRound:-0}" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${lineMs:-0}" "$3" "$( AgentsHarnessContextEscape "$lineRecord" )"
+				"$1" "$harnessContextLeg" "$2" "${harnessRound:-0}" "$lineStamp" "${lineMs:-0}" "$3" "$lineEscaped"
 		;;
 		*)
 			printf '{"type":"message","n":%s,"leg":%s,"kind":"%s","round":%s,"ts":"%s","ms":%s%s,"record":%s}\n' \
-				"$1" "$harnessContextLeg" "$2" "${harnessRound:-0}" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${lineMs:-0}" "$3" "$lineRecord"
+				"$1" "$harnessContextLeg" "$2" "${harnessRound:-0}" "$lineStamp" "${lineMs:-0}" "$3" "$lineRecord"
 		;;
 	esac
 }
@@ -121,7 +127,7 @@ AgentsHarnessContextLine(){ ## n, kind, meta fragment (starting with a comma, or
 ## A leg's file, written whole: header, system, tools reference, and every message so far.
 ## from: the messages this session did not produce (a resume's loaded ones), never rendered.
 AgentsHarnessContextBegin(){ ## from (default 0)
-	local beginTools beginTemp beginIndex=0 beginKind
+	local beginTools beginTemp beginIndex=0 beginKind beginAgent beginService beginModel beginHost beginMachine beginPrompt beginNow beginStamp
 	[ -n "$harnessContextFile" ] || return 0
 	type AgentsToolsRunProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	harnessContextLeg=$(( harnessContextLeg + 1 ))
@@ -129,13 +135,18 @@ AgentsHarnessContextBegin(){ ## from (default 0)
 	harnessContextLastAssistant=0
 	beginTools="$( AgentsHarnessContextToolsJson )"
 	beginTemp="$harnessContextFile.$$"
+	AgentsHarnessContextEscapeInto beginAgent "${harnessAgent:-}" ; AgentsHarnessContextEscapeInto beginService "${harnessProviderName:-}"
+	AgentsHarnessContextEscapeInto beginModel "${harnessModel:-}" ; AgentsHarnessContextEscapeInto beginHost "${harnessHost:-}"
+	AgentsHarnessContextEscapeInto beginMachine "$( AgentsHarnessContextMachine )" ; AgentsHarnessContextEscapeInto beginPrompt "${harnessPrompt:-}"
+	AgentsTranscriptNowInto beginNow 2> /dev/null || beginNow="$( date +%s )"
+	AgentsTranscriptUtcInto beginStamp "$beginNow" 2> /dev/null || beginStamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
 	{
 		## The writer is the run's own process, with its start: a resume refuses the file while that process still runs (AgentsHarnessContextResume).
 		printf '{"type":"context","version":1,"session":"%s","member":"%s","service":"%s","model":"%s","api_host":"%s","wire":"%s","machine":"%s","leg":%s,"from":%s,"ts":"%s","cache_key":"%s","system_shared":%s,"task":"%s","writer_pid":%s,"writer_start":"%s"}\n' \
-			"$MDAT_SPAWN_SESSION_ID" "$( AgentsHarnessContextEscape "${harnessAgent:-}" )" "$( AgentsHarnessContextEscape "${harnessProviderName:-}" )" \
-			"$( AgentsHarnessContextEscape "${harnessModel:-}" )" "$( AgentsHarnessContextEscape "${harnessHost:-}" )" "$harnessWire" \
-			"$( AgentsHarnessContextEscape "$( AgentsHarnessContextMachine )" )" "$harnessContextLeg" "$harnessContextFrom" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" \
-			"${agentsWirePromptCacheKey:-}" "${agentsWireSystemSharedBytes:-0}" "$( AgentsHarnessContextEscape "$harnessPrompt" )" \
+			"$MDAT_SPAWN_SESSION_ID" "$beginAgent" "$beginService" \
+			"$beginModel" "$beginHost" "$harnessWire" \
+			"$beginMachine" "$harnessContextLeg" "$harnessContextFrom" "$beginStamp" \
+			"${agentsWirePromptCacheKey:-}" "${agentsWireSystemSharedBytes:-0}" "$beginPrompt" \
 			"$$" "$( AgentsToolsRunProcessStart "$$" )"
 		printf '{"type":"system","text":"%s"}\n' "$( AgentsHarnessContextSystemJson )"
 		printf '{"type":"tools","cksum":"%s","bytes":%s}\n' "$( printf '%s' "$beginTools" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 ; }' )" "$( printf '%s' "$beginTools" | LC_ALL=C wc -c | tr -d ' ' )"
@@ -184,7 +195,8 @@ AgentsHarnessContextSync(){ ## kind (user|assistant|tool), meta fragment
 	## tool ran, so a milestone taken at the tool's end committed before them and carried nothing new (the ask's ASK and ANSWER lines landed
 	## in a later commit). AgentsTranscriptToolDone leaves the milestone here (agentsTranscriptMilestoneAfterFeed) and this is where it commits.
 	if [ -n "${agentsTranscriptMilestoneAfterFeed:-}" ] ; then
-		AgentsTranscriptMilestone "$( AgentsTranscriptSessionKey )" "$agentsTranscriptMilestoneAfterFeed" || :
+		local syncKey="" ; AgentsTranscriptSessionKeyInto syncKey
+		AgentsTranscriptMilestone "$syncKey" "$agentsTranscriptMilestoneAfterFeed" || :
 		agentsTranscriptMilestoneAfterFeed=""
 	fi
 	return 0
@@ -198,7 +210,7 @@ AgentsHarnessContextFeed(){ ## first new message n
 	feedLines="$( tail -n +"$(( feedStart + 3 ))" "$harnessContextFile" 2>/dev/null | LC_ALL=C awk -v from="$1" ${harnessContextAwk[@]+"${harnessContextAwk[@]}"} 2>/dev/null )" || feedLines=""
 	[ -n "$feedLines" ] || return 0
 	[ -z "$harnessContextFeed" ] || printf '%s\n' "$feedLines" >> "$harnessContextFeed" 2>/dev/null || :
-	feedPath="$( AgentsTranscriptPath "$MDAT_SPAWN_SESSION_ID" 2>/dev/null )" || return 0
+	AgentsTranscriptPathInto feedPath "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || return 0
 	AgentsTranscriptAppend "$feedPath" "$feedLines"
 	return 0
 }
@@ -220,7 +232,7 @@ AgentsHarnessToolRunMsKeep(){ ## milliseconds the call itself ran
 
 ## The meta of a tool result: the call it answers, how long it ran and how it came out.
 AgentsHarnessContextToolMeta(){ ## tool name, call id, result, preset outcome
-	local metaDur=0 metaMach=0 metaCalls=""
+	local metaDur=0 metaMach=0 metaCalls="" metaOutcome="" metaTool="" metaId=""
 	## A BATCH IS ITS CALLS (the owner's pace ruling): the engine leaves one tooling value a call in the run's scratch, and the
 	## record carries that list. Its own mach_ms then counts nothing to the reader that knows the list.
 	if [ -n "${harnessScratch:-}" ] && [ -f "$harnessScratch/tool.calls.ms" ] ; then
@@ -228,7 +240,7 @@ AgentsHarnessContextToolMeta(){ ## tool name, call id, result, preset outcome
 		rm -f "$harnessScratch/tool.calls.ms" 2> /dev/null || :
 	fi
 	[ -z "$metaCalls" ] || printf ',"calls_mach_ms":[%s]' "$metaCalls"
-	[ -z "${agentsTranscriptT0:-}" ] || metaDur=$(( $( date +%s )000 - agentsTranscriptT0 ))
+	[ -z "${agentsTranscriptT0:-}" ] || { AgentsTranscriptNowInto metaDur ; metaDur=$(( metaDur * 1000 - agentsTranscriptT0 )) ; }
 	## The span the tool kept from inside its subshell (AgentsHarnessToolRunMsKeep), read once and taken away, so no later call reads it.
 	if [ -n "${harnessScratch:-}" ] && [ -f "$harnessScratch/tool.run.ms" ] ; then
 		[ -n "${harnessToolRunMs:-}" ] || { IFS= read -r harnessToolRunMs < "$harnessScratch/tool.run.ms" ; } 2> /dev/null || :
@@ -246,7 +258,9 @@ AgentsHarnessContextToolMeta(){ ## tool name, call id, result, preset outcome
 	## (AgentsHarnessWait sets it from the seconds waited). A tool that sets nothing is all machinery. The pace gate reads mach_ms.
 	case "${harnessToolRunMs:-}" in ''|*[!0-9]*) metaMach="$metaDur" ;; *) metaMach=$(( metaDur - harnessToolRunMs )) ; [ "$metaMach" -ge 0 ] || metaMach=0 ;; esac
 	harnessToolRunMs=""
-	printf ',"tool":"%s","id":"%s","dur_ms":%s,"mach_ms":%s,"outcome":"%s"' "$( AgentsHarnessContextEscape "$1" )" "$( AgentsHarnessContextEscape "$2" )" "$metaDur" "$metaMach" "$( AgentsTranscriptOutcomeOf "$3" "$4" )"
+	AgentsTranscriptOutcomeOfInto metaOutcome "$3" "$4"
+	AgentsHarnessContextEscapeInto metaTool "$1" ; AgentsHarnessContextEscapeInto metaId "$2"
+	printf ',"tool":"%s","id":"%s","dur_ms":%s,"mach_ms":%s,"outcome":"%s"' "$metaTool" "$metaId" "$metaDur" "$metaMach" "$metaOutcome"
 }
 
 ## A reply with no tool call, kept as the assistant turn it was, so a resume continues
@@ -254,7 +268,11 @@ AgentsHarnessContextToolMeta(){ ## tool name, call id, result, preset outcome
 AgentsHarnessContextAssistantRecord(){
 	case "$harnessWire" in
 		AnthropicMessages) AgentsWireAssistantToolCallsRecord "" ;;
-		*) printf '{"role":"assistant","content":"%s"%s}' "$( AgentsHarnessContextEscape "$( AgentsWireFinalContent )" )" "$( AgentsWireReasoningField )" ;;
+		*)
+			local recordEscaped=""
+			AgentsHarnessContextEscapeInto recordEscaped "$( AgentsWireFinalContent )"
+			printf '{"role":"assistant","content":"%s"%s}' "$recordEscaped" "$( AgentsWireReasoningField )"
+		;;
 	esac
 }
 
@@ -277,12 +295,16 @@ AgentsHarnessContextHeader(){ ## file, field
 ## that tells a run its own roots; nothing where it names them all. A root named by no record before is told with the message that brings it,
 ## and is never written back into the system text or into a record already kept, which a resumed request must begin with byte for byte.
 AgentsHarnessContextResumeRoots(){ ## the kept system text and first records, as the context holds them
-	local rootsKept="$1" rootsLine rootsNew="" rootsNewWrite=""
+	local rootsKept="$1" rootsLine rootsNew="" rootsNewWrite="" rootsEscaped=""
 	while IFS= read -r rootsLine ; do
-		[ -z "$rootsLine" ] || case "$rootsKept" in *'\n'"$( AgentsHarnessContextEscape "$rootsLine" )"'\n'*) ;; *) rootsNew="${rootsNew}${rootsLine}"$'\n' ;; esac
+		[ -n "$rootsLine" ] || continue
+		AgentsHarnessContextEscapeInto rootsEscaped "$rootsLine"
+		case "$rootsKept" in *'\n'"$rootsEscaped"'\n'*) ;; *) rootsNew="${rootsNew}${rootsLine}"$'\n' ;; esac
 	done <<< "$harnessRunRoots"
 	while IFS= read -r rootsLine ; do
-		[ -z "$rootsLine" ] || case "$rootsKept" in *'\n'"$( AgentsHarnessContextEscape "$rootsLine" )"'\n'*) ;; *) rootsNewWrite="${rootsNewWrite}${rootsLine}"$'\n' ;; esac
+		[ -n "$rootsLine" ] || continue
+		AgentsHarnessContextEscapeInto rootsEscaped "$rootsLine"
+		case "$rootsKept" in *'\n'"$rootsEscaped"'\n'*) ;; *) rootsNewWrite="${rootsNewWrite}${rootsLine}"$'\n' ;; esac
 	done <<< "$harnessRunWriteRoots"
 	[ -z "$rootsNew$rootsNewWrite" ] || AgentsHarnessRunRootsText "$rootsNew" "$rootsNewWrite"
 }

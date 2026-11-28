@@ -62,7 +62,7 @@ type AgentsSessionSandboxChecklist > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.d
 type AgentsSessionControlPidRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include"
 type AgentsToolsSpawnedRecordRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 type AgentsToolsSessionChatMessagesToSince > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-type AgentsTranscriptLastTool > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+type AgentsTranscriptLastTool > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptRead.include"
 ##
 ## STALLS (S13.2), the readings a waiting run never answers by itself, since `stuck` leaves every run in a Wait alone:
 ##   `stall` a live run silent past the stall bound, still counting as not working, with items pending on its own CheckList:

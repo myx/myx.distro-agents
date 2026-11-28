@@ -43,8 +43,8 @@ AgentsToolsThisSessionNeedMember(){ ## operation
 
 ## The session the call belongs to (AgentsToolsSessionChatKey), and its folder. rc 1, with a plain line, for a call of no session.
 AgentsToolsThisSessionNeedSession(){ ## operation
-	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-	AgentsToolsSessionChatKeyInto ; thisSessionKey="$agentsSessionChatKey"
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	thisSessionKey="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	[ -z "$thisSessionKey" ] || AgentsToolsSessionChatDir "$thisSessionKey" > /dev/null 2>&1 || thisSessionKey=""
 	[ -z "$thisSessionKey" ] || return 0
 	echo "$MDSC_CMD: ⛔ ERROR: $1: the call belongs to no session -- the operation is locked to the session it is called from. Nothing was done." >&2

@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternMcpRequestSecondary.include -- the secondary tool's call: the operation it names, run in the tool file that is the tool.
+## Sourced in its own branch of tools/call in AgentsTools.InternMcpRequest.include, in that request's shell, its variables the
+## request's own: the code of one operation, parsed only by the call that runs it.
+##
+
+## A secondary tool's operation, run as a task, in the tool file that is the tool: sourced and called as
+## DistroAgentsTools routes a name (AgentsToolsFrontRoute). Its stdout and stderr are the result. The
+## acting member is already known from the calling session (mcpGateMember): passed explicitly by
+## --team-member, so a bare positional argument is never mistaken for it and stays the operation's own.
+## --help-syntax is excepted: it reads its own next word as the name to show, before any common option
+## is parsed, so --team-member is never its own to receive.
+AgentsMcpSecondaryRun(){
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$mcpToolName.fn.sh"
+	AgentsMcpMemberOptionSet
+	"$mcpToolName" "$mcpSecondaryOp" ${mcpMemberOption[@]+"${mcpMemberOption[@]}"} ${mcpSecondaryArgs[@]+"${mcpSecondaryArgs[@]}"} 2>&1
+}
+
+## The member option the call gets: the calling session's member, unless the caller names one itself right after the operation. Every operation
+## takes an optional --team-member, implied from the session and set explicitly where given; the explicit one stands, and the operation's own
+## authority check alone decides whether it may act as that member. Never given twice.
+AgentsMcpMemberOptionSet(){
+	mcpMemberOption=()
+	[ -n "$mcpGateMember" ] || return 0
+	[ "--help-syntax" != "$mcpSecondaryOp" ] || return 0
+	[ "${mcpSecondaryArgs[0]:-}" != "--team-member" ] || return 0
+	mcpMemberOption=( --team-member "$mcpGateMember" )
+	return 0
+}
+
+					type AgentsToolsFrontSyntaxLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.Help.include"
+					if [ -z "$mcpSecondaryOp" ] ; then
+						AgentsMcpSendError "$mcpId" -32602 "$mcpToolName requires a non-empty 'operation': the operation to run, such as --slack-send-message."
+					## A name of the front table, or the operation word of one of the tool file's own syntax lines: an operation the
+					## file serves as its own has no row to be found by, and an option inside a line is no operation.
+					elif ! AgentsToolsFrontKnows "$mcpToolName" "$mcpSecondaryOp" && [ -z "$( AgentsToolsFrontSyntaxLines "$mcpToolName" "$mcpSecondaryOp" operation-word )" ] ; then
+						AgentsMcpSendError "$mcpId" -32602 "$mcpToolName: not an operation of that tool file, or not one: $mcpSecondaryOp"
+					elif AgentsMcpTaskUsable ; then
+						## A task underneath, as execute is (AgentsTools.ToolTask.include).
+						. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ToolTask.include"
+							AgentsToolsTaskCall "$mcpToolName" "$mcpBackground" "$mcpTimeout" "$mcpTimeoutAction" AgentsMcpSecondaryRun
+						mcpOutput="$agentsTaskOut"
+						mcpIsError='false'
+						[ "$agentsTaskDetached" = "yes" ] || [ "$agentsTaskRc" = "0" ] || { mcpIsError='true' ; [ -n "$mcpOutput" ] || mcpOutput="[$mcpToolName produced no output and exited $agentsTaskRc]" ; }
+						[ -n "$mcpOutput" ] || { mcpIsError='true' ; mcpOutput="ERROR: $mcpToolName returned nothing and exited $agentsTaskRc, so whether it ran, and what it changed, is unknown. Check its effect before relying on it, then retry." ; }
+						AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}%s],"isError":%s}' "$( AgentsMcpReplyText "$mcpToolName" "$mcpOutput" )" "$( AgentsMcpReplyBesidePart )" "$mcpIsError" )"
+					else
+						mcpOutFile="$mcpScratchRoot/tool.$AGENTS_MCP_REQ_SEQ"
+						mcpKillFile="$mcpScratchRoot/toolkilled.$AGENTS_MCP_REQ_SEQ"
+						rm -f "$mcpKillFile"
+						mcpCallStart="$(( mcpRequestEpoch + SECONDS - mcpRequestSeconds ))"
+						mcpExitCode=0
+						set -m
+						( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$mcpToolName.fn.sh" ; AgentsMcpMemberOptionSet ; "$mcpToolName" "$mcpSecondaryOp" ${mcpMemberOption[@]+"${mcpMemberOption[@]}"} ${mcpSecondaryArgs[@]+"${mcpSecondaryArgs[@]}"} ) > "$mcpOutFile" 3>&- 2>&1 &
+						mcpCmdPid=$!
+						AgentsMcpCallWatch 3600 "$mcpCmdPid" "$mcpKillFile" 3>&- &
+						mcpWatchPid=$!
+						set +m
+						wait "$mcpCmdPid" || mcpExitCode=$?
+						if [ ! -f "$mcpKillFile" ] ; then
+							kill -TERM -- "-$mcpWatchPid" 2>/dev/null
+							wait "$mcpWatchPid" 2>/dev/null
+							[ ! -f "$mcpKillFile" ] || rm -f "$mcpKillFile"
+						fi
+						set +e
+						mcpOutput="$( < "$mcpOutFile" )"
+						AgentsMcpPaceRecord "$mcpToolName" "${mcpCallStart:-}"
+						mcpIsError='false'
+						if [ -f "$mcpKillFile" ] ; then
+							mcpIsError='true'
+							mcpOutput="$mcpOutput"$'\n'"[$mcpToolName timed out after 3600s and was asked to end; partial output above is kept at: $mcpOutFile]"
+							rm -f "$mcpKillFile"
+						elif [ 0 -ne "$mcpExitCode" ] ; then
+							mcpIsError='true'
+							[ -n "$mcpOutput" ] || mcpOutput="[$mcpToolName produced no output and exited $mcpExitCode]"
+							rm -f "$mcpOutFile"
+						else
+							rm -f "$mcpOutFile"
+						fi
+						[ -n "$mcpOutput" ] || { mcpIsError='true' ; mcpOutput="ERROR: $mcpToolName returned nothing and exited $mcpExitCode, so whether it ran, and what it changed, is unknown. Check its effect before relying on it, then retry." ; }
+						AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}%s],"isError":%s}' "$( AgentsMcpReplyText "$mcpToolName" "$mcpOutput" )" "$( AgentsMcpReplyBesidePart )" "$mcpIsError" )"
+					fi
+
+				## RootSession: the one root-harness session this server instance carries, minted on
+				## its first call and returned by every later one. The server owns it beside execute,
+				## so it is not on the harness tool floor; the include is sourced on the call that
+				## uses it, and its refusal is a tool result (`isError`), never an unknown tool.

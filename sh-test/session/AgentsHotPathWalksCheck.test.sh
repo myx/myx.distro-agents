@@ -52,7 +52,7 @@ rigList(){
 		'sh-lib/manager/AgentsTools.OpManagerSessionControlStart.include||1|@rebuild' \
 		'sh-lib/wait/AgentsTools.MemberWaitSources.include||1|@call-path' \
 		'sh-lib/inbox/AgentsTools.OpUpsertInboxInquiry.include||1|@call-path' \
-		'sh-lib/session/AgentsTools.SessionChat.include|AgentsToolsSessionChatThreadSessions|1|@call-path' \
+		'sh-lib/session/AgentsTools.SessionChatCopies.include|AgentsToolsSessionChatThreadSessions|1|@call-path' \
 		'sh-lib/session/AgentsTools.SessionComms.include|AgentsToolsSessionCommsSessions|1|@call-path' \
 		'sh-lib/session/AgentsTools.SessionComms.include|AgentsToolsSessionCommsTakeAll|1|@call-path' \
 		'sh-lib/session/AgentsTools.SessionComms.include|AgentsToolsSessionCommsWork|1|@call-path' \
@@ -65,8 +65,8 @@ rigList(){
 		'sh-lib/session/AgentsTools.SessionStore.include|AgentsSessionFoldersFind|1|@one-off' \
 		'sh-lib/session/AgentsTools.SessionControlStart.include|AgentsSessionControlPidRows|1|@one-off' \
 		'sh-lib/session/AgentsTools.SessionControlStart.include|AgentsSessionControlRowsInto|1|@one-off' \
-		'sh-lib/session/AgentsTools.SessionTranscript.include|AgentsSessionTokensRowsInto|1|@one-off' \
-		'sh-lib/session/AgentsTools.SessionTranscript.include|AgentsSessionTokensRollupRows|1|@kept' \
+		'sh-lib/session/AgentsTools.SessionTokens.include|AgentsSessionTokensRowsInto|1|@one-off' \
+		'sh-lib/session/AgentsTools.SessionTokens.include|AgentsSessionTokensRollupRows|1|@kept' \
 		'sh-lib/spawn/AgentsTools.CleanupSweep.include|AgentsToolsCleanupSweep|1|@housekeeping' \
 		'sh-lib/session/AgentsTools.SessionStore.include|AgentsSpawnedRecords|1|@one-off' \
 		'sh-lib/spawn/AgentsTools.SpawnSandbox.include|AgentsSessionRigControlRows|1|@kept' \

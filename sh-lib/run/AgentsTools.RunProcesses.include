@@ -147,6 +147,8 @@ AgentsToolsRunningSpawns(){ ## spawned-sessions registry file, process list text
 		FILENAME == ARGV[1] { runsAs[$0] = 1 ; next ; }
 		$8 == "" { next ; }
 		( $8 in runsAs ) { print "= " $8 ; next ; }
+		## The session id among the words runs the row too, whatever its status says of its record.
+		$8 != "-" && $2 != "-" && ( $2 in runsAs ) && $4 == thisHost { print "= " $8 ; next ; }
 		$8 != "-" && $4 == thisHost && $6 != "spawn-succeeded" && $6 != "spawn-failed" && $6 != "spawn-ended-without-close" { print "? " $8 ; }
 	' - "$1" 2>/dev/null )" || runningLines=""
 	## The rows to ask a record about, both kinds, and then the records themselves, read in one pass each.

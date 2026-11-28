@@ -144,7 +144,7 @@ AgentsCommsTransferSlack(){ ## member
 	case "$passMark" in [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T*) ;; *) passMark="" ;; esac
 	## A SOURCE WITH NO CURSOR IS SEEDED TO ITS OWN NEWEST INGESTED ID, and hands over nothing on that pass: an inbox is a queue of
 	## work, and the cache keeps every message for reads. The same rule covers the first pass of a reader that has no pointer at all.
-	while IFS="$( printf '\t' )" read -r passSource passPath ; do
+	while IFS=$'\t' read -r passSource passPath ; do
 		[ "$passSource" = "$passMember" ] || continue
 		passKey="${passPath##*/}"
 		AgentsCommsTransferCursor "$passKey" > /dev/null && continue
@@ -157,7 +157,7 @@ AgentsCommsTransferSlack(){ ## member
 	done < "$passList"
 	## A SOURCE IS READ ONLY WHERE ITS INGEST MOVED since this reader's last pass: the pointer file's own mtime is that pass's
 	## moment, so a source whose `.ingest.txt` is not newer holds nothing this pass must read.
-	while IFS="$( printf '\t' )" read -r passSource passPath ; do
+	while IFS=$'\t' read -r passSource passPath ; do
 		[ "$passSource" = "$passMember" ] || continue
 		[ -f "$passPath/.ingest.txt" ] || continue
 		[ "$passPath/.ingest.txt" -nt "$passPointer" ] || continue

@@ -26,7 +26,7 @@ Two rules keep that reader honest.
 - A block with no ts yet is a post that is not yet. It holds the reader's floor back for `agentsSessionChatPendingSeconds`, 300 seconds. `AgentsTools.SessionChat.include:66` to `:67`.
 - A `notice` block is no message of the floor's. The next foreground call's digest surfaces it, one line, and marks it so it shows once. `AgentsTools.SessionChat.include:54` to `:55`.
 
-One writer holds the session's local lock for the length of one append, one stamp, one import or one pointer. So a block's number and its header's line are what they say, however many runs write at once. `AgentsTools.SessionChat.include:57`.
+One writer holds the session's local lock for the length of one append, one stamp, one import or one pointer. So a block's number and its header's line are what they say, however many runs write at once. `AgentsTools.SessionChat.include:58` to `:59`.
 
 ### What reads the floor, and what each reader does
 
@@ -35,7 +35,7 @@ The reader has four callers, and each acts on what it finds differently.
 - `AgentsWaitProbeChat` serves it as the Wait tool's `chat:<session>` source, and what it delivered is recorded beside it. `sh-lib/wait/AgentsTools.MemberWaitChat.include:53`, read at `:82`.
 - `AgentsToolsTaskMessagePending` asks whether anything is waiting, so a tool call still running can be woken. `sh-lib/session/AgentsTools.ToolTask.include:59`, read at `:69`.
 - `AgentsHarnessWaitChatDismissal` looks for a `DISMISSED` alone, so a dismissal is never held behind the checklist. `sh-lib/harness/AgentsHarnessWait.include:354`, read at `:359`.
-- `AgentsTranscriptReplyFloor` puts what is new beside a long tool reply. `sh-lib/session/AgentsTools.SessionTranscript.include:759`, read at `:813`.
+- `AgentsTranscriptReplyFloor` puts what is new beside a long tool reply. `sh-lib/session/AgentsTools.SessionTranscript.include:789`, read at `:851`.
 
 ## What a message for a member whose run has ended meets
 
@@ -49,7 +49,7 @@ So the message is kept, and it is kept findable. A waiting run of that member wa
 
 ## What watches a session's runs, and what it does at a death
 
-One shell process watches a session, and no agent runs in it. It is the control thread: a controller and a monitor. `sh-lib/session/AgentsTools.InternSessionControl.include:6` to `:9`.
+One shell process watches a session, and no agent runs in it. It is the control thread: a controller and a monitor. `sh-lib/session/AgentsTools.InternSessionControl.include:7` to `:8`.
 
 What it keeps is in the session's own `control/` folder. `AgentsTools.InternSessionControl.include:13` to `:37`.
 
@@ -63,7 +63,7 @@ The state is one of three words. `running` means a run of the session is alive o
 
 A tick reads the session's records, the host's process list and the state file, and nothing else. `AgentsTools.InternSessionControl.include:45` to `:46`.
 
-The state file is written only when the word changes. A file changed on every tick would keep the advance pass from ever closing a dead run. `AgentsTools.InternSessionControl.include:26` to `:29`.
+The state file is written only when the word changes. A file changed on every tick would keep the advance pass from ever closing a dead run. `AgentsTools.InternSessionControl.include:30` to `:33`.
 
 ### What a death is, and what the thread does about it
 
@@ -103,7 +103,7 @@ Every other tool is a task, with a `sync`, an `async` and a window.
 
 ### How a background result is collected
 
-The handle is `process-<N>`. `sh-lib/harness/AgentsHarnessToolsBash.include:23`.
+The handle is `process-<N>`. `sh-lib/harness/AgentsHarnessToolsBash.include:26`.
 
 Reading that handle reads the same process's own output, through the Bash read of the handle. `sh-lib/harness/AgentsHarnessSpawn.include:447` to `:448`.
 
@@ -134,14 +134,14 @@ The comms cache keeps that same id as a folder name, with the service repeated a
 
 ## Which sources a wait watches
 
-Every wait of a run holds its floor, and the floor adds its own sources. `sh-lib/wait/AgentsTools.MemberWaitSources.include:220` to `:236`.
+Every wait of a run holds its floor, and the floor adds its own sources. `sh-lib/wait/AgentsTools.MemberWaitSources.include:222` to `:236`.
 
 - A member's floor adds `dms:<member>`, `mentions:<member>` and `wake:<member>`.
-- A client member is given no `mentions:` source. `AgentsTools.MemberWaitSources.include:230`.
-- `replies:<session>` is added first, so a reply to the run's own post is always watched. `AgentsTools.MemberWaitSources.include:215` to `:218`.
-- A duty's floor adds `tagged:<member>` and `inbox:<member>`, so every wait of a duty reads its inbox. `AgentsTools.MemberWaitSources.include:225` to `:227`.
+- A client member is given no `mentions:` source. `AgentsTools.MemberWaitSources.include:231`.
+- `replies:<session>` is added first, so a reply to the run's own post is always watched. `AgentsTools.MemberWaitSources.include:217` to `:218`.
+- A duty's floor adds `tagged:<member>` and `inbox:<member>`, so every wait of a duty reads its inbox. `AgentsTools.MemberWaitSources.include:227` to `:228`.
 
-The scans come last, because a scan takes minutes and a source after it would wait for it. `AgentsTools.MemberWaitSources.include:239`.
+The scans come last, because a scan takes minutes and a source after it would wait for it. `AgentsTools.MemberWaitSources.include:240`.
 
 A mention in the run's own session thread is knowledge, not work. Every such row is marked FYI, and no duty acts on it. `sh-lib/wait/AgentsTools.MemberWaitMentions.include:374` to `:376`.
 
@@ -162,11 +162,11 @@ A wake is a signal that makes a sleeping wait look.
 
 - A poke is one newline into a nap fifo, so a waiter wakes on the arrival rather than on its next costly look. `sh-lib/wait/AgentsTools.WakeMarker.include:95`.
 - The wake marker is the file per member a writer touches, watched as a local source. `AgentsTools.WakeMarker.include:5` to `:10`.
-- The thread signal is the session's own chat file, watched as `chat:<session>`. `sh-lib/wait/AgentsTools.MemberWaitSources.include:206` to `:210`.
+- The thread signal is the session's own chat file, watched as `chat:<session>`. `sh-lib/wait/AgentsTools.MemberWaitSources.include:209` to `:210`.
 
 A rewind is a return to an earlier point of the conversation.
 
-- A snapshot is a name for the conversation at a turn boundary, never inside a round. `sh-lib/harness/AgentsHarnessCheckpoint.include:7` to `:11`.
+- A snapshot is a name for the conversation at a turn boundary, never inside a round. `sh-lib/harness/AgentsHarnessCheckpoint.include:8` to `:11`.
 - The `--idle-wait` wait is made at `AgentsHarnessCheckpoint.include:172`. When it returns quiet at the keepalive round, the conversation returns to its checkpoint, `opening` where held, else `armed`. `AgentsHarnessCheckpoint.include:176` to `:182`.
 
 So a wake changes what the run looks at, and a rewind changes how much conversation it pays for.

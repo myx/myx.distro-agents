@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionTranscriptLoop.include -- the harness model loop's own events in the session transcript: its start, each round, a restart, a rewind and its final answer, read from its globals and scratch files. Sourced, never run; functions only.
+## Its functions read and write through the transcript's own (AgentsTools.SessionTranscript.include), which every one of them calls.
+##
+type AgentsTranscriptSessionDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+
+## The harness model loop's own events, read from its globals and scratch files.
+AgentsTranscriptHarnessStart(){
+	local hsSession hsDir
+	AgentsTranscriptSessionKeyInto hsSession
+	AgentsTranscriptSessionDirInto hsDir "$hsSession" || return 0
+	## Only the spawn proxy opens a transcript: a run it did not start writes none, so a
+	## harness run by hand, or by a check, never reaches the team data.
+	AgentsTranscriptBase "$hsSession" > /dev/null || return 0
+	## A HARNESS STARTED FROM INSIDE A RUN (a Bash call of the run testing a preset, a check) inherits the run's
+	## environment and so its session key, and would write the run's model file and MODEL event with its own
+	## model. The run exports the pid of its harness and its session key here; a harness that finds another live
+	## pid there under its own session key is nested in that run and writes nothing of the run's. A run spawned
+	## from inside another inherits that run's pair under another key, and writes its own. A restarted leg of
+	## the same run finds the pid dead, or its own, and writes as before.
+	if [ -n "${MDAT_HARNESS_RUN_PID:-}" ] && [ "${MDAT_HARNESS_RUN_KEY:-}" = "$hsSession" ] && [ "$MDAT_HARNESS_RUN_PID" != "$$" ] && kill -0 "$MDAT_HARNESS_RUN_PID" 2> /dev/null ; then
+		return 0
+	fi
+	## A run started before this export existed leaves no pid: its ancestry tells the same, once, at this start alone.
+	local hsAncestor="$PPID" hsAncestorCmd
+	while [ "${hsAncestor:-0}" -gt 1 ] 2> /dev/null ; do
+		hsAncestorCmd="$( ps -o command= -p "$hsAncestor" 2> /dev/null )" || break
+		case "$hsAncestorCmd" in *"/sh-lib/harness/Agents"*"Harness.sh"*) return 0 ;; esac
+		hsAncestor="$( ps -o ppid= -p "$hsAncestor" 2> /dev/null | tr -d ' ' )" || break
+	done
+	export MDAT_HARNESS_RUN_PID="$$" MDAT_HARNESS_RUN_KEY="$hsSession"
+	printf '%s\n' "${harnessModel:-}" > "$hsDir/model" 2>/dev/null || :
+	AgentsTranscriptEvent "$hsSession" MODEL "" 0 model "${harnessModel:-}" service "${harnessProviderName:-}" host "${harnessHost:-}" tier "${harnessTier:-}" member "${harnessAgent:-}"
+	return 0
+}
+
+## After a round's stream: its tokens and the model's visible text, about 1 KB.
+AgentsTranscriptHarnessRound(){ ## round number, scratch dir
+	local roundSession roundIn=0 roundCr=0 roundCw=0 roundOut=0 roundText=""
+	AgentsTranscriptSessionKeyInto roundSession
+	[ ! -s "$2/stream.usage.detail" ] || read -r roundIn roundCr roundCw roundOut < "$2/stream.usage.detail" || :
+	[ ! -s "$2/stream.content" ] || roundText="$( cat "$2/stream.content" 2>/dev/null )"
+	agentsTranscriptRoundText="$( printf '%s' "$roundText" | tr '\n\t\r' '   ' )"
+	agentsTranscriptRoundText="${agentsTranscriptRoundText:0:400}"
+	AgentsSessionTokensAdd "$roundSession" "${roundIn:-0}" "${roundCr:-0}" "${roundCw:-0}" "${roundOut:-0}"
+	## Kept context: the ROUND line is written from the log (AgentsHarnessContextFeed).
+	[ -z "${agentsTranscriptFromLog:-}" ] || return 0
+	AgentsTranscriptEvent "$roundSession" ROUND "$roundText" 1024 n "$1" in "${roundIn:-0}" cache-read "${roundCr:-0}" cache-write "${roundCw:-0}" out "${roundOut:-0}"
+	return 0
+}
+
+AgentsTranscriptHarnessRestart(){ ## restart number, summary bytes
+	local restartSession
+	AgentsTranscriptSessionKeyInto restartSession
+	AgentsTranscriptEvent "$restartSession" RESTART "" 0 n "$1" summary "${2}B"
+	AgentsTranscriptMilestone "$restartSession" "restart $1"
+	return 0
+}
+
+## A rewind of the model path (F10.5): the conversation put back to a snapshot, so the rounds after it are no more in the run's array.
+AgentsTranscriptHarnessRewind(){ ## snapshot name, messages dropped, kind
+	local rewindSession
+	AgentsTranscriptSessionKeyInto rewindSession
+	AgentsTranscriptEvent "$rewindSession" REWIND "" 0 to "$1" dropped "$2" kind "$3"
+	AgentsTranscriptMilestone "$rewindSession" "rewind $1"
+	return 0
+}
+
+AgentsTranscriptHarnessFinal(){ ## answer text
+	local finalSession
+	AgentsTranscriptSessionKeyInto finalSession
+	AgentsTranscriptEvent "$finalSession" FINAL "$1" 4096
+	AgentsTranscriptMilestone "$finalSession" "final answer"
+	return 0
+}

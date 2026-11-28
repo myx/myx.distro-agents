@@ -204,6 +204,8 @@ to match, not the other way around. The SW's functional boundary is the one
 with real behavioral consequences (what's cached, what's queued offline), so
 it should lead.
 
+**Installability is read from the manifest's own fields, never from its status code.** `start_url` must be same-origin with the page that links to the manifest, and `scope` resolves against the manifest's URL. Read both before calling an install surface healthy.
+
 **Sharpening the open magic-architect question (separate PWAs vs. one SW
 with branching logic).** This pass found a concrete, load-bearing fact that
 bears directly on that question. A single origin *can* serve multiple

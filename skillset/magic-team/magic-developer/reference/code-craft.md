@@ -53,7 +53,7 @@ Read this before writing code in any language. It is not a per-language module, 
   - a variable trivially derived from another.
   - a global used as an out-parameter.
   - a wrapper that only renames an existing call.
-- A function stays only where a trap or a similar shell mechanism needs one. It stays where an API needs a function whatever its content. An API needs it called by name from another file, through a variable, from a dispatch table, or stubbed by a check. It stays where it carries non-obvious knowledge that needs its gotcha comments. Everything else is written where it is used.
+- A function stays only where a trap or a similar shell mechanism needs one. It stays where an API needs a function whatever its content. An API runs the function by a name held as data: through a variable, from a dispatch table, or stubbed by a check. A direct call from another file is no API, so the function is inlined at that call. It stays where it carries non-obvious knowledge that needs its gotcha comments. Everything else is written where it is used.
 - A variable derived from another stays only where it is set and used within the same few lines of one block. There the reader sees both. It also stays where the algorithm needs it there.
 - A name that earns its place is at least two words in camelCase — `doClose`, `needsClose`, `openChar`, `nestDepth`, `fieldCount`. Never a bare `close`, `depth`, `key`, `value`, `data`, `i`, `n`. Applies to every language and to every kind of name: parameter, local, field, function.
 - The rule is mechanical, not aesthetic. A bare word is the one shape that collides with a language's own vocabulary, and the diagnostic rarely says so. `close`, `index`, `length`, `split`, `sub` and `system` are AWK built-ins. A parameter named after one is a parse error, not a shadowing warning. `function f(s, i, open, close)` reports "4 missing }'s" and points at an unrelated construct, so the real cause is invisible in the message. Two words cannot collide. The same holds for a shell variable one `readonly` or one sourced file away from a clash it will never announce.
@@ -79,10 +79,10 @@ Read this before writing code in any language. It is not a per-language module, 
 
 ## Inlining and removal
 
-- Before inlining or removing a function, every caller in `sh-lib`, `sh-scripts` and `sh-test` is found by name. A function named from another file is API: it stays, or every caller is changed in the same change.
+- Before inlining or removing a function, every caller in `sh-lib`, `sh-scripts` and `sh-test` is found by name. Every caller is changed in the same change, in whatever file it stands.
 - A function defined twice: the first copy is dead and goes. One name with two implementations in two files is fixed to one implementation.
 - A function named nowhere else is dead and goes.
-- Inline a trivial function only when every call site is in its own file. A function called from another file is that concern's interface. A body that would stand at two or more places after inlining is a duplicate in the making. Such a function is not trivial to remove.
+- A trivial function is inlined at every call site, in whatever file the call stands. A caller in another file is never a reason to keep it. Trivial is judged by the job the function does, not by the length of its body. A body grown by additions around a small job is cut back to that job, then inlined. Inlined code is faster and simpler, and both are the measure.
 
 ## Batch changes
 

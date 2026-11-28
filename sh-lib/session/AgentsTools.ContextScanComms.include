@@ -365,7 +365,7 @@ AgentsToolsContextScanComms(){
 									-v array=messages.matches -v want=channel.id,ts \
 									-v mode=records -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || mentionHits=""
 								local mentionChannel mentionTs mentionCount=0
-								while IFS="$( printf '\t' )" read -r mentionChannel mentionTs ; do
+								while IFS=$'\t' read -r mentionChannel mentionTs ; do
 									[ -n "$mentionChannel" ] && [ -n "$mentionTs" ] || continue
 									threadTargets+=( "$mentionChannel:$mentionTs" )
 									mentionCount=$(( mentionCount + 1 ))
@@ -741,7 +741,7 @@ AgentsToolsContextScanComms(){
 					fi
 					if [ -f "$sourcePrefetchDir/threads.$sourceIndex" ] ; then
 						local dtSource=""
-						while IFS="$( printf '\t' )" read -r dtSource dt dtLatest ; do
+						while IFS=$'\t' read -r dtSource dt dtLatest ; do
 							[ -n "$dt" ] || continue
 							threadTargets+=( "$dt" )
 							## The floor this discovering source reads from travels WITH
@@ -991,7 +991,7 @@ AgentsToolsContextScanComms(){
 				local dtFloor dtFloorOrigin
 				## A TAB IS WHITESPACE TO read: an empty field between two tabs vanishes and the fields after it shift. A thread with no latest
 				## reply is written `-` there, and read back as empty, so its floor stays its floor.
-				while IFS="$( printf '\t' )" read -r dtIndex dt threadEst dtFloor dtFloorOrigin ; do
+				while IFS=$'\t' read -r dtIndex dt threadEst dtFloor dtFloorOrigin ; do
 					[ "$threadEst" != "-" ] || threadEst=""
 					[ -n "$dt" ] || continue
 					if [ "$SECONDS" -ge "$slackLegDeadline" ] ; then

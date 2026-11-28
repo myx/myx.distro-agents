@@ -105,8 +105,10 @@
 			local sessionOut="" sessionRc=0 targetSessionId=""
 			targetSessionId="${namedSessionId:-$( AgentsTranscriptSessionKey )}"
 			if [ "$allowCreate" = "true" ] && [ -n "$targetSessionId" ] && ! AgentsTranscriptBase "$targetSessionId" > /dev/null 2>&1 ; then
+				type AgentsTranscriptStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLife.include"
 				AgentsTranscriptStart "$targetSessionId" "${MDAT_DATA_ROOT:-}" "$( AgentsTranscriptNewRel "$memberName" "$targetSessionId" )" "$memberName"
 			fi
+			type AgentsTranscriptNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLife.include"
 			sessionOut="$( AgentsTranscriptNote "$targetSessionId" "$speakerName" "$messageText" "$timestampUtc" )" || sessionRc=$?
 			if [ "$sessionRc" != "0" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --append-transcript: ${sessionOut#ERROR: }" >&2

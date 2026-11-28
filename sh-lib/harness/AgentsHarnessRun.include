@@ -805,16 +805,13 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 	return 0
 }
 
-AgentsHarnessReply(){ ## tool name, result -- sets harnessReply and harnessReplyDate
-	harnessReply="$2" harnessReplyDate=""
+AgentsHarnessReply(){ ## tool name, result -- sets harnessReply
+	harnessReply="$2"
 	[ -z "${MDAT_CHANGE_APPLY:-}" ] && [ -z "${MDAT_CHANGE_HOLD_ONLY:-}" ] || return 0
 	case "$2" in NOT-HELD:*) return 0 ;; esac
 	type AgentsTranscriptReplyFinish > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
 	## A Read given offset or limit is a range, and comes back whole (AgentsTranscriptReplyFinish).
-	type AgentsTranscriptReplyFinish > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
 	harnessReply="$( AgentsTranscriptReplyFinish "$1" "$2" "$( [ "$1" != Read ] || printf '%s' "${harnessArgV_file_path:-${harnessArgV_path}}" )" "$( [ "$1" != Read ] || [ -z "${harnessArgV_offset:-}${harnessArgV_limit:-}" ] || printf ranged )" )" || harnessReply="$2"
-	type AgentsTranscriptReplyBeside > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
-	[ -z "$2" ] || harnessReplyDate="$( AgentsTranscriptReplyBeside )"
 }
 
 AgentsHarnessFileText(){ ## file

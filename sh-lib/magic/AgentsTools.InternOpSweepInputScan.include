@@ -99,7 +99,7 @@ type AgentsToolsBoardReady > /dev/null 2>&1 || { . "$MDLT_ORIGIN/myx/myx.distro-
 				*) set +e ; return 1 ;;
 			esac
 			if [ -n "$teamFloorRows" ] ; then
-				while IFS="$( printf '\t' )" read -r teamFloorKey teamFloorTs ; do
+				while IFS=$'\t' read -r teamFloorKey teamFloorTs ; do
 					[ -n "$teamFloorKey" ] && [ -n "$teamFloorTs" ] || continue
 					sourceFloorArgs+=( --comms-source-floor "$teamFloorKey" "$teamFloorTs" )
 				done <<< "$teamFloorRows"

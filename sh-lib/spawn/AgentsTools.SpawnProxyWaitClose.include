@@ -159,6 +159,7 @@
 					"$( [ "$trackedItemState" = running ] && echo review || echo "$trackedItemState" )" wait-pass-ended "${spawnEndReason:-}" || :
 			fi
 			## The session's tokens onto its item, so the closing post sums what is there now.
+			type AgentsSessionTokensHeaderUpdate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTokens.include"
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			## A launch the poller had no time to see, said now, before the end post.
 			AgentsToolsSpawnProxyEventTrackLaunchedPost "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved" || :
@@ -175,6 +176,7 @@
 			## it. What is left has no bound of its own.
 			trap - INT TERM
 			[ -n "$spawnPipeIgnored" ] || trap - PIPE
+			type AgentsTranscriptSpawnEnd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLife.include"
 			AgentsTranscriptSpawnEnd "$MDAT_SPAWN_SESSION_ID" "$spawnOutcome" "$exitCode" || :
 			echo "RECEIPT_ID=$receiptId"
 			echo "SESSION_ID=$sessionId"

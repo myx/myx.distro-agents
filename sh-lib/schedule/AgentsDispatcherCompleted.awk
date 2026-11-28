@@ -7,7 +7,8 @@
 ## (`routine:`); DISPATCH_MODE, `completed` (the default: a run that closed spawn-succeeded, by its resolved-at) or `started` (a
 ## run of any status but spawn-failed, by its started-at: a start that failed never ran, so it neither makes a routine not due nor hides a broken chain); the stretch's start, DISPATCH_SINCE_MINUTES (minutes since 1970, UTC) or else
 ## DISPATCH_SINCE, `YYYY-MM-DD HH:MM`, with DISPATCH_ZONE, the offset that time is in, `+0300`; and, where there is one, its end,
-## DISPATCH_UNTIL_MINUTES, which no run may reach.
+## DISPATCH_UNTIL_MINUTES, which no run may reach. DISPATCH_MODE `failed-again` asks of the starts that failed, by their started-at, and
+## answers only where two or more fall in the stretch: the autorun's bound on a cause that outlives a pass.
 ##
 ## It prints the one run whose time is the latest of those that qualify, as a row of the form the list's run rows have (dates as a
 ## registry keeps them): `run`, the session id, the spawn id, the member, the status, started-at, resolved-at and the routine. It
@@ -23,7 +24,9 @@ function registryDate(dateText) {
 
 BEGIN {
 	wantRoutine = ENVIRON["DISPATCH_ROUTINE"] ;
-	wantMode = ( ENVIRON["DISPATCH_MODE"] == "started" ? "started" : "completed" ) ;
+	wantMode = ENVIRON["DISPATCH_MODE"] ;
+	if (wantMode != "started" && wantMode != "failed-again") wantMode = "completed" ;
+	qualified = 0 ;
 	if (ENVIRON["DISPATCH_SINCE_MINUTES"] != "") sinceMinutes = ENVIRON["DISPATCH_SINCE_MINUTES"] + 0 ;
 	else sinceMinutes = dateMinutes( registryDate( ENVIRON["DISPATCH_SINCE"] " " ENVIRON["DISPATCH_ZONE"] ) ) ;
 	untilMinutes = ( ENVIRON["DISPATCH_UNTIL_MINUTES"] != "" ? ENVIRON["DISPATCH_UNTIL_MINUTES"] + 0 : -1 ) ;
@@ -58,12 +61,16 @@ NF {
 	if (wantMode == "completed") {
 		if (recordStatus != "spawn-succeeded") next ;
 		closedMinutes = dateMinutes( registryDate( recordResolved ) ) ;
+	} else if (wantMode == "failed-again") {
+		if (recordStatus != "spawn-failed") next ;
+		closedMinutes = dateMinutes( registryDate( recordStarted ) ) ;
 	} else {
 		if (recordStatus == "spawn-failed") next ;
 		closedMinutes = dateMinutes( registryDate( recordStarted ) ) ;
 	}
 	if (closedMinutes < 0 || closedMinutes < sinceMinutes) next ;
 	if (untilMinutes >= 0 && closedMinutes >= untilMinutes) next ;
+	qualified++ ;
 	if (closedMinutes > bestMinutes) {
 		bestMinutes = closedMinutes ;
 		bestRow = "run\t" recordSession "\t" recordSpawn "\t" recordOwner "\t" recordStatus "\t" registryDate( recordStarted ) "\t" registryDate( recordResolved ) "\t" recordRoutine ;
@@ -72,5 +79,6 @@ NF {
 
 END {
 	if (bestMinutes < 0) exit 1 ;
+	if (wantMode == "failed-again" && qualified < 2) exit 1 ;
 	print bestRow ;
 }

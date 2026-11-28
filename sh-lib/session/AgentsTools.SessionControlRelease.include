@@ -20,9 +20,28 @@ AgentsToolsSessionControlRelease(){
 	type AgentsToolsSessionDismissHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	local releaseTracking releaseSession releaseParent releaseHost releaseOwner releaseStatus releaseExit releaseSpawn releaseAgentLog releaseThread releaseWorkspace releaseLive releaseWord releaseRest
 	local releaseRecord releaseField releaseStem releaseItem releaseSpawnOf releaseBoard releaseState releaseWhy releaseNow releaseSeen releaseCalled
+	## THE RECORDS ARE THE STORE'S OWN, read once through the session's kept list into one index: a
+	## record's file is named by the session that founded it, or by its own run, so a path built from
+	## the tracking name and the run misses the other shape in silence and no release is ever made.
+	local releaseRecords releaseIndex releaseIndexSpawn releaseIndexPath
+	releaseRecords="" ; releaseIndex=""
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
 	releaseNow="$( date +%s )"
 	[ -n "$controlClosing" ] || controlClosing="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_CLOSING_SECONDS 300 )"
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
+	releaseRecords="$( AgentsToolsSpawnedSessionRecords "$controlSession" own 2> /dev/null )" || :
+	[ -z "$releaseRecords" ] || releaseIndex="$( printf '%s\n' "$releaseRecords" | LC_ALL=C awk '
+		{
+			indexPath = $0 ;
+			if ( indexPath == "" ) next ;
+			indexSpawn = "" ; indexFence = 0 ;
+			while ( ( getline indexLine < indexPath ) > 0 ) {
+				if ( indexLine == "---" ) { indexFence++ ; if ( indexFence >= 2 ) break ; continue ; }
+				if ( indexFence == 1 && index( indexLine, "spawn-id: " ) == 1 ) { indexSpawn = substr( indexLine, 11 ) ; break ; }
+			}
+			close( indexPath ) ;
+			if ( indexSpawn != "" ) print indexSpawn "\t" indexPath ;
+		}' 2> /dev/null )" || :
 	while read -r releaseTracking releaseSession releaseParent releaseHost releaseOwner releaseStatus releaseExit releaseSpawn releaseAgentLog releaseThread releaseWorkspace releaseLive releaseWord releaseRest ; do
 		case "$releaseSpawn" in ''|-|.|..|*/*) continue ;; esac
 		if [ "$releaseLive" != "running" ] ; then
@@ -35,8 +54,15 @@ AgentsToolsSessionControlRelease(){
 			rm -f "$controlDir/release.$releaseSpawn" 2> /dev/null
 			continue
 		fi
-		releaseRecord="$MMDAPP/.local/agents/spawned/$releaseTracking/$releaseSpawn.spawn.md"
-		[ -f "$releaseRecord" ] || continue
+		## THE RECORD IS THE ONE THAT NAMES THIS ROW'S RUN, found in that index rather than built as a path.
+		releaseRecord=""
+		while IFS=$'\t' read -r releaseIndexSpawn releaseIndexPath ; do
+			[ -n "$releaseIndexSpawn" ] || continue
+			[ "$releaseIndexSpawn" = "$releaseSpawn" ] || continue
+			releaseRecord="$releaseIndexPath"
+			break
+		done <<< "$releaseIndex"
+		[ -n "$releaseRecord" ] || continue
 		releaseWhy="" ; releaseBoard=""
 		for releaseField in spawns spawned-by ; do
 			releaseStem="$( AgentsToolsFrontmatterKey "$releaseRecord" "$releaseField" )"

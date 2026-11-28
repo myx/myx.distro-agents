@@ -153,7 +153,7 @@ AgentsToolsOnDemandThreadStart(){ ## folder, the operation and its words...
 ## A FIELD HOLDING A TAB OR A NEWLINE IS REFUSED (S12.11 ruling 3): the request is one tab-separated line, so such a field
 ## cannot be carried and would arrive split. The refusal is named, and nothing is sent.
 AgentsToolsOnDemandThreadAsk(){ ## folder, bound seconds or -, the request's fields...
-	local askFolder="${1:-}" askBound="${2:-}" askReply="" askLine="" askAnswer="" askSent="" askField="" askOut="" askServed=""
+	local askFolder="${1:-}" askBound="${2:-}" askReply="" askLine="" askAnswer="" askSent="" askField="" askOut="" askServed="" askWake=""
 	shift 2
 	[ -n "$askFolder" ] && [ -p "$askFolder/request.fifo" ] || return 1
 	for askField in "$@" ; do
@@ -179,13 +179,23 @@ AgentsToolsOnDemandThreadAsk(){ ## folder, bound seconds or -, the request's fie
 		askLine="$askLine$1"$'\t'
 		shift
 	done
+	## ONE WAKE OF A REQUEST WAITS AT A TIME: a fire-and-forget request identical to one already in the fifo is not written again,
+	## for the thread serves what it finds when it reads that one. So a thread slower than its writers never fills its fifo, and no
+	## writer waits on a full one. The mark is the request made a name; one that cannot be made is written as before.
+	if [ "$askReply" = "-" ] ; then
+		askWake="$askFolder/wake.${askLine//[!A-Za-z0-9]/_}"
+		if ! mkdir "$askWake" 2> /dev/null ; then
+			[ ! -d "$askWake" ] || return 0
+			askWake=""
+		fi
+	fi
 	## The braces scope the silence to the open: on `exec` a bare `2> /dev/null` silences the caller for good.
 	if { exec 7<> "$askFolder/request.fifo" ; } 2> /dev/null ; then
 		printf '%s\n' "$askLine$askReply" >&7 2> /dev/null && askSent="yes"
 		exec 7>&-
 	fi
 	if [ "$askReply" = "-" ] ; then
-		[ -n "$askSent" ] || return 1
+		[ -n "$askSent" ] || { [ -z "$askWake" ] || rmdir "$askWake" 2> /dev/null ; return 1 ; }
 		return 0
 	fi
 	if [ -n "$askSent" ] ; then
@@ -309,6 +319,8 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 		printf '⛔ ERROR: the thread could not open its request fifo: %s\n' "$serveFolder/request.fifo" >&2
 		return 1
 	}
+	## A WAKE MARK LEFT BY A THREAD THAT ENDED is cleared as the folder is taken, so no writer stays silent behind it.
+	rmdir "$serveFolder"/wake.* 2> /dev/null || :
 	## A HANDLER OR A TICK THAT CALLS `exit` ENDS THIS PROCESS WITH NO END LINE AND ITS LOCK STILL NAMING IT: the exit trap says so and gives the lock back. The
 	## trap reads three globals, not this function's locals, which a shell on the fleet's bash 3.2 does not keep in scope at an exit. The normal ends below clear the trap first.
 	agentsOnDemandExitPid="$servePid" agentsOnDemandExitLock="$serveFolder/thread.lock" agentsOnDemandExitMe="$serveMe"
@@ -339,6 +351,8 @@ AgentsToolsOnDemandThreadServe(){ ## folder, idle seconds, handler, tick or -, o
 					serveFields=()
 					IFS=$'\t' read -r -a serveFields <<< "$serveSplit" || :
 					if [ "$serveReply" = "-" ] ; then
+						## The wake is taken before the handler runs, so a request made while it runs writes a wake of its own.
+						rmdir "$serveFolder/wake.${serveSplit//[!A-Za-z0-9]/_}_" 2> /dev/null || :
 						"$serveHandler" "${serveFields[@]+"${serveFields[@]}"}" || { serveRc=$? ; printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveHandler" "$serveRc" >&2 ; }
 					elif [ -e "$serveReply" ] && { exec 3<> "$serveReply" ; } 2> /dev/null ; then
 						"$serveHandler" "${serveFields[@]+"${serveFields[@]}"}" || { serveRc=$? ; printf '%s %s answered %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$serveHandler" "$serveRc" >&2 ; }

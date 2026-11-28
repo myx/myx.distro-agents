@@ -294,6 +294,7 @@ $( LC_ALL=C awk '$2 ~ /\\/ { print $2 ; }' "$measuredFile" 2> /dev/null | LC_ALL
 					return ( rowStatus == "spawn-failed" ) ? "failed" : "finished" ;
 				}
 				if ( rowStatus == "spawn-ended-without-close" ) {
+					if ( rowLive == "running" ) return activityOf( rowSpawn ) ;
 					return deadNames( rowSession, rowSpawn ) ? "failed" : "finished" ;
 				}
 				if ( rowLive == "remote" ) return "unclosed" ;

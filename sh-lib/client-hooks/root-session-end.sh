@@ -77,6 +77,7 @@ set -m
 	export MMDAPP="$hookWs" MDLT_ORIGIN
 	[ ! -x "$hookTools" ] || "$BASH" "$hookTools" --intern-op-pending-reply-collect --session-id "$hookSession" --mark-ended --context SessionEnd
 	if . "$hookLib/session/AgentsTools.SessionTranscript.include" && AgentsTranscriptBase "$hookSession" > /dev/null ; then
+		type AgentsTranscriptSpawnEnd > /dev/null 2>&1 || . "$hookLib/session/AgentsTools.SessionTranscriptLife.include"
 		AgentsTranscriptSpawnEnd "$hookSession" "session-end:$hookReason" -
 	fi
 ) < /dev/null > /dev/null 2>&1 &

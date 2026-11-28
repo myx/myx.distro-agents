@@ -192,8 +192,8 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 			AgentsHarnessRefusalKeep "the start never got going: the CLI this preset names is not configured on this machine (exit $closeExit)" || :
 		fi
 	fi
-	## Its tokens, summed over its sub-sessions as shown now (AgentsTools.SessionTranscript.include).
-	type AgentsSessionTokensLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	## Its tokens, summed over its sub-sessions as shown now (AgentsTools.SessionTokens.include).
+	type AgentsSessionTokensLine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTokens.include"
 	closeTokens="$( AgentsSessionTokensLine "" "${MDAT_SPAWN_SESSION_ID:-}" 2>/dev/null )" || closeTokens=""
 	closeTokens="${closeTokens#tokens: }"
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"

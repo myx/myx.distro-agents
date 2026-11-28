@@ -217,13 +217,15 @@ AgentsToolsCommsActivityPass(){ ## now
 }
 
 ## The log is bounded so the process never fills a disk with it: over 128 KiB it is cut back to its last 64, from the first whole
-## line, by one rename, and its own descriptors are pointed at the new file. The size is read from the file once per process and
-## then kept by the writer (AgentsToolsSessionCommsSay, agentsCommsLogBytes): the bound runs on every pass, and an idle pass
+## line, by one rename, and its own descriptors are pointed at the new file. The size is read from the file once a minute, by the shell's
+## clock, and kept by the writer between (AgentsToolsSessionCommsSay, agentsCommsLogBytes): the clients the thread starts write their errors
+## into the same log, uncounted, so a size read once per process let the log grow without bound. The bound runs on every pass, and an idle pass
 ## starts no process for it.
 AgentsToolsSessionCommsLogBound(){
 	local boundDir boundSize
 	[ -n "${MMDAPP:-}" ] || return 0 ; boundDir="$MMDAPP/.local/agents/comms"
-	if [ -z "${agentsCommsLogBytes:-}" ] ; then
+	if [ -z "${agentsCommsLogBytes:-}" ] || [ "$(( SECONDS - ${agentsCommsLogReadAt:--100} ))" -ge 60 ] ; then
+		agentsCommsLogReadAt="$SECONDS"
 		boundSize="$( { LC_ALL=C wc -c < "$boundDir/log" ; } 2> /dev/null )" || boundSize=0
 		boundSize="${boundSize//[!0123456789]/}"
 		agentsCommsLogBytes="${boundSize:-0}"
@@ -875,6 +877,7 @@ AgentsToolsSessionCommsPost(){ ## session, outbox file `<n>.retry`
 			## The copies of this post in the sessions whose thread it went into take the same ts (kept when it was queued).
 			postCopies="$( AgentsToolsSessionChatDir "$postSession" 2> /dev/null )/chat.copies/$postNo"
 			if [ -f "$postCopies" ] ; then
+				type AgentsToolsSessionChatDeliverStamp > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatCopies.include"
 				AgentsToolsSessionChatDeliverStamp "$( cat "$postCopies" 2> /dev/null )" "$postTs" 2> /dev/null || :
 				rm -f "$postCopies" 2> /dev/null || :
 			fi
@@ -949,17 +952,33 @@ AgentsToolsSessionCommsTake(){ ## session, the file left in chat.inbox
 	return 0
 }
 
-## EVERY SESSION'S CONSOLE INBOX, at the top of a pass: a message a person left is taken before any session's turn comes, so its wait is a
-## pass of its own and never the queue of the sessions ahead of it. The files are local, so this costs the pass no network call.
-AgentsToolsSessionCommsTakeAll(){
-	local allSessions=() allCount=0 allIdx allFile allName allDir
+## EVERY CONSOLE MESSAGE, at the top of a pass: a message a person left is taken before any session's turn comes, so its wait is a pass of
+## its own and never the queue of the sessions ahead of it. The files are local, so this costs the pass no network call.
+## THE SESSIONS ARE THOSE THE WRITER MARKED (comms/work, AgentsToolsSessionCommsMark): the console's one writer marks the session it leaves a
+## message for, and the mark stays while one is there (AgentsToolsSessionCommsSettle). A walk over every session's inbox, thousands of
+## folders on a rig, every second, is the rarer check: with `all`, by the reader once a minute, for a message no mark names.
+AgentsToolsSessionCommsTakeAll(){ ## `all` for the walk over every session's inbox (optional)
+	local allSessions=() allCount=0 allIdx allFile allName allDir allMark
 	[ -n "${MMDAPP:-}" ] || return 0
-	for allFile in "$MMDAPP"/.local/agents/sessions/*/chat.inbox/*.msg ; do
-		[ -f "$allFile" ] || continue
-		allDir="${allFile%/chat.inbox/*}" ; allName="${allDir##*/}"
-		case "$allName" in ''|-|*/*|*[[:space:]]*) continue ;; esac
-		allSessions[allCount]="$allName" ; allCount=$(( allCount + 1 ))
-	done
+	if [ "${1:-}" = all ] ; then
+		for allFile in "$MMDAPP"/.local/agents/sessions/*/chat.inbox/*.msg ; do
+			[ -f "$allFile" ] || continue
+			allDir="${allFile%/chat.inbox/*}" ; allName="${allDir##*/}"
+			case "$allName" in ''|-|*/*|*[[:space:]]*) continue ;; esac
+			allSessions[allCount]="$allName" ; allCount=$(( allCount + 1 ))
+		done
+	else
+		for allMark in "$MMDAPP/.local/agents/comms/work"/* ; do
+			[ -f "$allMark" ] || continue
+			allName="${allMark##*/}"
+			case "$allName" in ''|-|*/*|*[[:space:]]*) continue ;; esac
+			for allFile in "$MMDAPP/.local/agents/sessions/$allName"/chat.inbox/*.msg ; do
+				[ -f "$allFile" ] || continue
+				allSessions[allCount]="$allName" ; allCount=$(( allCount + 1 ))
+				break
+			done
+		done
+	fi
 	for (( allIdx = 0 ; allIdx < allCount ; allIdx++ )) ; do
 		for allFile in "$MMDAPP/.local/agents/sessions/${allSessions[$allIdx]}"/chat.inbox/*.msg ; do
 			[ -f "$allFile" ] || continue

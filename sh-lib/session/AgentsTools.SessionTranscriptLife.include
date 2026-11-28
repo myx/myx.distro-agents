@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionTranscriptLife.include -- a session transcript opened, noted and closed: its name and START line, its dispatch item, a NOTE, the spawn's END, and an event a run that ended can no longer commit. Sourced, never run; functions only.
+## Its functions read and write through the transcript's own (AgentsTools.SessionTranscript.include), which every one of them calls.
+##
+type AgentsTranscriptSessionDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+
+## A new transcript's path under the team data root: its name, and its month folder by the one
+## audit lookup (AgentsToolsAuditMonth, AgentsTools.InternOpDataRead.include) every reader finds it by.
+AgentsTranscriptNewRel(){ ## member, session id
+	local relName relMonth relStamp
+	type AgentsToolsAuditMonth > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include" || return 1
+	AgentsTranscriptNowInto relStamp ; AgentsTranscriptUtcInto relStamp "$relStamp" compact
+	relName="session-$relStamp-${1:-unknown}-${2:0:8}.log"
+	relMonth="$( AgentsToolsAuditMonth "$relName" )" || return 1
+	printf 'audit/%s/%s' "$relMonth" "$relName"
+}
+
+## Opens a session's transcript: the file with its START line, and the pointers every
+## later writer resolves it by. The extra arguments are key value pairs for START.
+AgentsTranscriptStart(){ ## session id, data root, path relative to it, member, then key value pairs
+	local startSession="$1" startRoot="$2" startRel="$3" startMember="$4" startDir startPath startLine
+	shift 4
+	AgentsTranscriptSessionDirInto startDir "$startSession" || return 0
+	[ -n "$startRoot" ] && [ -n "$startRel" ] || return 0
+	startPath="$startRoot/$startRel"
+	mkdir -p "${startPath%/*}" "$startDir" 2>/dev/null || return 0
+	startLine="$( AgentsTranscriptEventLine START session "$startSession" member "$startMember" "$@" )" || return 0
+	printf '%s\n' "$startLine" >> "$startPath" 2>/dev/null || return 0
+	printf '%s\n' "$startPath" > "$startDir/transcript" 2>/dev/null || :
+	printf '%s\n' "$startRoot" > "$startDir/data-root" 2>/dev/null || :
+	return 0
+}
+
+## The dispatch item a session's tokens header lives on, recorded at its start.
+AgentsTranscriptSetItem(){ ## session id, item file name
+	local itemDir
+	AgentsTranscriptSessionDirInto itemDir "$1" || return 0
+	[ -n "$2" ] || return 0
+	mkdir -p "$itemDir" 2>/dev/null && printf '%s\n' "${2##*/}" > "$itemDir/dispatch-item" 2>/dev/null || :
+	return 0
+}
+
+## One NOTE line in the current session's transcript (--append-transcript with
+## no --transcript-name); rc 1 and an ERROR line when no session or no transcript resolves.
+## Prints where it went. The optional time the speaker gave goes on the line as at=.
+AgentsTranscriptNote(){ ## session id, author, text, time given (optional)
+	local noteSession="$1" noteAuthor="$2" noteText="$3" noteAt="${4:-}" notePath
+	if [ -z "$noteSession" ] ; then
+		printf 'ERROR: no session resolves for this call (no session id in this process), so there is no transcript to note in. Nothing was written.\n'
+		return 1
+	fi
+	if [ -z "$noteText" ] ; then
+		printf 'ERROR: the note is empty. Nothing was written.\n'
+		return 1
+	fi
+	AgentsTranscriptPathInto notePath "$noteSession" || {
+		printf 'ERROR: session %s has no transcript (only a spawned session has one), so there is nowhere to note. Nothing was written.\n' "$noteSession"
+		return 1
+	}
+	AgentsTranscriptEvent "$noteSession" NOTE "$noteText" 4096 by "$noteAuthor" at "$noteAt"
+	printf 'OK: appended to %s\n' "${notePath##*/}"
+	return 0
+}
+
+## The spawn proxy's close: the END line with the session's tokens, and the last milestone.
+AgentsTranscriptSpawnEnd(){ ## session id, outcome, exit code
+	AgentsTranscriptEvent "$1" END "" 0 outcome "$2" exit "$3" tokens "$( AgentsSessionTokensHeaderValue "$1" )"
+	AgentsTranscriptMilestone "$1" "end"
+	return 0
+}
+
+## One event written into a run's transcript AFTER that run ended -- its verdict, its return, its dismissal -- so no milestone of
+## that run will ever come to commit the line. The block is committed here instead, through the one team-data thread as every other
+## write is (AgentsToolsTeamDataCommitPaths). Only such a writer uses this one: a live run's lines are carried by its next milestone,
+## and committing each of those here would put a commit on the path every tool call takes.
+AgentsTranscriptEventAfterEnd(){ ## session id, kind, body cap, then key value pairs
+	local afterSession="$1" afterKind="$2" afterCap="$3" afterPart afterDir afterRoot=""
+	shift 3
+	AgentsTranscriptPathInto afterPart "$afterSession" || return 0
+	AgentsTranscriptEvent "$afterSession" "$afterKind" "" "$afterCap" "$@"
+	AgentsTranscriptSessionDirInto afterDir "$afterSession" || return 0
+	[ ! -s "$afterDir/data-root" ] || IFS= read -r afterRoot < "$afterDir/data-root" || :
+	[ -n "$afterRoot" ] || afterRoot="${MDAT_DATA_ROOT:-}"
+	[ -n "$afterRoot" ] || return 0
+	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+	MDAT_DATA_ROOT="$afterRoot" AgentsToolsTeamDataCommitPaths "transcript ${afterSession:0:8} after its end: $afterKind" "$afterPart" 2> /dev/null || :
+	return 0
+}

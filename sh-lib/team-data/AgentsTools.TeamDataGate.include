@@ -82,10 +82,12 @@ AgentsToolsTeamDataGateRefuse(){ ## what is refused (an operation's name)
 
 ## Whether an operation is on the list: rc 0 where it is.
 AgentsToolsTeamDataGateWrites(){ ## operation
-	local writesPattern
-	while IFS= read -r writesPattern ; do
+	## Walked by expansion, with no here-string: on bash 3.2 a here-string writes a temp file, and this runs on every dispatch.
+	local writesRest="$agentsTeamDataGateOps"$'\n' writesPattern
+	while [ -n "$writesRest" ] ; do
+		writesPattern="${writesRest%%$'\n'*}" ; writesRest="${writesRest#*$'\n'}"
 		case "$1" in $writesPattern) return 0 ;; esac
-	done <<< "$agentsTeamDataGateOps"
+	done
 	return 1
 }
 

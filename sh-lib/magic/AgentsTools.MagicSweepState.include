@@ -37,7 +37,7 @@ AgentsToolsMagicSweepStoredSourcePositions(){ ## member, op-name
 	listedOut="$( LC_ALL=C awk -v mode=list -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsMagicSweepStateWatermark.awk" < "$listedTarget" )" || listedRc=$?
 	case "$listedRc" in
 		0)
-			while IFS="$( printf '\t' )" read -r listedKey listedTs ; do
+			while IFS=$'\t' read -r listedKey listedTs ; do
 				[ -n "$listedKey" ] && [ -n "$listedTs" ] || continue
 				case "$listedTs" in
 					*[!0-9.]*|.*|*.*.*|'')

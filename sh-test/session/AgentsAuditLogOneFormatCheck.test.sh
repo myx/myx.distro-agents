@@ -80,6 +80,7 @@ harnessAgent="rig-member" ; harnessToolsJson='[]' ; harnessMcpToolsJson=''
 harnessRound=1
 set +u
 . "$rigInclude"
+. "$rigHere/session/AgentsTools.SessionTranscriptLife.include" ; . "$rigHere/session/AgentsTools.SessionTranscriptLoop.include"
 . "$rigContextInclude"
 ## The event-track helper's own chain reaches the tooling's dispatch file, which reads a positional
 ## parameter; loaded here, at the top level and once, so the context init finds it already there.

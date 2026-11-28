@@ -54,6 +54,15 @@ session-kind: {{kind}}, defined by {{kind-routine}}.
 - Its rules and tooling apply as well.
 - `DistroAgentsSession.fn.sh --get-routine-text {{routine}}` prints the routine mixed in that order.
 
+code-requirements: before you write or change code, read reference/code-craft.md and reference/shell.md of magic-developer through the skillset reader, in full.
+- A fix removes or simplifies code, and never adds a cache, a fallback or a wrapper.
+- Inline each trivial function at every call site, in whatever file the call stands.
+- Put each operation in its own file, and load a file only where its call is reached.
+- In bash 3.2, never slice long strings by pattern, and never read large files with `read -d ''`.
+- Make each change through the apply line, with a check red on base and green on the lane.
+- State each touched call's cost in milliseconds, before and after, in the handback.
+- The work is done only when it works and no call it touches got slower.
+
 Read these two sections of magic-team/magic-team.armed.md with section and not the whole file:
 - {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}
 

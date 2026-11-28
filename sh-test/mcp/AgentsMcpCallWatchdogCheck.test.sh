@@ -50,6 +50,8 @@ export MDAT_TOOL_TASK_OFF=yes
 rigSource="${MDLT_ORIGIN:=$MMDAPP/.local}"
 rigPackage="$rigSource/myx/myx.distro-agents"
 rigInclude="$rigPackage/sh-lib/mcp/AgentsTools.InternMcpRequest.include"
+rigExecute="$rigPackage/sh-lib/mcp/AgentsTools.InternMcpRequestExecute.include"
+rigSecondary="$rigPackage/sh-lib/mcp/AgentsTools.InternMcpRequestSecondary.include"
 rigRegistries="$rigPackage/sh-lib/run/AgentsTools.RunProcesses.include"
 rigHelper="$rigPackage/sh-test/check-fixtures/rig-processes.include.sh"
 
@@ -153,7 +155,7 @@ rigAssert(){ ## what is asserted, got, want
 		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFails=$(( rigFails + 1 ))
 	fi
 }
-rigCode(){ LC_ALL=C grep -v '^[[:space:]]*#' "$1" ; } ## file -- its lines that are no comment
+rigCode(){ LC_ALL=C grep -h -v '^[[:space:]]*#' "$@" ; } ## files -- its lines that are no comment
 rigWaitFile(){ ## file -- waits, ten seconds at most, for it to hold something
 	local fileTurns=50
 	while [ ! -s "$1" ] && [ "$fileTurns" -gt 0 ] ; do "$rigRealSleep" 0.2 ; fileTurns=$(( fileTurns - 1 )) ; done
@@ -380,7 +382,7 @@ rigAssert "a pid file with no start, as jobs were kept before: nothing is signal
 
 echo "-- the request keeps each process it ends by the one reading the tooling keeps a process by --"
 rigAssert "the include probes no call by its number before it ends a group, both watchdogs are the one function, each handler ends its watchdog only where that has not fired, and a job is kept and read with when it began through AgentsToolsRunProcessesBegan" \
-	"$( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'kill -0 "\$mcpCmdPid"' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e '^[[:space:]]*AgentsMcpCallWatch "\$mcp[A-Za-z]*" "\$mcpCmdPid" "\$mcpKillFile" 3>&- &$' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -x -e '[[:space:]]*if \[ ! -f "\$mcpKillFile" \] ; then' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -F '"$mcpJobPid" | AgentsToolsRunProcessesBegan' )" "0 2 3 2"
+	"$( rigCode "$rigInclude" "$rigExecute" "$rigSecondary" | LC_ALL=C grep -c -e 'kill -0 "\$mcpCmdPid"' ) $( rigCode "$rigInclude" "$rigExecute" "$rigSecondary" | LC_ALL=C grep -c -e '^[[:space:]]*AgentsMcpCallWatch "\$mcp[A-Za-z]*" "\$mcpCmdPid" "\$mcpKillFile" 3>&- &$' ) $( rigCode "$rigInclude" "$rigExecute" "$rigSecondary" | LC_ALL=C grep -c -x -e '[[:space:]]*if \[ ! -f "\$mcpKillFile" \] ; then' ) $( rigCode "$rigInclude" "$rigExecute" "$rigSecondary" | LC_ALL=C grep -c -F '"$mcpJobPid" | AgentsToolsRunProcessesBegan' )" "0 2 3 2"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ MCP CALL WATCHDOG CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

@@ -256,6 +256,12 @@ that the code and docs do not readily tell you.
 
   before the file is created (examples: `--owner-workspace-forget`, `LocalTools.Config.include`).
   `--intern-op-slack-call` installs and clears its own trap, so callers of it install none.
+- **A temp claim made inside `$( )` re-runs the caller's own `EXIT` trap when the substitution ends.**
+  `AgentsToolsTempClaim` captures `trap -p EXIT` at claim time and chains it, so the enclosing caller's
+  own cleanup fires early and deletes its file. `--slack-file-fetch` was dead for every caller this way:
+  it set `rm -f "$fetchTmp"`, called a claiming op in `$( )`, then read a file already gone. Reproduced
+  2026-11-24 with a control either way -- gone as shipped, present with `agentsTempSignalsOwned=yes` in
+  the substitution. So an op that sets its own `EXIT` trap must not reach a claiming op inside `$( )`.
 - **`$(…)` returns when the pipe has no writers, not when the command exits.** Never capture an
   arbitrary or caller-supplied command that way: a background child holds the pipe open forever. Write
   to a file and read it back; `wait "$pid"` where needed. `$( )` is fine for our own self-contained
@@ -4824,9 +4830,14 @@ Each instrument states what it proves and its red recipe in its own header. What
   (`--retest-drain`), each test once however many requests named it, and who asked reads the outcome by
   its id (`--retest-result`). A request is `<field>: <value>` lines, put in place whole by one rename,
   and it stands in `waiting/`, then `running/`, then `done/` for seven days. The rename into `running/`
-  is what makes it part of that batch and of no other. A changed test is covered by itself; of any other
-  file the tooling keeps the file, and the batch runs every test of the copy that has not passed in the
-  state it is in then. Nothing of the queue posts anywhere: the tester's session reports.
+  is what makes it part of that batch and of no other. A changed test is covered by itself. Of any other
+  file the queue takes the checks whose own text names that file or its basename. A file no check names
+  gets a `no-cover:` line, and nothing runs for it. The result answers that same file with a `not-run:`
+  line.
+- **A check that guards an include names it on one `## Guards:` line in its own header, package-relative.**
+  The retest queue finds a changed include by reading each check's whole text for that path or its
+  basename, so any mention of it works. The line is what makes that mention a declaration a maintainer
+  can find and keep. A check that guards prose names the behaviour instead.
 - **The tester family is one thin stub per testing operation.** `DistroAgentsTools --tester-<operation>` is
   `DistroAgentsTesting.fn.sh --<operation>` and nothing else, for the 13 operations of the one list in
   `DistroAgentsTools.fn.sh` (`agentsTesterOperations`). A name outside it is refused with the list.
@@ -7362,3 +7373,33 @@ This section supersedes the "Known failures:" paragraph under `# sh-test/AgentsR
 ## The P4 duplicate class compares awk program text, so a copied `.awk` file is invisible
 
 This heading is the corrected name of the section whose heading still reads `## The P4 duplicate class compares invocation text, so a copied .awk file is invisible`, which stands earlier in this file with the class's whole description. `--magic-section-upsert` writes a section's body only: no operation renames one, and none removes one. So the corrected name sits here, and the body stands under the old name until that gap is closed.
+
+## A git write over a source tree is refused, on every shell channel
+
+The human-owner's ruling of 2026-11-26: running git over the source is intentional damage. The enforcement is `sh-lib/common/AgentsTools.GitWrite.include`, and `sh-test/harness/AgentsBashGitWriteGuardCheck.test.sh` holds it.
+
+- A SOURCE TREE is refused: the workspace's `source`, the tooling origin's `myx`, the installed `.local/myx`, and the source of each workspace beside this one, each outside a sandbox tree. `AgentsToolsGitSourceRoots` owns that answer and reuses `AgentsToolsSourceRoots`, so a rig's own copy is that rig's content and never the tree protected. `MDAT_GIT_SOURCE_ROOTS` adds a tree the answer cannot compute, and can only add a refusal.
+- A subcommand that destroys what stands in a tree is refused: reset, checkout, restore, clean, stash, revert, commit, and every subcommand the list has never seen. add, pull, fetch, clone, push, merge, init and the read forms run anywhere.
+- Two layers. The served Bash call's text is read before anything runs, with a shell function's body read as the commands it holds and the wrapper words before a command skipped, so `sudo git`, `GIT_DIR=x git`, `echo a | git` and `git -C <path>` are each read as the git command they are. Then a guard `git` goes first on the run's PATH, exported, so a wrapper whose text hides the word -- a script, an alias, a function from another file -- meets the guard at the write itself.
+- The three shell channels share that guard, because the export happens in `AgentsUniversalHarness.sh` before any server is launched: the Bash tool, `mcp__myx_distro__execute`, and myx.common's own `lib/execShStdin`, whose shell this package never sees. A fourth channel added later inherits it by being started under the same harness.
+- The boundary with the tooling's own git paths: those act on the team-data store and on rigs, which are no source trees, so `reset --hard` in `AgentsTools.TeamDataCheckoutRepair.include` and `reset --soft` and `checkout --` in `AgentsTools.InternOpItem.include` run unchanged. `AgentsTeamDataWritersCommitCheck.test.sh` proves the store-commit path still commits (41 assertions).
+- The boundary with the sanctioned pull: `git clone`, `fetch` and `pull` run anywhere, and `GitClonePull`'s default `--on-conflict-fail` returns before it touches anything, so the palette tasks' pull keeps working. Its conflict branches do not: `--on-conflict-stash` stashes and `--on-conflict-discard` resets and cleans inside the source tree, and both now meet the guard. That is the intent, because both hide or destroy the uncommitted work this rule exists to keep.
+- A refusal prints its tree, its subcommand and its rule, and returns 0 as every gate refusal in this harness does: the calling run goes on, and ending a run is the manager's walk, not this gate's. The stop is recorded by `AgentsToolsGitWriteRefused` in the run's audit log and its session thread, and the record is best effort, so a record that fails never lifts the refusal.
+- A new guard `Make` follows `AgentsToolsLnGuardMake`: the text is compared, a changed one is written, and the guard folder is the one `guard-bin`.
+
+## The apply lane: where `--repository` names, and what a scratch carries
+
+- **`--repository` names the workspace root, never a tree inside it.** The lane resolves live as
+  `$applyRepo/source/<namespace>/<package>/<relative-path>` (`DistroAgentsTesting.fn.sh:225`, `:347`,
+  `:405`, `:491`). A repository below the workspace root therefore makes every listed path read as
+  absent on live, and `plan` names a file that is there as gone. Measured 2026-11-27 09:28Z by
+  `magic-coordinator`: with `--repository <workspace>/source/myx`, `plan` answered gone on live for
+  both listed files at rc 4. With `--repository <workspace>`, `plan` answered at base for both, and
+  `apply` put both in place with a clean read-back.
+- **A scratch for one change carries five things beside `source/` and `base/`.** `packages.txt` holds
+  `<namespace>/<package>`, one a line (`:248`, `:254`). `changed-files.txt` and `apply-order.txt` hold
+  the same paths as sets, and both `plan` (`:396`) and `apply` (`:462`) refuse a scratch where they
+  differ. A `base/` copy of live's text, taken before the edit. And `source/`, holding this work's file.
+- **`mark` is the only writer of the changed list, and it refuses a scratch copy already edited.**
+  The one append is at `:235`, and `:227` is the refusal. So a scratch copy edited before it is marked
+  cannot be marked at all: level it, then mark, then edit.

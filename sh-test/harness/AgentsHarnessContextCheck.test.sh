@@ -70,6 +70,7 @@ rigNorm(){ ## file
 }
 
 . "$rigHere/session/AgentsTools.SessionTranscript.include"
+. "$rigHere/session/AgentsTools.SessionTranscriptLife.include"
 
 rigToolStream(){ ## file, scenario dir
 	{

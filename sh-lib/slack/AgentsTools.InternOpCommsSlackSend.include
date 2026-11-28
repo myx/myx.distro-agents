@@ -1204,10 +1204,9 @@ blocks|verbatim|caller|stdin file"
 		## member there reaches its run whatever Slack lets that run read. Our own organisation's threads only, and never an edit.
 		local chatCopies=""
 		if [ -z "$updateTs" ] && [ -n "${threadTs:-}" ] && [ -n "${channel:-}" ] && ! AgentsToolsCommsClientSide "$memberName" ; then
-			type AgentsToolsSessionChatDeliverCopy > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-			AgentsToolsSessionChatKeyInto
+			type AgentsToolsSessionChatDeliverCopy > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatCopies.include"
 			! type AgentsToolsSessionChatDeliverCopy > /dev/null 2>&1 \
-				|| chatCopies="$( AgentsToolsSessionChatDeliverCopy "$agentsSessionChatKey" "$memberName" "$addressToList" "$channel:$threadTs" "$chatBody" "${addressSessionId:-}" 2> /dev/null )" || chatCopies=""
+				|| chatCopies="$( AgentsToolsSessionChatDeliverCopy "${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}" "$memberName" "$addressToList" "$channel:$threadTs" "$chatBody" "${addressSessionId:-}" 2> /dev/null )" || chatCopies=""
 		fi
 		## THE SESSION THREAD IS ASYNC (), for a caller that asks (MDAT_SEND_ASYNC=true, the SendMessage tool): a post
 
@@ -1227,6 +1226,7 @@ blocks|verbatim|caller|stdin file"
 			## chat files already carry, so Slack's copy of them is queued. Any other thread is a person's, and is posted before the call returns.
 			if { [ "$asyncOwn" = "$channel:$threadTs" ] || [ -n "$chatCopies" ] ; } && [ -n "$asyncPid" ] && kill -0 "$asyncPid" 2> /dev/null ; then
 				AgentsToolsSessionChatStamp "$chatKey" "$chatNo" - "$channel:$threadTs" 2> /dev/null || :
+				type AgentsToolsSessionChatCopiesKeep > /dev/null 2>&1 || [ -z "$chatCopies" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatCopies.include"
 				[ -z "$chatCopies" ] || AgentsToolsSessionChatCopiesKeep "$chatKey" "$chatNo" "$chatCopies" 2> /dev/null || :
 				## Into the outbox of the session thread's channel in the comms cache (S21.13), which the comms reader pushes in order;
 				## the session's own outbox where that cannot take it, or for the other organisation's side, which the writer refuses.
@@ -1262,7 +1262,7 @@ blocks|verbatim|caller|stdin file"
 				## or not the text names a member. A run whose wait naps on its next look at the thread reads it minutes later
 				## otherwise, which is what the owner reported: a coordinator's message to a run sat unread.
 				if [ -n "$chatCopies" ] ; then
-					type AgentsToolsSessionChatWakeCopies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+					type AgentsToolsSessionChatWakeCopies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatCopies.include"
 					AgentsToolsSessionChatWakeCopies "$chatCopies" "$memberName" || :
 				fi
 				return 0
@@ -1506,6 +1506,7 @@ blocks|verbatim|caller|stdin file"
 				[ -z "${agentsCommsCacheDir:-}" ] || AgentsToolsCommsCachePostLink "$agentsCommsCacheDir" "$memberName" "$postLocalId" "" "$sentTs" "$chatBody" || :
 			fi
 			## Its copies in the receiving sessions' files take the same ts, and keep their thread (AgentsToolsSessionChatDeliverStamp).
+			type AgentsToolsSessionChatDeliverStamp > /dev/null 2>&1 || [ -z "$chatCopies" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatCopies.include"
 			[ -z "$chatCopies" ] || [ -z "$sentTs" ] || AgentsToolsSessionChatDeliverStamp "$chatCopies" "$sentTs" 2> /dev/null || :
 			AgentsToolsSlackSendLogLine ok "$( [ -n "$updateTs" ] && printf 'edited' || printf 'posted' ) ts=$sentTs"
 			if [ -n "$wakeMember$addressedMembers" ] && [ -z "$updateTs" ] ; then
@@ -1516,7 +1517,7 @@ blocks|verbatim|caller|stdin file"
 			## EVERY RUN THAT TOOK A COPY IS WOKEN (S27.9): a post into a session's own thread is that run's mail, whether or
 			## not the text names a member. A run whose wait naps on its next look at the thread reads it minutes later otherwise.
 			if [ -n "$chatCopies" ] && [ -z "$updateTs" ] ; then
-				type AgentsToolsSessionChatWakeCopies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+				type AgentsToolsSessionChatWakeCopies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChatCopies.include"
 				AgentsToolsSessionChatWakeCopies "$chatCopies" "$memberName" || :
 			fi
 			printf '%s\n' "$response"

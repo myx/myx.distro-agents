@@ -59,11 +59,17 @@ DistroAgentsTools(){
 		;;
 	esac
 	## The one rule for the operations of the tool files (F1.4): a name of the table (sh-lib/harness/AgentsContext.FrontTable.include) runs in the file that owns it.
-	type AgentsToolsFrontAny > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
-	if AgentsToolsFrontAny "$@" ; then
-		AgentsToolsFrontRoute "$@"
-		return $?
-	fi
+	## The table holds no --intern-* name, so an internal operation never asks it.
+	case "${1:-}" in
+		--intern-*) ;;
+		*)
+			type AgentsToolsFrontAny > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+			if AgentsToolsFrontAny "$@" ; then
+				AgentsToolsFrontRoute "$@"
+				return $?
+			fi
+		;;
+	esac
 	## A name an operation had before it moved into a tool file is refused with its new place.
 	case "${1:-}" in
 		--member-*|--magic-*)
@@ -110,7 +116,8 @@ DistroAgentsTools(){
 	esac
 	## We run from here: a member named by an operation uses this workspace; one set up elsewhere only has its skillset brought (AgentsToolsMemberSkillsetBring).
 	case "$1:${2:-}" in
-		--intern-op-agent-spawn-proxy:*|--intern-op-routine-lock-*:*|--intern-merge-md-files:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|--session-floor-remove:*|--camunda-diagram-sync-stale:*|*:|*:-*) ;;
+		## The --intern-mcp-* operations take a process id second, never a member.
+		--intern-op-agent-spawn-proxy:*|--intern-op-routine-lock-*:*|--intern-merge-md-files:*|--intern-mcp-*:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|--session-floor-remove:*|--camunda-diagram-sync-stale:*|*:|*:-*) ;;
 		--*:*)
 			type AgentsToolsMemberSkillsetBring > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 			## An invited member, set up only in another workspace: its operation runs here; only its skillset, and the settings this workspace lacks, are read from there.
@@ -768,7 +775,7 @@ DistroAgentsTools(){
 				;;
 			esac
 			type AgentsToolsSessionChatFloorRemove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-			AgentsToolsSessionChatKeyInto ; floorRemoveKey="$agentsSessionChatKey"
+			floorRemoveKey="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 			floorRemoveMember="${harnessAgent:-${MDAT_SPAWN_AGENT:-magic-coordinator}}"
 			if [ -z "$floorRemoveKey" ] ; then
 				echo "$MDSC_CMD: ⛔ ERROR: --session-floor-remove: the call belongs to no session, so there is no floor to remove" >&2

@@ -89,7 +89,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
       - A genuinely new item is filed as a `note-*` in `magic-coordinator`'s own inbox (`--upsert-inbox-note`), or as an `inquiry-*` to the member it clearly concerns (`post-inquiry`). Filing settles where the record lives, not whose words it carries or who replies.
       - Slack: react per `slack-reaction-tracking`'s act stage.
    4. **reply-if-warranted**: Acknowledge every message not ignored, by each platform's own rules:
-      - Slack: reply to `<channel>:<ts>` of this message, never a bare channel. `--format blocks`, always.
+      - Slack: reply to `<channel>:<ts>` of this message, never a bare channel. Leave the format at its default `markdown`. `blocks` needs a Block Kit JSON array from stdin or a file, and the sweep composes none.
       - Email, and any reply into an external party's conversation: the human-owner's go first (`AskQuestion`; running unattended, `wait: false`, and the reply waits for it).
       - In the coordinator's own Slack or Trello threads, lead the dialogue directly. Pause before anything reading as a commitment or decision on the human-owner's behalf.
       - Never impersonate: nobody passes off words that are not their own. The source settles who sends: team sources send as the coordinator, a member's source as that member.

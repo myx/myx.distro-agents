@@ -70,14 +70,16 @@ AgentsToolsScheduleThreadWantedInto(){
 ## `waiting` at the price of one file's test, a dead one is started. At most once a minute for the caller, whatever its pass.
 ## A VIEW OF THE SESSIONS PASSES `view`: the list of the sessions is the schedule's own place, so it starts a dead thread whether or not the flags want it now.
 agentsScheduleThreadAskDueAt=-100000
-AgentsToolsScheduleThreadAskDue(){
+## THE CALLER'S CLOCK IS THE ASK'S where it gives one: the comms reader asks on every pass, and a date of its own was a process a pass.
+AgentsToolsScheduleThreadAskDue(){ ## `view` or nothing, the caller's epoch (optional)
 	[ "${MDAT_SCHEDULE_THREAD:-}" != "off" ] || return 0
 	## THE THROTTLE IS THE STORE'S, NOT THIS PROCESS'S: every look is a process of its own, so a counter here was zeroed each time and the whole ask
 	## ran on every look of the screen. The moment it last ran is kept beside the thread, read by the shell, and taken by one write.
 	local dueNow dueStamp="$MMDAPP/.local/agents/schedule-thread/ask-due.stamp"
 	## A view keeps a stamp of its own, so a reader's pass that comes every minute never spends the look a view is owed.
 	[ "${1:-}" != view ] || dueStamp="$MMDAPP/.local/agents/schedule-thread/ask-view.stamp"
-	dueNow="$( date +%s )"
+	dueNow="${2:-}"
+	case "$dueNow" in ''|*[!0123456789]*) dueNow="$( date +%s )" ;; esac
 	{ IFS= read -r agentsScheduleThreadAskDueAt < "$dueStamp" ; } 2> /dev/null || agentsScheduleThreadAskDueAt=""
 	case "${agentsScheduleThreadAskDueAt:-}" in ''|*[!0123456789]*) agentsScheduleThreadAskDueAt=0 ;; esac
 	[ $(( dueNow - agentsScheduleThreadAskDueAt )) -ge 60 ] || return 0
@@ -116,6 +118,9 @@ AgentsToolsScheduleThreadPass(){
 		type AgentsToolsScheduleLoop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
 		passAt="$SECONDS" ; AgentsToolsScheduleLoop
 		passTimes="loop $(( SECONDS - passAt ))s${agentsSchedulePassTimes:+ ($agentsSchedulePassTimes)}"
+		## A hold left by a start that died is cleared here, once a pass, so no key is blocked for ever by a mark nobody reads.
+		type AgentsToolsScheduleStaleHoldsSweep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsTools.DispatcherSchedule.include"
+		passAt="$SECONDS" ; AgentsToolsScheduleStaleHoldsSweep ; passTimes="$passTimes, holds $(( SECONDS - passAt ))s"
 		type AgentsToolsBoardDependencies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDependencies.include"
 		passAt="$SECONDS" ; AgentsToolsBoardDependencies ; passTimes="$passTimes, dependencies $(( SECONDS - passAt ))s"
 		passAt="$SECONDS" ; AgentsToolsScheduleThreadChildrenKeep ; passTimes="$passTimes, children $(( SECONDS - passAt ))s"
@@ -128,6 +133,12 @@ AgentsToolsScheduleThreadPass(){
 		## record folders, so no call path of a member and no pass of this thread waits on them.
 		type AgentsToolsSpawnedRetentionRunDetached > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Write.include"
 		AgentsToolsSpawnedRetentionRunDetached
+		## THE PROCESSED STORES' OWN DAY (the sketch: "move, then delete the unreferenced"): once an hour, detached as the sweep is.
+		type AgentsToolsProcessedRetentionRunDetached > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ProcessedRetention.include"
+		AgentsToolsProcessedRetentionRunDetached
+		## THE HANDED-BACK MARK ON ITS OWN ITEM (the sketch: a handback is the completion claimed): once an hour, detached as the sweeps are.
+		type AgentsToolsHandbackStampRunDetached > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.HandbackStamp.include"
+		AgentsToolsHandbackStampRunDetached
 		passAt="$SECONDS" ; AgentsToolsScheduleThreadWantedInto ; passTimes="$passTimes, wanted $(( SECONDS - passAt ))s"
 		## A PASS LONGER THAN ITS GAP IS SAID: a pass is seconds, and one that ran into minutes (35 on MEL, in the DM look) left a log that read as a stopped
 		## schedule. The line names the pass's own length, so a reader tells a slow pass from a dead thread, and each step's, so the cost is found where it is.

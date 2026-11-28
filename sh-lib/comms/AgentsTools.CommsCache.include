@@ -178,18 +178,19 @@ AgentsToolsCommsCacheWaitReady(){ ## cache folder, seconds
 	mkdir -p "$1" 2> /dev/null || return 1
 	[ -p "$1/.ready" ] || mkfifo "$1/.ready" 2> /dev/null || return 1
 	: > "$1/.waiting" 2> /dev/null || :
-	## The redirection of stderr is braced: on exec itself it would stand for the whole process, and every later error would be lost.
-	{ exec 8<> "$1/.ready" ; } 2> /dev/null || { rm -f "$1/.waiting" 2> /dev/null ; return 1 ; }
-	read -r -t "$2" -u 8 readyLine && readyRc=0
-	exec 8>&-
+	## THE FIFO IS OPENED FOR THE READ ALONE, by the read's own redirection: the caller's descriptors are its own, and an exec here would take
+	## one of them and close it. A fifo that cannot be opened fails the read, so the wait returns unread.
+	{ read -r -t "$2" readyLine 0<> "$1/.ready" ; } 2> /dev/null && readyRc=0
 	rm -f "$1/.waiting" 2> /dev/null
 	return "$readyRc"
 }
 
 ## The puller's word to a reader waiting on a folder it just pulled: one line into the folder's fifo, only while a reader waits there.
+## THE FIFO IS OPENED FOR THE WRITE ALONE, by the printf's own redirection: the puller is the comms thread, whose wait between passes is
+## its own pipe on 9, and an exec here took 9 and closed it, so the thread's wait returned at once and its loop spun.
 AgentsToolsCommsCacheSayReady(){ ## cache folder
 	[ -p "$1/.ready" ] && [ -f "$1/.waiting" ] || return 0
-	{ exec 9<> "$1/.ready" && printf '.\n' >&9 ; exec 9>&- ; } 2> /dev/null || :
+	{ printf '.\n' 1<> "$1/.ready" ; } 2> /dev/null || :
 	return 0
 }
 
@@ -521,7 +522,7 @@ AgentsToolsCommsCachePullWatched(){ ## now, most (optional; the channels one cal
 	## THE SWEEP (S1.12 stage 3), in item 12's order: the due channel sources are ingested, then the transfer hands over what the ingest
 	## wrote. It stands before the marks' own guard, because a rig with no mark still owes its sources their ingest.
 	type AgentsCommsSweepPass > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsIngestPass.include"
-	AgentsCommsSweepPass "$watchMost" || :
+	AgentsCommsSweepPass "$watchMost" "$1" || :
 	[ -n "${MMDAPP:-}" ] && [ -d "$watchMarks" ] || return 0
 	if [ $(( $1 - ${agentsCommsInterestCleanAt:-0} )) -ge 3600 ] ; then
 		agentsCommsInterestCleanAt="$1"

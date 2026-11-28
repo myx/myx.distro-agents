@@ -1,0 +1,52 @@
+##
+## AgentsTools.HandbackStamp.include -- the mark a build that handed back leaves on its own board item. A running item names its run
+## in `execution-receipt: spawn:<session>:<utc>`; when that session's folder holds `handback.given`, the item gets
+## `handback-given: <utc>` and nothing else. Informational only: no state move, no ending -- it gives the advance routine's
+## "completion claimed" something to read, which is what a handback could never do before (measured 2026-11-27: two running items
+## whose runs had handed back still said `dispatch-started`).
+##
+## Once an hour, detached as the copy sweep is, so no pass pays for the walk.
+##
+
+AgentsToolsHandbackStampRun(){
+	local stampRoot="${MDAT_DATA_ROOT:-${MMDAPP:-.}/.local/agents/team-data-root}" stampSpawn="${MMDAPP:-.}/.local/agents/spawned"
+	local stampStore stampFile stampHead stampSession stampStamped=0 stampFailed=0 stampNow
+	type AgentsReviewTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+	stampStore="$stampRoot/board/running"
+	[ -d "$stampStore" ] || return 0
+	for stampFile in "$stampStore"/*.md ; do
+		[ -f "$stampFile" ] || continue
+		stampHead="$( LC_ALL=C awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } { print }' "$stampFile" 2> /dev/null )"
+		case "$stampHead" in *'handback-given:'*) continue ;; esac
+		stampSession="$( printf '%s\n' "$stampHead" | LC_ALL=C sed -n 's/^execution-receipt: spawn:\([0-9a-f-]\{36\}\):.*$/\1/p' | LC_ALL=C head -1 )"
+		[ -n "$stampSession" ] || continue
+		[ -f "$stampSpawn/$stampSession/handback.given" ] || continue
+		stampNow="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+		if AgentsReviewTools --intern-op-board-upsert-move-edit running "${stampFile##*/}" --from-state:running \
+			--header:upsert:handback-given:"$stampNow" --context handback-stamp --log-verb:updated > /dev/null 2>&1 ; then
+			stampStamped=$(( stampStamped + 1 ))
+		else
+			stampFailed=$(( stampFailed + 1 ))
+		fi
+	done
+	if [ "$stampStamped" -gt 0 ] || [ "$stampFailed" -gt 0 ] ; then
+		printf 'handback stamp: %s item(s) marked handed back, %s refused\n' "$stampStamped" "$stampFailed"
+	fi
+	return 0
+}
+
+AgentsToolsHandbackStampRunDetached(){
+	local detachAsked="${MMDAPP:-.}/.local/agents/handback-stamp.asked" detachNow detachWas=""
+	detachNow="$( date +%s )" || return 0
+	{ IFS= read -r detachWas < "$detachAsked" ; } 2> /dev/null || detachWas=""
+	case "$detachWas" in ''|*[!0123456789]*) detachWas=0 ;; esac
+	[ $(( detachNow - detachWas )) -ge 3600 ] || return 0
+	mkdir -p "${detachAsked%/*}" 2> /dev/null && printf '%s\n' "$detachNow" > "$detachAsked" 2> /dev/null || return 0
+	(
+		trap '' HUP
+		set +e
+		AgentsToolsHandbackStampRun
+	) < /dev/null > /dev/null 2>&1 &
+	disown "$!" 2> /dev/null || :
+	return 0
+}

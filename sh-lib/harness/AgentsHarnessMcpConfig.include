@@ -128,12 +128,22 @@ AgentsHarnessMcpCommonServerScript(){ ## workspace
 ## script is executable. The tooling is $MDLT_ORIGIN and the data is $MMDAPP: both servers
 ## run from $MDLT_ORIGIN and carry both variables, so a started server never falls back
 ## to $MMDAPP/.local while the workspace runs from source.
+##
+## THE GIT GUARD IS DECLARED WITH THE SERVER (the owner's ruling of 26 November). myx.common's own `lib/execShStdin` runs a
+## shell this package never sees, and a native client launches that server from mcp.servers.json with only the pairs
+## declared here, so no export from a harness reaches it. The guard folder therefore goes into the server's own declared
+## PATH, in this one composition that both the index and the installer write, rather than into a later environment.
 AgentsHarnessMcpServersPrimary(){
 	AgentsHarnessMcpSpecReset
-	local mcpCommonServer=""
+	local mcpCommonServer="" mcpGuardFolder="${MMDAPP%/}/.local/agents/guard-bin" mcpPathValue=""
+	[ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.GitWrite.include" ] || {
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.GitWrite.include"
+		AgentsToolsGitGuardMake "$mcpGuardFolder"
+	}
+	[ -z "$mcpGuardFolder" ] || mcpPathValue="$mcpGuardFolder:$PATH"
 	mcpCommonServer="$( AgentsHarnessMcpCommonServerScript "$MMDAPP" )" || mcpCommonServer=""
-	[ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] || AgentsHarnessMcpSpecAdd "myx.distro" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" 2 MMDAPP "$MMDAPP" MDLT_ORIGIN "$MDLT_ORIGIN" --intern-mcp-server --run
-	[ ! -x "$mcpCommonServer" ] || AgentsHarnessMcpSpecAdd "myx.common" "$mcpCommonServer" 2 MMDAPP "$MMDAPP" MDLT_ORIGIN "$MDLT_ORIGIN" --run
+	[ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] || AgentsHarnessMcpSpecAdd "myx.distro" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" 4 MMDAPP "$MMDAPP" MDLT_ORIGIN "$MDLT_ORIGIN" PATH "$mcpPathValue" BASH_ENV "$mcpGuardFolder/bash-env.sh" --intern-mcp-server --run
+	[ ! -x "$mcpCommonServer" ] || AgentsHarnessMcpSpecAdd "myx.common" "$mcpCommonServer" 4 MMDAPP "$MMDAPP" MDLT_ORIGIN "$MDLT_ORIGIN" PATH "$mcpPathValue" BASH_ENV "$mcpGuardFolder/bash-env.sh" --run
 	return 0
 }
 

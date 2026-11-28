@@ -366,6 +366,7 @@ Decide one:
 - **The document is the record.** Its body states the current state, next step and open points, so the next round needs nothing outside it. History lives only in its log. An approval is recorded only in the approver's own words, with who and when.
 - **Open while anything is open**, even when other parts are settled and handed on.
 - **A child gets a bounded piece**, with its own goal, never "keep working the parent".
+- **One call does many things.** Every round re-reads the whole prefix, so the calls a round makes are the cost: batch many items into one `BatchTools` call, write several files from one call, and never spend a call on one item when several are ready. Measured 2026-11-27: one round per tool call, 300-400K tokens a round, and a duty run of 11.5k calls where the batches carried two lines each.
 
 # Conversations
 

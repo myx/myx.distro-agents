@@ -51,7 +51,7 @@ AgentsToolsSuperviseRead(){ ## <run-id> [--tail <n>] [--thread-lines <n>] [--no-
 	type AgentsToolsSpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunRecords.include"
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsSessionRunSandboxInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
-	type AgentsTranscriptRunTail > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	type AgentsTranscriptRunTail > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptRead.include"
 	AgentsToolsSuperviseRunIdInto readRun "$readRun" || return 1
 	readRecord="$( AgentsToolsSpawnRecord "$readRun" )"
 	[ -n "$readRecord" ] || { echo "$MDSC_CMD: ⛔ ERROR: --supervise-read: no record of this workspace carries the run $readRun" >&2 ; return 1 ; }

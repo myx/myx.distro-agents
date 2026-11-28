@@ -43,11 +43,11 @@ if [ -z "$harnessFromContext" ] ; then
 ## Absent, the policy refuses this start: a class that cannot be resolved is not a
 ## class, and guessing it either way is the fault this split exists to remove.
 harnessHooksPolicyFile="$harnessHere/client/AgentsTools.ClientToolPolicy.include"
+type AgentsHarnessContextEscapeInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonEscape.include"
 if [ ! -f "$harnessHooksPolicyFile" ] ; then
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the client tool policy is missing from this package, so no hook class can be resolved: $harnessHooksPolicyFile" >&2
 	exit 1
 fi
-. "$harnessHooksPolicyFile"
 
 ## From the installer's .local/agents/harness.hooks.index while it vouches for this
 ## policy (one cksum, no parse), else computed from the policy itself -- the same
@@ -86,9 +86,9 @@ harnessHooksCwdEsc=""
 harnessHooksEscaped=""
 if [ -z "$harnessHooksFault" ] && [ -n "$harnessHooksList" ] ; then
 	harnessHooksSessionRaw="$harnessSessionId"
-	harnessHooksSessionEsc="$( printf '%s' "$harnessHooksSessionRaw" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
+	AgentsHarnessContextEscapeInto harnessHooksSessionEsc "$harnessHooksSessionRaw"
 	harnessHooksCwdRaw="$PWD"
-	harnessHooksCwdEsc="$( printf '%s' "$harnessHooksCwdRaw" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
+	AgentsHarnessContextEscapeInto harnessHooksCwdEsc "$harnessHooksCwdRaw"
 	harnessHooksEscaped=1
 fi
 fi
@@ -97,7 +97,7 @@ fi
 ## The caller uses emptiness as the verdict, so every path that cannot reach a
 ## decision prints a refusal rather than returning quietly.
 AgentsHarnessHooksRefusal(){
-	local hookToolName="$1" hookArgsRaw="$2" hookInputJson hookInputRc hookPayload hookMatcher hookCommand hookLine hookMatches hookRc hookDecision hookReason hookWatchPid hookRunPid hookReadOffset hookReadLimit hookReadPath hookSessionEsc hookCwdEsc hookRead hookSep
+	local hookToolName="$1" hookArgsRaw="$2" hookInputJson hookInputRc hookPayload hookMatcher hookCommand hookLine hookMatches hookRc hookDecision hookReason hookWatchPid hookRunPid hookReadOffset hookReadLimit hookReadPath hookSessionEsc hookCwdEsc hookRead hookSep hookFirstEsc hookSecondEsc
 	if [ -n "$harnessHooksFault" ] ; then
 		printf 'ERROR: refused before running: this harness cannot read the PreToolUse hook configuration -- %s. A hook configuration that cannot be read refuses every call rather than permitting one. Report this rather than working around it.\n' "$harnessHooksFault"
 		return 0
@@ -148,30 +148,29 @@ AgentsHarnessHooksRefusal(){
 			hookReadLimit="${harnessArgV_limit-}"
 			hookReadPath="${harnessArgV_file_path-}"
 			[ -n "$hookReadPath" ] || hookReadPath="${harnessArgV_path-}"
-			type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
-			AgentsHarnessWholeNumber "$hookReadOffset" || hookReadOffset=""
-			AgentsHarnessWholeNumber "$hookReadLimit" || hookReadLimit=""
-			hookInputJson='{"file_path":"'"$( printf '%s' "$hookReadPath" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"'"${hookReadOffset:+,\"offset\":$hookReadOffset}${hookReadLimit:+,\"limit\":$hookReadLimit}"'}'
+			case "$hookReadOffset" in ''|*[!0123456789]*) hookReadOffset="" ;; esac
+			case "$hookReadLimit" in ''|*[!0123456789]*) hookReadLimit="" ;; esac
+			AgentsHarnessContextEscapeInto hookFirstEsc "$hookReadPath" ; hookInputJson='{"file_path":"'"$hookFirstEsc"'"'"${hookReadOffset:+,\"offset\":$hookReadOffset}${hookReadLimit:+,\"limit\":$hookReadLimit}"'}'
 		;;
 		Write|Edit)
 			hookReadPath="${harnessArgV_file_path-}"
 			[ -n "$hookReadPath" ] || hookReadPath="${harnessArgV_path-}"
-			hookInputJson='{"file_path":"'"$( printf '%s' "$hookReadPath" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}'
+			AgentsHarnessContextEscapeInto hookFirstEsc "$hookReadPath" ; hookInputJson='{"file_path":"'"$hookFirstEsc"'"}'
 		;;
 		## Glob's pattern rides along in claude's own order: an absolute one names where it reads by itself.
-		Glob)      hookInputJson='{"pattern":"'"$( printf '%s' "${harnessArgV_pattern-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","path":"'"$( printf '%s' "${harnessArgV_path-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
-		Grep)      hookInputJson='{"path":"'"$( printf '%s' "${harnessArgV_path-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
-		Bash)      hookInputJson='{"command":"'"$( printf '%s' "${harnessArgV_command-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
-		WebSearch) hookInputJson='{"query":"'"$( printf '%s' "${harnessArgV_query-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
-		WebFetch)  hookInputJson='{"url":"'"$( printf '%s' "${harnessArgV_url-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
-		SendMessage) hookInputJson='{"to":"'"$( printf '%s' "${harnessArgV_to-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","message":"'"$( printf '%s' "${harnessArgV_message-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		Glob)      AgentsHarnessContextEscapeInto hookFirstEsc "${harnessArgV_pattern-}" ; AgentsHarnessContextEscapeInto hookSecondEsc "${harnessArgV_path-}" ; hookInputJson='{"pattern":"'"$hookFirstEsc"'","path":"'"$hookSecondEsc"'"}' ;;
+		Grep)      AgentsHarnessContextEscapeInto hookFirstEsc "${harnessArgV_path-}" ; hookInputJson='{"path":"'"$hookFirstEsc"'"}' ;;
+		Bash)      AgentsHarnessContextEscapeInto hookFirstEsc "${harnessArgV_command-}" ; hookInputJson='{"command":"'"$hookFirstEsc"'"}' ;;
+		WebSearch) AgentsHarnessContextEscapeInto hookFirstEsc "${harnessArgV_query-}" ; hookInputJson='{"query":"'"$hookFirstEsc"'"}' ;;
+		WebFetch)  AgentsHarnessContextEscapeInto hookFirstEsc "${harnessArgV_url-}" ; hookInputJson='{"url":"'"$hookFirstEsc"'"}' ;;
+		SendMessage) AgentsHarnessContextEscapeInto hookFirstEsc "${harnessArgV_to-}" ; AgentsHarnessContextEscapeInto hookSecondEsc "${harnessArgV_message-}" ; hookInputJson='{"to":"'"$hookFirstEsc"'","message":"'"$hookSecondEsc"'"}' ;;
 		## ListAgents takes no arguments, so what a hook decides on is the store it reads.
-		ListAgents) hookInputJson='{"data_root":"'"$( printf '%s' "${MDAT_DATA_ROOT:-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		ListAgents) AgentsHarnessContextEscapeInto hookFirstEsc "${MDAT_DATA_ROOT:-}" ; hookInputJson='{"data_root":"'"$hookFirstEsc"'"}' ;;
 		## What a hook decides on for Wait is WHERE this agent is about to listen, so the
 		## sources go in. The bound is not a permission question and is left out. An empty
 		## sources value is the tooling's own default set, not an absence of targets, so a
 		## hook reading this field sees the empty string and can refuse on exactly that.
-		Wait) hookInputJson='{"sources":"'"$( printf '%s' "${harnessArgV_sources-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		Wait) AgentsHarnessContextEscapeInto hookFirstEsc "${harnessArgV_sources-}" ; hookInputJson='{"sources":"'"$hookFirstEsc"'"}' ;;
 		## A tool whose arguments are not shaped here still faces every matcher-less hook,
 		## and an MCP tool's arguments already ARE the object a hook reads fields out of --
 		## so they are passed through verbatim rather than emptied. An empty object here
@@ -194,12 +193,12 @@ AgentsHarnessHooksRefusal(){
 	if [ -n "$harnessHooksEscaped" ] && [ "$harnessSessionId" = "$harnessHooksSessionRaw" ] ; then
 		hookSessionEsc="$harnessHooksSessionEsc"
 	else
-		hookSessionEsc="$( printf '%s' "$harnessSessionId" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
+		AgentsHarnessContextEscapeInto hookSessionEsc "$harnessSessionId"
 	fi
 	if [ -n "$harnessHooksEscaped" ] && [ "$PWD" = "$harnessHooksCwdRaw" ] ; then
 		hookCwdEsc="$harnessHooksCwdEsc"
 	else
-		hookCwdEsc="$( printf '%s' "$PWD" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
+		AgentsHarnessContextEscapeInto hookCwdEsc "$PWD"
 	fi
 	hookPayload='{"session_id":"'"$hookSessionEsc"'","cwd":"'"$hookCwdEsc"'","hook_event_name":"PreToolUse","tool_name":"'"$hookToolName"'","tool_input":'"$hookInputJson"'}'
 

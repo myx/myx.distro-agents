@@ -126,7 +126,7 @@ case "$1" in
 				*) set +e ; return 1 ;;
 			esac
 			if [ -n "$clientFloorRows" ] ; then
-				while IFS="$( printf '\t' )" read -r clientFloorKey clientFloorTs ; do
+				while IFS=$'\t' read -r clientFloorKey clientFloorTs ; do
 					[ -n "$clientFloorKey" ] && [ -n "$clientFloorTs" ] || continue
 					sourceFloorArgs+=( --comms-source-floor "$clientFloorKey" "$clientFloorTs" )
 				done <<< "$clientFloorRows"

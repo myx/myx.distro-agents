@@ -87,8 +87,8 @@
 		## A collect resumes each Slack source and the tags from the pointer the session kept for it, and has no stored wait.
 		local collectKey="" collectStored
 		if [ -n "$waitCollect" ] ; then
-			type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-			AgentsToolsSessionChatKeyInto ; collectKey="$agentsSessionChatKey"
+			type AgentsToolsSessionChatPointer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+			collectKey="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 			if [ -n "$collectKey" ] ; then
 				for checkSource in $waitSources ; do
 					case "$checkSource" in slack:*|tagged:*) ;; *) continue ;; esac

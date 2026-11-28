@@ -1144,9 +1144,9 @@ case "$1" in
 		AgentsToolsStartStepMark incoming-sync
 		## The session transcript (AgentsTools.SessionTranscript.include), named now so the
 		## dispatch item and the tracking file below carry its `transcript:` from the start.
-		type AgentsTranscriptNewRel > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+		type AgentsTranscriptNewRel > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLife.include"
 		local transcriptRel=""
-		type AgentsTranscriptNewRel > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+		type AgentsTranscriptNewRel > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLife.include"
 		transcriptRel="$( AgentsTranscriptNewRel "$callerName" "$MDAT_SPAWN_SESSION_ID" )" || transcriptRel=""
 		[ "$teamDataKept" = "yes" ] || transcriptRel=""
 
@@ -1617,9 +1617,11 @@ case "$1" in
 		## (sessions/<spawn-id>/transcript). Its start milestone, a commit, waits until the
 		## child runs and the close is guarded, so nothing slow sits before the signal traps.
 		if [ -n "$transcriptRel" ] ; then
+			type AgentsTranscriptStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLife.include"
 			AgentsTranscriptStart "$MDAT_SPAWN_SESSION_ID" "$MDAT_DATA_ROOT" "$transcriptRel" "$callerName" \
 				service "${spawnCliService:-configured}" parent "${parentSessionId:-none}" item "${dispatchItemName:-${trackedItemName:-none}}" \
 				coworking "$sessionId" tracking "$sandboxName" wait "$waitMode" || :
+			type AgentsTranscriptSetItem > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLife.include"
 			[ -z "${dispatchItemName:-$trackedItemState}" ] || AgentsTranscriptSetItem "$MDAT_SPAWN_SESSION_ID" "${dispatchItemName:-$trackedItemName}" || :
 		fi
 
@@ -1862,6 +1864,7 @@ case "$1" in
 				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$bgExitCode" "$outputFile" "$bgOutcome" "$trackedItemState" \
 					"$( [ "$trackedItemState" = running ] && echo review || echo "$trackedItemState" )" ended-without-handback "${bgEndReason:-}" || :
 			fi
+			type AgentsSessionTokensHeaderUpdate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTokens.include"
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			## A launch the poller had no time to see, said now, before the end post.
 			AgentsToolsSpawnProxyEventTrackLaunchedPost "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved" || :
@@ -1878,6 +1881,7 @@ case "$1" in
 			AgentsToolsSpawnProxyOpenQuestionWarn "${sessionThread:-$sessionPrintback}" "$callerName" "$spawnCollected" "$eventTrackThread" "$spawnerMember" || :
 			## Its close is done: the hold is taken off. What is left has no bound of its own.
 			trap - TERM INT QUIT
+			type AgentsTranscriptSpawnEnd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLife.include"
 			AgentsTranscriptSpawnEnd "$MDAT_SPAWN_SESSION_ID" "$bgOutcome" "$bgExitCode" 2>/dev/null || :
 			## Kept before the marker goes: this subshell's exit status then says whether an agent CLI was
 			## launched, so the receipt below answers a start that never happened as the error it is.

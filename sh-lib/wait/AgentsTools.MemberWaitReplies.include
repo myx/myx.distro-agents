@@ -319,7 +319,7 @@ AgentsWaitProbeReplies(){
 AgentsWaitChatImportReplies(){ ## member, conversation:thread of the post, the rendering file
 	local repliesSession
 	type AgentsToolsSessionChatImport > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-	AgentsToolsSessionChatKeyInto ; repliesSession="$agentsSessionChatKey"
+	repliesSession="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	[ -n "$repliesSession" ] || return 0
 	AgentsToolsSessionChatImport "$repliesSession" "$2" "$3" "reply:$1" "$1"
 	return 0

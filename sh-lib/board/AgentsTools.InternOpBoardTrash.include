@@ -264,7 +264,7 @@ case "$1" in
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
 		if [ -n "$repoRoot" ] ; then
 			type AgentsToolsDecisionsField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
-			type AgentsTranscriptEventAfterEnd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+			type AgentsTranscriptEventAfterEnd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscriptLife.include"
 			local endOut="" endSpawn=""
 			type AgentsToolsBoardAcceptDismissChild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
 			endOut="$( AgentsToolsBoardAcceptDismissChild "$callingMember" "$sourcePath" )" || :

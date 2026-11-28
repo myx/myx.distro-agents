@@ -192,8 +192,8 @@ type AgentsSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 		## The floor: a session's default or continued wait holds its session thread from the chat file, and named sources are added to it.
 		if [ -n "$waitSessionId" ] && { [ "$waitMode" = "default" ] || [ "$waitMode" = "continue" ] ; } ; then
 			local floorChatKey=""
-			type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-			AgentsToolsSessionChatKeyInto ; floorChatKey="$agentsSessionChatKey"
+			type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+			floorChatKey="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 			## The chat file is no substitute for the replies: a reply to one of the run's own posts elsewhere is the replies source's.
 			local floorOwnElsewhere="" floorOwnLine floorOwnThread=""
 			if AgentsOwnPostsHas "$waitSessionId" ; then

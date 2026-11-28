@@ -13,9 +13,8 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTool="${rigHere%/sh-lib}/sh-scripts/DistroAgentsTools.fn.sh"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
-## A TEMP FOLDER OF ITS OWN, and no suite ticket: this check reads only the workspace it builds here, calls no tooling operation of
-## a real workspace, and so it takes no place in the machine's one-at-a-time line (the queue exists for runs that do).
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsManagerScheduleReadCheck.XXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsManagerScheduleReadCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp" 2> /dev/null || :' EXIT
 rigFails=0 rigPasses=0

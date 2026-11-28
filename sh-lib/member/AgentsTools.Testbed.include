@@ -238,9 +238,21 @@ AgentsToolsTestbedSelect(){ ## project (may be empty), namespace (may be empty),
 	done
 }
 
-## The tests of a project, one id a line; the retest queue's --project.
+## The tests of a project, one id a line; the retest queue's --project. A row whose script is not
+## there any more is named once on stderr and left out: the row cannot be run, and one stale row
+## would otherwise refuse every request that names the project.
 AgentsToolsTestbedProjectTests(){ ## project
-	AgentsToolsTestbedSelect "$1" "" "" | LC_ALL=C cut -f1 | LC_ALL=C sort
+	local projectTest projectFile projectGone=""
+	while IFS= read -r projectTest ; do
+		[ -n "$projectTest" ] || continue
+		projectFile="$( AgentsToolsTestbedScriptFile "$1" "$( AgentsToolsTestbedGet "$projectTest" script )" )" || {
+			projectGone="$projectGone"$'\n'"$projectTest" ; continue ; }
+		printf '%s\n' "$projectTest"
+	done <<< "$( AgentsToolsTestbedSelect "$1" "" "" | LC_ALL=C cut -f1 | LC_ALL=C sort )"
+	[ -z "$projectGone" ] || printf '%s\n' "$projectGone" | LC_ALL=C awk 'NF' | while IFS= read -r projectTest ; do
+		echo "# ${MDSC_CMD:-DistroAgentsTools}: left out of project $1: $projectTest, whose script is not there any more" >&2
+	done
+	return 0
 }
 
 ## When each of the tests passed on the state it would run on now, `<id> <when|->` a line: the runner's own answer (--passed), no more than the ids given.

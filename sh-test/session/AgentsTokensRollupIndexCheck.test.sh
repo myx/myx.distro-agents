@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the tokens rollup's kept index (`AgentsSessionTokensRollupRows`,
-## sh-lib/session/AgentsTools.SessionTranscript.include): the rows are summed once into an index and answered from it
+## sh-lib/session/AgentsTools.SessionTokens.include): the rows are summed once into an index and answered from it
 ## while no board item and no run record is newer, so the coordinator's team read stops paying the walk every call
 ## (`--spawns` measured 9 to 10 s for five to eighteen lines on 2026-11-26 07:15). Held:
 ##   1. the first call answers the sum: an item's own `tokens:` plus the item that tracks it
@@ -12,7 +12,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+rigInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTokens.include"
 [ -f "$rigInclude" ] || { echo "⛔ ERROR: the rollup is not at the origin: $rigInclude" >&2 ; exit 1 ; }
 
 rigTmp="$( mktemp -d "$MMDAPP/.local/temp/AgentsTokensRollupIndexCheck.XXXXXX" )" || exit 1

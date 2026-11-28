@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsHarnessJsonEscape.include -- a raw text as a JSON string body, into a variable. Used by the model context and by the PreToolUse
+## hooks, which build a payload on every served call. Sourced, never run. Functions only.
+##
+
+## A PLAIN VALUE NEEDS NO PROCESS: printable ASCII with no backslash and no quote is its own JSON string body, so it is set as it is, and
+## only a value holding anything else goes through the escape's awk. A tool name and a call id are plain, so a tool record starts none.
+AgentsHarnessContextEscapeInto(){ ## variable, raw text -- a JSON string body
+	local LC_ALL=C
+	case "${2:-}" in
+		*[!\ -~]*|*[\\\"]*) printf -v "$1" '%s' "$( printf '%s' "$2" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )" ;;
+		*) printf -v "$1" '%s' "${2:-}" ;;
+	esac
+}

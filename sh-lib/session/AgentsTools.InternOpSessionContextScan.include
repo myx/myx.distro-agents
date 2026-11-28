@@ -450,7 +450,7 @@ case "$1" in
 				' | LC_ALL=C sort -t "$( printf '\t' )" -k1,1 -k2,2n )"
 			matchedFiles=()
 			matchedStates=()
-			while IFS="$( printf '\t' )" read -r boardIndex boardIndex boardState boardFile ; do
+			while IFS=$'\t' read -r boardIndex boardIndex boardState boardFile ; do
 				[ -n "$boardFile" ] || continue
 				matchedFiles+=( "$boardFile" )
 				matchedStates+=( "$boardState" )
@@ -517,9 +517,9 @@ case "$1" in
 
 		local h val mi handlerRc handlerOut boardHeldRows
 		## Each item's token totals, summed now over what sits under it, never stored
-		## (AgentsTools.SessionTranscript.include); one read of the board for all of them.
+		## (AgentsTools.SessionTokens.include); one read of the board for all of them.
 		local boardTokenRows=""
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+		type AgentsSessionTokensRollupRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTokens.include"
 		if [ ${#matchedFiles[@]} -gt 0 ] ; then
 			boardTokenRows="$( AgentsSessionTokensRollupRows "${matchedFiles[@]##*/}" 2>/dev/null )"
 		fi

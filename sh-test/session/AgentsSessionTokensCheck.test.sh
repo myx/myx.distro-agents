@@ -63,6 +63,7 @@ rigSession(){ ## session id, tokens line, model, item
 }
 
 . "$rigHere/session/AgentsTools.SessionTranscript.include"
+. "$rigHere/session/AgentsTools.SessionTokens.include"
 
 echo "-- the tokens header value --"
 rigSession s-plain "10 20 30 40" claude-opus-5-5 ""

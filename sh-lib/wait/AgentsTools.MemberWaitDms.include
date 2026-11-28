@@ -20,8 +20,8 @@ AgentsWaitProbeDms(){
 	local probeMember="$1" probeTarget="$2" probeFloor="$3" probeOut="$4" probeKey="" probePointer="" probeRoster="" probeRosterFile="" probeLine probeConv probeKind probeIdentity probeParty probeIdentArg
 	local probeParts=0 probeFailed=0 probeSeenConvs="" probeNow probeClientConvs="" probeClientConv probeRosterRc=0 probeText="" probeLatest=""
 	[ "$probeTarget" = "$probeMember" ] || return 2
-	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 2
-	AgentsToolsSessionChatKeyInto ; probeKey="$agentsSessionChatKey"
+	type AgentsToolsSessionChatPointer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 2
+	probeKey="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	AgentsSessionKnown "$probeKey" || probeKey=""
 	if [ -n "$probeKey" ] ; then
@@ -152,12 +152,10 @@ AgentsWaitProbeDms(){
 AgentsWaitDmEnterChat(){ ## member, the conversation read, the rendering file
 	local enterMember="$1" enterConv="$2" enterRender="$3" enterSession="" enterSeen=""
 	[ -f "$enterRender" ] && [ -s "$enterRender" ] || return 0
-	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-	AgentsToolsSessionChatKeyInto
 	## The waiting session itself while its own sources carry the member's marker: no process, and the common case.
 	case " ${waitSources:-} " in
 		*" wake:$enterMember "*)
-			enterSession="$agentsSessionChatKey"
+			enterSession="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 			## This probe's own return carries the message, so the file's block is marked delivered and never comes twice.
 			enterSeen="$enterMember"
 		;;
@@ -168,6 +166,7 @@ AgentsWaitDmEnterChat(){ ## member, the conversation read, the rendering file
 	fi
 	[ -n "$enterSession" ] || return 0
 	## The origin names the member the DM was read for, as a reply names its member: its floor delivers it to that member alone.
+	type AgentsToolsSessionChatImport > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	AgentsToolsSessionChatImport "$enterSession" "$enterConv" "$enterRender" "dm:$enterMember" "${enterSeen:--}"
 	return 0
 }
@@ -177,8 +176,8 @@ AgentsWaitDmsCommit(){ ## member, the file holding the newest ts
 	local commitTs="" commitKey
 	[ -f "$2" ] && IFS= read -r commitTs < "$2" || return 0
 	[ -n "$commitTs" ] || return 0
-	type AgentsToolsSessionChatKeyInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
-	AgentsToolsSessionChatKeyInto ; commitKey="$agentsSessionChatKey"
+	type AgentsToolsSessionChatPointerSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	commitKey="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	type AgentsSessionKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	if AgentsSessionKnown "$commitKey" ; then
 		AgentsToolsSessionChatPointerSet "$commitKey" "dms:$1" "$commitTs"

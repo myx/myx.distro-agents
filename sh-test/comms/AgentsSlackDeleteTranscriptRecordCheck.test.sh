@@ -15,6 +15,7 @@
 ## Red: with the statement unimplemented, row 3 finds no new line at all while the control
 ## still passes.
 ## Offline: the fake curl opens no socket, and the rig is a folder of the workspace's scratch.
+## Guards: sh-lib/slack/AgentsTools.InternOpCommsSlackDelete.include
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"

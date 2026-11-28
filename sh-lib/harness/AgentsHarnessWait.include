@@ -354,7 +354,7 @@ AgentsHarnessWaitCheckListIdle(){ ## the sources the call itself named, its mode
 AgentsHarnessWaitChatDismissal(){
 	local peekKey="" peekFloor=""
 	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 1
-	AgentsToolsSessionChatKeyInto ; peekKey="$agentsSessionChatKey"
+	peekKey="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
 	[ -n "$peekKey" ] && [ -n "$harnessAgent" ] || return 1
 	peekFloor="$( AgentsToolsSessionChatFloor "$peekKey" "$harnessAgent" 2> /dev/null )" || return 1
 	[ -n "$peekFloor" ] || return 1

@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionTranscriptRead.include -- the readers of a session transcript for a supervisor and a console: the last tool line of a session, and the tail of a run. Sourced, never run; functions only.
+## Its functions read and write through the transcript's own (AgentsTools.SessionTranscript.include), which every one of them calls.
+##
+type AgentsTranscriptSessionDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+
+## The last tool line of a session's transcript over all its parts, `<stamp> <tool name>`; nothing where it has none.
+AgentsTranscriptLastTool(){ ## session id
+	local lastParts=() lastPart lastFound="" lastIndex=0
+	while IFS= read -r lastPart ; do
+		[ -z "$lastPart" ] || lastParts+=( "$lastPart" )
+	done <<< "$( AgentsTranscriptParts "$1" )"
+	[ ${#lastParts[@]} -gt 0 ] || return 0
+	## THE NEWEST PART ANSWERS FOR MOST RUNS, and the walk reaches an earlier part only when it holds no tool line:
+	## reading every part of every run's transcript is the scan's whole cost, and a roll keeps the newest work last.
+	lastIndex=${#lastParts[@]}
+	while [ "$lastIndex" -ge 1 ] ; do
+		lastFound="$( LC_ALL=C awk '$2 == "TOOL" { at = $1 ; name = $3 ; } END { if ( at != "" ) print at " " name ; }' "${lastParts[$(( lastIndex - 1 ))]}" )" || lastFound=""
+		[ -z "$lastFound" ] || break
+		lastIndex=$(( lastIndex - 1 ))
+	done
+	printf '%s\n' "$lastFound"
+}
+
+## The last lines of a run's transcript over all its parts: first its base file, then the lines. rc 1 where the run keeps none.
+## The run's own `transcript:` header under the data root first, then the pointer in its sandbox, then its session's.
+AgentsTranscriptRunTail(){ ## run, sandbox, session (may be empty), lines
+	type AgentsSessionRunHeadersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+	local tailOwn="" tailPointer tailBase tailParts=()
+	AgentsSessionRunHeadersInto "${1:-}" tailOwn=transcript || tailOwn=""
+	case "$tailOwn" in ''|-|/*) tailOwn="" ;; *) [ -n "${MDAT_DATA_ROOT:-}" ] && tailOwn="$MDAT_DATA_ROOT/$tailOwn" || tailOwn="" ;; esac
+	for tailPointer in "$tailOwn" "${MMDAPP:-/nonexistent}/.local/agents/spawned/${2:-}/transcript" "${MMDAPP:-/nonexistent}/.local/agents/sessions/${3:-$1}/transcript" ; do
+		[ -n "$tailPointer" ] && [ -s "$tailPointer" ] || continue
+		if [ "$tailPointer" = "$tailOwn" ] ; then tailBase="$tailPointer" ; else IFS= read -r tailBase < "$tailPointer" || tailBase="" ; fi
+		[ -n "$tailBase" ] && [ -f "$tailBase" ] || continue
+		tailParts=( "$tailBase" )
+		while [ -f "${tailBase%.log}-part$(( ${#tailParts[@]} + 1 )).log" ] ; do
+			tailParts+=( "${tailBase%.log}-part$(( ${#tailParts[@]} + 1 )).log" )
+		done
+		printf '%s\n' "$tailBase"
+		cat "${tailParts[@]}" 2> /dev/null | tail -n "$4"
+		return 0
+	done
+	return 1
+}

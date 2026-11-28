@@ -39,8 +39,9 @@
 ##
 
 ## Whether a subcommand destroys what stands in a tree. The read forms and the ones that add or move work forward are named,
-## so a subcommand this list has never seen counts as destructive: a word nobody has judged yet is not a safe word.
-AgentsToolsGitDestructive(){ ## subcommand, then its words
+## so a subcommand this list has never seen counts as destructive: a word nobody has judged yet is not a safe word. Its
+## own flags are read here, since `branch -D` deletes and `branch` lists.
+AgentsToolsGitDestructive(){ ## subcommand, then the words from the subcommand onward
 	local writeSub="$1"
 	shift
 	case "$writeSub" in
@@ -49,7 +50,7 @@ AgentsToolsGitDestructive(){ ## subcommand, then its words
 		add|pull|fetch|clone|push|merge|init|gc|fsck|prune|pack-refs) return 1 ;;
 	esac
 	case "$writeSub" in
-		stash) case "${1:-}" in ''|list|show) return 1 ;; esac ; return 0 ;;
+		stash) case "${1:-}" in list|show) return 1 ;; esac ; return 0 ;;
 		branch) case " $* " in *' -d '*|*' -D '*|*' -m '*|*' -M '*|*' -f '*|*' --delete '*|*' --move '*|*' --force '*) return 0 ;; esac ; return 1 ;;
 		tag) case " $* " in *' -d '*|*' -a '*|*' -s '*|*' -f '*|*' --delete '*) return 0 ;; esac ; return 1 ;;
 		remote) case "${1:-}" in add|remove|rename|set-url|prune|update) return 0 ;; esac ; return 1 ;;
@@ -108,12 +109,22 @@ AgentsToolsGitTreeIsSource(){ ## path
 	return 1
 }
 
-## The words of one git command: its subcommand, the tree it was told to act on, and the first operand after it.
+## The words of one git command: its subcommand, the tree it was told to act on, the first operand after it, and EVERY
+## word from the subcommand onward, its own flags included. `git -C <tree> branch -D x` has `-C` and the tree before the
+## subcommand, so a judgement of the subcommand reads agentsGitWriteAfterArgs and never the whole argv. Only the global
+## options that stand BEFORE the subcommand are dropped, because those are the parser's own: `-C`, `--work-tree`, `-c`,
+## `--git-dir`, `--namespace`, `--super-prefix`. A flag after the subcommand is the verb's own, and `branch -D` is a
+## delete while a bare `branch` lists.
 AgentsToolsGitArgs(){ ## the words after git, its own flags included
 	local argsArg=""
-	agentsGitWriteCommand="" ; agentsGitWriteTree="" ; agentsGitWriteOperand=""
+	agentsGitWriteCommand="" ; agentsGitWriteTree="" ; agentsGitWriteOperand="" ; agentsGitWriteAfterArgs=()
 	while [ $# -gt 0 ] ; do
 		argsArg="$1" ; shift
+		if [ -n "$agentsGitWriteCommand" ] ; then
+			agentsGitWriteAfterArgs+=( "$argsArg" )
+			[ -n "$agentsGitWriteOperand" ] || agentsGitWriteOperand="$argsArg"
+			continue
+		fi
 		case "$argsArg" in
 			-C) [ $# -eq 0 ] || { agentsGitWriteTree="$1" ; shift ; } ; continue ;;
 			-C?*) agentsGitWriteTree="${argsArg#-C}" ; continue ;;
@@ -123,11 +134,7 @@ AgentsToolsGitArgs(){ ## the words after git, its own flags included
 			--git-dir=*|--namespace=*|--super-prefix=*) continue ;;
 			-*) continue ;;
 		esac
-		if [ -z "$agentsGitWriteCommand" ] ; then
-			agentsGitWriteCommand="$argsArg"
-		elif [ -z "$agentsGitWriteOperand" ] ; then
-			agentsGitWriteOperand="$argsArg"
-		fi
+		agentsGitWriteCommand="$argsArg"
 	done
 	return 0
 }
@@ -138,7 +145,7 @@ AgentsToolsGitArgs(){ ## the words after git, its own flags included
 ## `GIT_DIR=x git`, `env git` and `echo a | git` are each read as the git command they are.
 AgentsToolsGitWriteSeek(){ ## command text, cwd
 	local seekText seekLine seekTree
-	agentsGitWriteCommand="" ; agentsGitWriteTree="" ; agentsGitWriteOperand=""
+	agentsGitWriteCommand="" ; agentsGitWriteTree="" ; agentsGitWriteOperand="" ; agentsGitWriteAfterArgs=()
 	case "$1" in *git*) ;; *) return 1 ;; esac
 	agentsGitWriteBase="${2:-$PWD}"
 	seekText="$( printf '%s\n' "$1" | LC_ALL=C sed -e "s/'[^']*'/''/g" -e 's/^[[:space:]]*#.*$//' -e 's/[[:space:]]#.*$//' )"
@@ -159,7 +166,7 @@ AgentsToolsGitWriteSeek(){ ## command text, cwd
 		shift
 		AgentsToolsGitArgs "$@"
 		[ -n "$agentsGitWriteCommand" ] || continue
-		AgentsToolsGitDestructive "$agentsGitWriteCommand" "$@" || continue
+		AgentsToolsGitDestructive "$agentsGitWriteCommand" ${agentsGitWriteAfterArgs[@]+"${agentsGitWriteAfterArgs[@]}"} || continue
 		seekTree="$agentsGitWriteTree"
 		[ -n "$seekTree" ] || seekTree="$agentsGitWriteBase"
 		if AgentsToolsGitTreeIsSource "$seekTree" ; then
@@ -214,7 +221,7 @@ AgentsToolsGitGuard(){ ## the arguments of git
 	AgentsToolsGitArgs "$@"
 	guardTree="$agentsGitWriteTree"
 	[ -n "$guardTree" ] || guardTree="$PWD"
-	if [ -n "$agentsGitWriteCommand" ] && AgentsToolsGitDestructive "$agentsGitWriteCommand" "$@" ; then
+	if [ -n "$agentsGitWriteCommand" ] && AgentsToolsGitDestructive "$agentsGitWriteCommand" ${agentsGitWriteAfterArgs[@]+"${agentsGitWriteAfterArgs[@]}"} ; then
 		if AgentsToolsGitTreeIsSource "$guardTree" ; then
 			AgentsToolsGitWriteMessage "$agentsGitWriteTree" "$agentsGitWriteCommand"
 			AgentsToolsGitWriteRefused "$guardSession" "$guardMember" "$agentsGitWriteTree" "$agentsGitWriteCommand" "$PWD"
@@ -234,25 +241,66 @@ AgentsToolsGitGuard(){ ## the arguments of git
 	return 127
 }
 
-AgentsToolsGitGuardMake(){ ## folder -- writes the guard `git` there, for a run to put first on its PATH; the same text is kept
+AgentsToolsGitGuardMake(){ ## folder -- writes the guard `git` and its BASH_ENV file there; the same text is kept
 	local guardHere guardText guardTemp
 	guardHere="$( cd -P "${BASH_SOURCE[0]%/*}" 2> /dev/null && pwd -P )/${BASH_SOURCE[0]##*/}"
 	guardText='#!/usr/bin/env bash'$'\n'"[ -f \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.GitWrite.include\" ] || MDLT_ORIGIN='${guardHere%/myx/myx.distro-agents/sh-lib/common/*}'"$'\n'". '$guardHere' || exit 1"$'\n''AgentsToolsGitGuard "$@"'
-	[ "$( cat "$1/git" 2> /dev/null )" = "$guardText" ] && [ -x "$1/git" ] && return 0
-	mkdir -p "$1" || return 1
-	guardTemp="$( mktemp "$1/git.XXXXXX" 2> /dev/null )" || return 1
-	printf '%s\n' "$guardText" > "$guardTemp" && chmod +x "$guardTemp" && mv -f "$guardTemp" "$1/git"
+	if [ "$( cat "$1/git" 2> /dev/null )" != "$guardText" ] || [ ! -x "$1/git" ] ; then
+		mkdir -p "$1" || return 1
+		guardTemp="$( mktemp "$1/git.XXXXXX" 2> /dev/null )" || return 1
+		printf '%s\n' "$guardText" > "$guardTemp" && chmod +x "$guardTemp" && mv -f "$guardTemp" "$1/git" || return 1
+	fi
+	## The folder is complete only with the file a non-interactive bash reads first, so a guard folder made here is one a
+	## server declaration can name whole: its `git`, and the BASH_ENV that puts the folder back on PATH in every child shell.
+	AgentsToolsGitGuardEnvFile "$1" || :
+	return 0
 }
 
 ## The guard first on this process's PATH, exported once, so every child carries it too: a shell a run starts, the MCP
 ## servers the harness launches for `execute` and for myx.common, and the shell each of those starts in turn. Called at a
 ## run's start and before any command, so a channel this file never sees still meets the guard where it runs git.
+##
+## A PATH entry is one lookup order, and a shell that rebuilds PATH steps over it: through `bash -lc` the guard folder moved
+## from position 1 to 11 in a measurement on 2026-11-27, and `/usr/bin/git` answered. So the refusal is also sited where the
+## command runs: BASH_ENV names a file every non-interactive bash of that environment reads before its own first command,
+## and the file puts the guard folder back at the front of the PATH that shell then uses. Lookup order itself is left alone,
+## because a shell function named `git` would shadow the very guard the folder holds.
 AgentsToolsGitGuardPath(){ ## [<workspace>]
 	local pathWorkspace="${1:-${MMDAPP:-}}" pathFolder=""
 	[ -n "$pathWorkspace" ] || return 0
 	pathFolder="${pathWorkspace%/}/.local/agents/guard-bin"
-	case ":$PATH:" in *":$pathFolder:"*) return 0 ;; esac
 	AgentsToolsGitGuardMake "$pathFolder" || return 0
-	PATH="$pathFolder:$PATH" ; export PATH
+	case ":$PATH:" in *":$pathFolder:"*) ;; *) PATH="$pathFolder:$PATH" ; export PATH ;; esac
+	AgentsToolsGitGuardEnvFile "$pathFolder" || :
+	return 0
+}
+
+## The BASH_ENV file of the guard folder: a non-interactive bash reads it before its first command, whatever that bash does
+## to PATH afterwards, so the git it runs is found in the guard folder first. A BASH_ENV already set is chained, never
+## replaced, since another tool may keep its own startup there. Written once per folder, and kept while it is there.
+AgentsToolsGitGuardEnvFile(){ ## folder
+	local envFolder="$1" envTemp
+	[ -s "$envFolder/bash-env.sh" ] && [ -x "$envFolder/git" ] && return 0
+	mkdir -p "$envFolder" || return 1
+	envTemp="$( mktemp "$envFolder/bash-env.XXXXXX" 2> /dev/null )" || return 1
+	cat > "$envTemp" <<'GITGUARDENV'
+## The git guard of a run (AgentsTools.GitWrite.include, AgentsToolsGitGuardEnvFile). A non-interactive bash reads this
+## before its first command, so a git write over a source tree is refused whatever that shell does to PATH afterwards.
+if [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.GitWrite.include" ] ; then
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.GitWrite.include"
+fi
+if [ -n "${MDAT_GIT_GUARD_CHAIN:-}" ] && [ "$MDAT_GIT_GUARD_CHAIN" != "$BASH_ENV" ] && [ -f "$MDAT_GIT_GUARD_CHAIN" ] ; then
+	. "$MDAT_GIT_GUARD_CHAIN"
+fi
+case ":$PATH:" in
+	*":$MDAT_GIT_GUARD_FOLDER:"*) ;;
+	*) PATH="$MDAT_GIT_GUARD_FOLDER:$PATH" ; export PATH ;;
+esac
+GITGUARDENV
+	[ -s "$envTemp" ] || { rm -f "$envTemp" ; return 1 ; }
+	mv -f "$envTemp" "$envFolder/bash-env.sh" || { rm -f "$envTemp" ; return 1 ; }
+	: > "$envFolder/.gitwrite-env"
+	MDAT_GIT_GUARD_FOLDER="$envFolder" MDAT_GIT_GUARD_CHAIN="${MDAT_GIT_GUARD_CHAIN:-${BASH_ENV:-}}" BASH_ENV="$envFolder/bash-env.sh"
+	export MDAT_GIT_GUARD_FOLDER MDAT_GIT_GUARD_CHAIN BASH_ENV
 	return 0
 }

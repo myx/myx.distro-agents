@@ -7,6 +7,7 @@ The body of the section of the same name in this member's armed content.
 
 The floor is the team's. This section states which clauses a measurement may apply. A clause is measured only where the measurement cannot fire on correct text.
 
+- **A sentence ends at a full stop**: a colon-led enumeration inside one sentence is one sentence, and only `- ` list items count as a list.
 - **Measured**: clause 3 at the 25-word cap, applied to every sentence, with no correction ever fired on correct text.
 - **Reported, never a correction**: clause 5's sentence count. A count joins consecutive lines into one paragraph, so it misreads a one-fact-per-line post — the very form clauses 2 and 6 ask for.
 - **Reader-judged**, every other clause — by the writer, then by `magic-librarian` at `magic-librarian.conventions-check.routine`. Notably:
