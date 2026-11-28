@@ -50,11 +50,16 @@ if [ "$1" != "--agents-config-option" ] ; then
 	## settings files read, no walk.
 	case "${MDAT_DATA_ROOT:-}" in
 		*/.local/agents/team-data-root)
-			if [ "${MDAT_DATA_ROOT%/.local/agents/team-data-root}" != "${MMDAPP%/}" ] ; then
-				echo "# ${MDSC_CMD:-DistroAgentsTools}: the inherited data root $MDAT_DATA_ROOT is another workspace's, so this call uses ${MMDAPP%/}'s own" >&2
+			## A root resolved for this workspace -- by this call above, or by its parent and marked so -- is kept on the same compare as
+			## any other root. A root of another workspace's process is marked for that workspace, and is resolved again here.
+			if [ "${MDAT_DATA_ROOT%/.local/agents/team-data-root}" != "${MMDAPP%/}" ] && [ "${MDAT_DATA_ROOT_OF:-}" != "${MMDAPP%/}" ] ; then
 				type AgentsToolsTeamDataRootOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataRoot.include"
-				MDAT_DATA_ROOT="$( AgentsToolsTeamDataRootOf "${MMDAPP%/}" )" || MDAT_DATA_ROOT=""
-				[ -n "$MDAT_DATA_ROOT" ] || MDAT_DATA_ROOT="${MMDAPP%/}/.local/agents/team-data-root"
+				agentsContextOwnRoot="$( AgentsToolsTeamDataRootOf "${MMDAPP%/}" )" || agentsContextOwnRoot=""
+				[ -n "$agentsContextOwnRoot" ] || agentsContextOwnRoot="${MMDAPP%/}/.local/agents/team-data-root"
+				## Said only where the root changes: this workspace may be configured with that very directory.
+				[ "$agentsContextOwnRoot" = "$MDAT_DATA_ROOT" ] || echo "# ${MDSC_CMD:-DistroAgentsTools}: the inherited data root $MDAT_DATA_ROOT is another workspace's, so this call uses ${MMDAPP%/}'s own: $agentsContextOwnRoot" >&2
+				MDAT_DATA_ROOT="$agentsContextOwnRoot"
+				unset agentsContextOwnRoot
 				MDAT_DATA_ROOT_OF="${MMDAPP%/}"
 				export MDAT_DATA_ROOT MDAT_DATA_ROOT_OF
 			fi

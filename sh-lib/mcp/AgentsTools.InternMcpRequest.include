@@ -440,7 +440,8 @@ case "$1" in
 		AgentsMcpArgRead mcpRootSessionOp "$mcpScratchRoot/req.$AGENTS_MCP_REQ_SEQ/arg_operation"
 		AgentsMcpArgRead mcpRootSessionGiven "$mcpScratchRoot/req.$AGENTS_MCP_REQ_SEQ/arg_session"
 		AgentsMcpArgRead mcpRootSessionToken "$mcpScratchRoot/req.$AGENTS_MCP_REQ_SEQ/arg_token"
-		AgentsMcpArgRead mcpRootSessionMember "$mcpScratchRoot/req.$AGENTS_MCP_REQ_SEQ/arg_member"
+		## Its own name: mcpRootSessionMember is the member the session recorded, which the gate below decides for.
+		AgentsMcpArgRead mcpRootSessionMemberArg "$mcpScratchRoot/req.$AGENTS_MCP_REQ_SEQ/arg_member"
 		## Out of the same parse, read here before the request folder goes (below): the tool arguments as the request's own bytes,
 		## for a served tool or a batch that takes them whole, and the progress token of a Wait or an ask (call-path audit row 14).
 		AgentsMcpArgRead mcpToolArgs "$mcpScratchRoot/req.$AGENTS_MCP_REQ_SEQ/arguments_raw"
@@ -550,16 +551,16 @@ case "$1" in
 				## The deny rows of the routine the session runs refuse a tool at call time, with the hint that names the owner and how to ask; the list itself is the same for everyone.
 				mcpRootRefusal=''
 				mcpGateMember="${mcpRootSessionMember:-${MDAT_SPAWN_AGENT:-}}" ; mcpGateSession="${mcpRootSessionId:-${MDAT_SPAWN_SESSION_ID:-}}"
-				mcpGateTarget=''
-				## The path the call names, for the refusal record: a refused Read is asked for again by its target.
-				case "$mcpToolName" in
-					Read|Write|Edit|MultiEdit|NotebookEdit|Grep|Glob|Execute|Bash)
-						mcpGateTarget="$( printf '%s\n' "$mcpLine" | LC_ALL=C awk -v path="params.arguments.file_path" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || mcpGateTarget=''
-						[ -n "$mcpGateTarget" ] || mcpGateTarget="$( printf '%s\n' "$mcpLine" | LC_ALL=C awk -v path="params.arguments.path" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || mcpGateTarget=''
-					;;
-				esac
 				[ -z "${mcpRootSessionId:-}" ] || [ -n "$mcpGateMember" ] || mcpGateMember="magic-coordinator"
 				if [ -n "$mcpGateMember" ] && [ "RootSession" != "$mcpToolName" ] ; then
+					mcpGateTarget=''
+					## The path the call names, for the refusal record: a refused Read is asked for again by its target.
+					case "$mcpToolName" in
+						Read|Write|Edit|MultiEdit|NotebookEdit|Grep|Glob|Execute|Bash)
+							mcpGateTarget="$( printf '%s\n' "$mcpLine" | LC_ALL=C awk -v path="params.arguments.file_path" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || mcpGateTarget=''
+							[ -n "$mcpGateTarget" ] || mcpGateTarget="$( printf '%s\n' "$mcpLine" | LC_ALL=C awk -v path="params.arguments.path" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || mcpGateTarget=''
+						;;
+					esac
 					type AgentsToolsPermissionDenyRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 					mcpRootRefusal="$( AgentsToolsPermissionDenyRefusal "$mcpGateMember" "$mcpToolName" "$mcpGateTarget" "$mcpGateSession" record 2> /dev/null )" || mcpRootRefusal=''
 				fi
@@ -728,7 +729,7 @@ case "$1" in
 				elif [ "RootSession" = "$mcpToolName" ] && [ -z "${MDAT_MCP_SERVED_MARKER:-}" ] ; then
 					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsTools.RootSession.include"
 					mcpRootSessionRc=0
-					mcpOutput="$( AgentsToolsRootSessionServe "$mcpScratchRoot" "$mcpServerPid" "$mcpRootSessionOp" "$mcpRootSessionGiven" "$mcpRootSessionToken" "$mcpRootSessionMember" )" || mcpRootSessionRc=$?
+					mcpOutput="$( AgentsToolsRootSessionServe "$mcpScratchRoot" "$mcpServerPid" "$mcpRootSessionOp" "$mcpRootSessionGiven" "$mcpRootSessionToken" "$mcpRootSessionMemberArg" )" || mcpRootSessionRc=$?
 					rm -f "$mcpScratchRoot/mint-pending.$AGENTS_MCP_REQ_SEQ"
 					mcpIsError='false'
 					[ 0 -eq "$mcpRootSessionRc" ] || mcpIsError='true'

@@ -22,7 +22,6 @@ AgentsToolsOrphanAskTest(){ ## address-to, question-ts, process list text
 ## here dispatches or closes one: each is listed at every scan until it is settled.
 AgentsToolsOrphanAskSection(){ ## asking member
 	local orphanKey orphanFile orphanTo orphanItem orphanAt orphanAge orphanEpoch orphanPs orphanPsRead="" orphanNow orphanRows=""
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	type AgentsToolsPendingReplyField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRecords.include"
 	orphanNow="$( date -u +%s )"
 	while IFS= read -r orphanKey ; do
@@ -38,7 +37,7 @@ AgentsToolsOrphanAskSection(){ ## asking member
 		orphanEpoch="$( printf '%s\n' "$orphanAt" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || orphanEpoch=""
 		case "$orphanEpoch" in ''|*[!0123456789]*) ;; *) orphanAge="$(( ( orphanNow - orphanEpoch ) / 60 ))m" ;; esac
 		orphanRows="$orphanRows- ${orphanKey%.md} to $orphanTo item ${orphanItem:--} asked ${orphanAt:--} age=$orphanAge"$'\n'
-	done <<< "$( LC_ALL=C awk -v asker="$1" '$2 == "ask" && $4 == asker && $5 == "reply-pending" { print $1 ; }' "$( AgentsToolsRegistryFile pending-replies )" 2> /dev/null )"
+	done <<< "$( LC_ALL=C awk -v asker="$1" '$2 == "ask" && $4 == asker && $5 == "reply-pending" { print $1 ; }' "$MMDAPP/.local/agents/pending-replies.registry" 2> /dev/null )"
 	printf '\n## open asks of %s that no live run can answer\n\n' "$1"
 	[ -n "$orphanRows" ] || { printf '(none)\n' ; return 0 ; }
 	printf 'Each waits on a member with no run. Dispatch that member on its item, or close the ask: DistroAgentsSession.fn.sh --settle-pending-reply <pending id> --reason <text>.\n\n%s' "$orphanRows"

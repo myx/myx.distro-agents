@@ -81,7 +81,6 @@ agentsManagerDashboardGitSeconds=30
 ## registry file only together with the walk of every row.
 AgentsToolsManagerDashboardSessionMeasured(){
 	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local rowsFile rowsPending rowsControl="" rowsNarrow="" rowsMeasure
 	local measuredRows="" measuredDated="" measuredAny="false"
 	rowsFile="$MMDAPP/.local/agents/spawned-sessions.registry"

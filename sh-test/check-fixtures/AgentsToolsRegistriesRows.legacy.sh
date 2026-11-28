@@ -190,7 +190,7 @@ AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, st
 	local registryFile psText thisHost thisWorkspace
 	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowLive rowState rowAppended
 	local extendedRows="" registryRow sawRow="false" sawAny="false"
-	registryFile="$( AgentsToolsRegistryFile spawned-sessions )"
+	registryFile="$MMDAPP/.local/agents/spawned-sessions.registry"
 	printf '%s\n\n' "## spawned sessions"
 	if [ ! -d "$MMDAPP/.local/agents/spawned" ] ; then
 		printf '%s\n\n' "**NOTE:** no scan was made -- no spawn sandbox root exists yet, so no spawn has ever run in this workspace"

@@ -28,10 +28,10 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 
 ## The functions under test, lifted out of the harness and its model-round include by their own names.
 rigLift="$( LC_ALL=C awk '
-	/^(AgentsHarnessWholeNumber|AgentsHarnessArgParse|AgentsHarnessArgFind|AgentsHarnessFileText|AgentsHarnessToolCallsRead)\(\)\{/ { inFn = 1 ; }
+	/^(AgentsHarnessArgParse|AgentsHarnessArgFind|AgentsHarnessFileText|AgentsHarnessToolCallsRead)\(\)\{/ { inFn = 1 ; }
 	inFn { print ; }
 	inFn && /^\}$/ { inFn = 0 ; seen++ ; }
-	END { if ( seen != 5 ) exit 1 ; }
+	END { if ( seen != 4 ) exit 1 ; }
 ' <( rigHarnessCat ) "$rigHere/harness/AgentsHarnessModelRound.include" )" || rigRefuse "the five tool-call reading functions were not all found in $rigHarness and AgentsHarnessModelRound.include"
 
 rigPass=0

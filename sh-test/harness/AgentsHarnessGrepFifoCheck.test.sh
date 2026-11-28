@@ -111,6 +111,8 @@ rigAssert "the empty answer is the tool's own words, not a blocked call" "$( pri
 
 echo "-- 5. a shell grep -r through the guard grep returns --"
 rigGuardBin="$rigTmp/ws/.local/agents/guard-bin"
+## The rig workspace holds its .local/agents, as every workspace does: a guard maker makes its folder only there.
+mkdir -p "$rigTmp/ws/.local/agents" || rigRefuse "the rig workspace could not be made"
 ( . "$rigPackage/sh-lib/spawn/AgentsTools.SandboxLinks.include" && AgentsToolsGrepGuardMake "$rigGuardBin" ) || rigRefuse "the guard grep could not be made in the rig"
 rigAssert "the guard grep is first on the rig's PATH" "$( PATH="$rigGuardBin:$PATH" command -v grep )" "$rigGuardBin/grep"
 PATH="$rigGuardBin:$PATH" grep -r 'rig-alpha' "$rigFolder" > "$rigTmp/out" 2>&1 &

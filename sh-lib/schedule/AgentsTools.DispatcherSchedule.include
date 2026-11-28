@@ -860,7 +860,7 @@ AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 			## A KEPT SESSION WHOSE CONTEXT DOES NOT LOAD IS NO SESSION TO JOIN: every start that joins it resumes that file and dies at the harness,
 			## so it is dropped here, with the harness's own test of the file, and the start opens a session of its own.
 			if [ -n "$spawnDutySession" ] && [ "$spawnDutyHeld" = no ] ; then
-				type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
+				type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
 				type AgentsHarnessContextCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.HarnessResume.include"
 				AgentsSpawnedStoreDirInto spawnKeptStore "$MMDAPP"
 				[ ! -s "$spawnKeptStore/$spawnDutySession/context.jsonl" ] || AgentsHarnessContextCheck "$spawnKeptStore/$spawnDutySession/context.jsonl" > /dev/null 2>&1 || spawnDutyHeld=yes
@@ -1154,6 +1154,7 @@ AgentsToolsSchedulePassTakenSkips(){ ## mark, what the pass already started
 ## resume rule); only a killed session is dropped. The start reads this, and its check reads it too.
 AgentsToolsScheduleDutyKeptHeld(){ ## session
 	local heldRecord
+	type AgentsToolsSpawnedSessionRecords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 	while IFS= read -r heldRecord ; do
 		[ -n "$heldRecord" ] || continue
 		[ -z "$( AgentsToolsFrontmatterKey "$heldRecord" killed-at )" ] || { printf 'yes\n' ; return 0 ; }
@@ -2354,12 +2355,11 @@ AgentsToolsScheduleLearning(){
 	## review state's items each with its own clock (a verdict moves its handback item out; never the review folder's clock, which a team-data
 	## sync moves with no review changed), and the started list (a run that ends leaves it).
 	type AgentsSpawnedStoreDirInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.Paths.include"
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	type AgentsToolsBoardStateFoldersInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 	local learnReview=() learnSpawned=""
 	AgentsSpawnedStoreDirInto learnSpawned "$MMDAPP" || learnSpawned=""
 	learnStarted="$( [ -z "$learnSpawned" ] || { cd "$learnSpawned" 2> /dev/null && printf '%s\n' * ; } )"
-	learnStarted="$learnStarted"$'\n'"$( LC_ALL=C awk '$2 == "ask" && $5 == "reply-pending" { print $1 ; }' "$( AgentsToolsRegistryFile pending-replies )" 2> /dev/null | LC_ALL=C sort )"
+	learnStarted="$learnStarted"$'\n'"$( LC_ALL=C awk '$2 == "ask" && $5 == "reply-pending" { print $1 ; }' "$MMDAPP/.local/agents/pending-replies.registry" 2> /dev/null | LC_ALL=C sort )"
 	AgentsToolsBoardStateFoldersInto learnReview review || learnReview=()
 	for learnClock in ${learnReview[@]+"${learnReview[@]}"} ; do
 		learnStarted="$learnStarted"$'\n'"$( LC_ALL=C stat -f '%m %N' "$learnClock"/*.md 2> /dev/null || LC_ALL=C stat -c '%Y %n' "$learnClock"/*.md 2> /dev/null )"
@@ -2469,7 +2469,7 @@ AgentsToolsScheduleStartPending(){
 	local pendLine pendFence pendSeen pendRestart pendOwner pendCondition pendAddress pendSlack pendRequest
 	AgentsToolsScheduleStartsAllowed || return 0
 	type AgentsToolsRecheckConditionUnmet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
-	type AgentsToolsBoardItemHandler > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
+	type AgentsToolsBoardTypeTable > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardItemHandler.include"
 	## THE TYPE TABLE IS PARSED ONCE A PASS: every item's handler would otherwise re-read it, 45 ms an item
 	## (2026-11-26: 66 pending items, ~3 s of the phase). The same table is handed to every call, so nothing changes but the reading.
 	AGENTS_BOARD_TYPE_TABLE_CACHE="$( AgentsToolsBoardTypeTable 2> /dev/null )" ; export AGENTS_BOARD_TYPE_TABLE_CACHE

@@ -62,7 +62,6 @@ AgentsHarnessAsk(){
 	type AgentsHarnessSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
 	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	type AgentsHarnessBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
-	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 	type AgentsHarnessToolWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include"
 	type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionPlaces.include"
 	local toolTo="$1" toolQuestion="$2" toolOptions="$3" toolContext="$4" toolWait="$5" toolTimeout="$6" toolSource="$7" toolAsBot="$8" toolAddressTo="$9"
@@ -323,7 +322,6 @@ AgentsHarnessAsk(){
 		contact:?*)
 			type AgentsToolsCommsContactRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsResolveTarget.include"
 			askContactLine="$( AgentsToolsCommsContactRoute "${toolTo#contact:}" )" || {
-				[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
 				printf 'ERROR: %s: the party %s cannot be reached, so nobody was asked and no answer is pending. %s\n' "$harnessAskName" "$toolTo" "$askContactLine"
 				return 0
 			}
@@ -782,6 +780,7 @@ AgentsHarnessAsk(){
 	## added to an open prompt places none: that prompt has its own. A contact's post is on the other
 	## organisation's side, so its emoji are the client-* member's, under its own credentials.
 	if [ -n "$askContactMember" ] ; then
+		type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 		[ -z "$askChannel" ] || [ -z "$askTs" ] || [ -z "$askClickers" ] || AgentsToolsAskPostReact "$askContactMember" "${askChannel#client:}:$askTs" member add $( AgentsHarnessAskSeedNames ) || :
 	elif [ -n "$askRoutine" ] || [ -n "$askJoined" ] || [ -z "$askChannel" ] || [ -z "$askTs" ] || [ -z "$askClickers" ] ; then
 		:
@@ -848,11 +847,11 @@ AgentsHarnessAsk(){
 			askAddressees=""
 		fi
 	fi
-	if AgentsHarnessWholeNumber "$toolTimeout" && [ "$toolTimeout" -lt 1 ] ; then
+	if { case "$toolTimeout" in ''|*[!0123456789]*) false ;; *) true ;; esac ; } && [ "$toolTimeout" -lt 1 ] ; then
 		toolTimeout="$harnessWaitTimeout"
 	fi
 	## An escalation answered through the team operation is seen between rounds, so its rounds stay short.
-	if [ "$toolKind" != "question" ] && { ! AgentsHarnessWholeNumber "$toolTimeout" || [ "$toolTimeout" -gt 60 ] ; } ; then
+	if [ "$toolKind" != "question" ] && { { case "$toolTimeout" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } || [ "$toolTimeout" -gt 60 ] ; } ; then
 		toolTimeout=60
 	fi
 	local askNeverRead="" askAnsweredElsewhere=""
@@ -866,7 +865,7 @@ AgentsHarnessAsk(){
 		type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.CliService.include"
 		type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.CliService.include"
 		askRound="$( AgentsToolsCliServiceWaitRound "$( AgentsToolsCliServiceOfSession "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" )" )"
-		AgentsHarnessWholeNumber "$askRound" || askRound=""
+		case "$askRound" in ''|*[!0123456789]*) askRound="" ;; esac
 		## A served call comes back by its own bound too, where that is the shorter.
 		[ -z "$askRound" ] || [ -z "$harnessServedWaitBound" ] || [ "$askRound" -le "$harnessServedWaitBound" ] || askRound="$harnessServedWaitBound"
 	fi

@@ -59,21 +59,28 @@ function registryFrontmatterRead(filePath,    readLine, readRc, fmDepth) {
 		if (fmDepth == 1) fmLine[++fmCount] = readLine ;
 	}
 	close(filePath) ;
+	registryIndex() ;
 }
 
-function registryHeader(wantKey,    lineIdx, lineText, colonPos, lineKey, lineValue) {
+## Each key's value once, from fmLine[1..fmCount], into fmValue: the first line of the key whose value is not empty, trimmed and
+## its inner spaces written `_`. A row asks five headers of one record, and each used to walk and trim every line again.
+function registryIndex(    lineIdx, lineText, colonPos, lineKey, lineValue) {
+	split("", fmValue) ;
 	for (lineIdx = 1 ; lineIdx <= fmCount ; lineIdx++) {
 		lineText = fmLine[lineIdx] ;
 		colonPos = index(lineText, ":") ;
 		if (colonPos < 2) continue ;
 		lineKey = substr(lineText, 1, colonPos - 1) ;
-		if (lineKey != wantKey) continue ;
+		if (lineKey in fmValue) continue ;
 		lineValue = substr(lineText, colonPos + 1) ;
 		gsub(/^[ \t]+|[ \t]+$/, "", lineValue) ;
 		gsub(/[ \t]+/, "_", lineValue) ;
-		if (lineValue != "") return lineValue ;
+		if (lineValue != "") fmValue[lineKey] = lineValue ;
 	}
-	return "-" ;
+}
+
+function registryHeader(wantKey) {
+	return ( wantKey in fmValue ) ? fmValue[wantKey] : "-" ;
 }
 
 function registryBaseName(pathText,    baseText) {
@@ -104,6 +111,7 @@ registryRows == "spawned" && entryKind == "T" {
 	fmCount = 0 ;
 	while ((getline stateLine < entryText) > 0) fmLine[++fmCount] = stateLine ;
 	close(entryText) ;
+	registryIndex() ;
 	stateWord = registryHeader("state") ;
 	if (stateWord ~ /^[a-z][a-z0-9-]*$/) { stateWordOf[stateSession] = stateWord ; stateDateOf[stateSession] = registryHeader("state-at") ; }
 	next ;

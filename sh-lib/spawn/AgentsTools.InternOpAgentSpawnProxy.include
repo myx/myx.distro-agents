@@ -579,7 +579,7 @@ case "$1" in
 				LC_ALL=C awk -v want="$joinSessionId" '
 					$2 == want { print ( $10 != "-" ? $10 : "" ) ; found = 1 ; exit ; }
 					END { exit ( found ? 0 : 1 ) ; }
-				' "$( AgentsToolsRegistryFile spawned-sessions )"
+				' "$MMDAPP/.local/agents/spawned-sessions.registry"
 			)" || {
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --session-id $joinSessionId: no spawned-sessions registry row carries this session -- refusing to join rather than starting a new session silently" >&2
 				set +e ; return 1
@@ -808,7 +808,7 @@ case "$1" in
 				LC_ALL=C awk -v want=" $conversationThreads " '
 					$10 != "-" && index( want, " " $10 " " ) > 0 && ! ( $2 in seen ) { seen[$2] = 1 ; n++ ; row = $2 " " $10 ; }
 					END { if ( n == 1 ) print row ; }
-				' "$( AgentsToolsRegistryFile spawned-sessions )" 2>/dev/null
+				' "$MMDAPP/.local/agents/spawned-sessions.registry" 2>/dev/null
 			)" || conversationJoin=""
 			if [ -n "$conversationJoin" ] ; then
 				joinSessionId="${conversationJoin%% *}"
@@ -1294,7 +1294,7 @@ case "$1" in
 				LC_ALL=C awk -v want="$sessionId" -v track="$sessionTrackChannel" '
 					$2 == want && $10 != "-" && ( track == "" || index( $10, track ":" ) != 1 ) { print $10 ; found = 1 ; exit ; }
 					END { exit ( found ? 0 : 1 ) ; }
-				' "$( AgentsToolsRegistryFile spawned-sessions )"
+				' "$MMDAPP/.local/agents/spawned-sessions.registry"
 			)" || sessionThread=""
 		fi
 		if [ -z "$sessionThread" ] && [ -z "$sessionPrintback" ] && [ -z "$sessionTrack" ] && { [ -n "$sessionJoined" ] || [ -n "$workDutyStart" ] || [ -n "$requestThread" ] || [ "$sessionThreadMode" != "event-track" ] ; } ; then

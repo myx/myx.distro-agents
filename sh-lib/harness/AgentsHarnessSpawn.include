@@ -395,7 +395,6 @@ AgentsHarnessWindowedRead(){ ## path, byte offset, byte limit
 ## lines, an `error` line where the registry cannot be read, and nothing where no row names it.
 AgentsHarnessRegistryRunLog(){ ## handle
 	type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	type AgentsSessionLogInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	local registryInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local registryRun registrySpawn logPath
@@ -405,7 +404,7 @@ AgentsHarnessRegistryRunLog(){ ## handle
 		## call never rebuilds it from every record; it is rebuilt once only where a record landed since.
 		type AgentsToolsSpawnedRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.StartedRecords.include"
 		registryStanding="$( AgentsToolsSpawnedRegistryFile 2> /dev/null )" || registryStanding=""
-		[ -n "$registryStanding" ] || { printf 'error the spawned-sessions registry at %s could not be read, so this handle was not looked up in it\n' "$( AgentsToolsRegistryFile spawned-sessions )" ; exit 0 ; }
+		[ -n "$registryStanding" ] || { printf 'error the spawned-sessions registry at %s could not be read, so this handle was not looked up in it\n' "$MMDAPP/.local/agents/spawned-sessions.registry" ; exit 0 ; }
 		AgentsToolsRegistryMeasureRows "$registryStanding" "" "" 14
 		printf '%s' "$measuredDated" | MDAT_HARNESS_WANT_ID="$1" LC_ALL=C awk '
 			NF != 16 { next ; }
@@ -452,12 +451,11 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
 		printf 'ERROR: MDAT_DATA_ROOT is not set in this process, so the dispatch records naming a helper session cannot be located. Nothing was read, and no output is implied to be absent.\n' ; return 0
 	fi
-	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 	type AgentsSessionLogInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-	if [ -n "$toolOffset" ] && ! AgentsHarnessWholeNumber "$toolOffset" ; then
+	if [ -n "$toolOffset" ] && { case "$toolOffset" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 		printf 'ERROR: offset must be a whole number of bytes, got: %s\n' "$toolOffset" ; return 0
 	fi
-	if [ -n "$toolLimit" ] && { ! AgentsHarnessWholeNumber "$toolLimit" || [ "$toolLimit" -lt 1 ] ; } ; then
+	if [ -n "$toolLimit" ] && { { case "$toolLimit" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } || [ "$toolLimit" -lt 1 ] ; } ; then
 		printf 'ERROR: limit must be a whole number of bytes above zero, got: %s\n' "$toolLimit" ; return 0
 	fi
 	[ -n "$toolLimit" ] || toolLimit="$harnessReadCap"

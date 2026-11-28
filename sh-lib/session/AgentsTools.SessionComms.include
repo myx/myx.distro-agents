@@ -544,15 +544,12 @@ AgentsToolsSessionCommsSessions(){
 }
 
 ## The sessions that have something left to deliver, live or not: a post waiting in the outbox, a message left by the console.
-## Prints the session ids, once each.
+## Prints the session ids, once each: the marks the writer keeps (AgentsToolsSessionCommsMark), one a session, never a walk of the store.
 AgentsToolsSessionCommsWork(){
-	local workFile workSeen="" workId
-	for workFile in "$MMDAPP/.local/agents/sessions"/*/chat.outbox/*.retry "$MMDAPP/.local/agents/sessions"/*/chat.inbox/*.msg ; do
-		[ -e "$workFile" ] || continue
-		workId="${workFile#"$MMDAPP/.local/agents/sessions"/}" ; workId="${workId%%/*}"
-		case " $workSeen " in *" $workId "*) continue ;; esac
-		workSeen="$workSeen $workId"
-		printf '%s\n' "$workId"
+	local workMark
+	for workMark in "$MMDAPP/.local/agents/comms/work"/* ; do
+		[ -e "$workMark" ] || continue
+		printf '%s\n' "${workMark##*/}"
 	done
 	return 0
 }
@@ -792,7 +789,7 @@ AgentsToolsSessionCommsOutboxMark(){ ## session, outbox file `<n>.retry`, state 
 		|| { rm -f "$markDir/$markNo.$3.aside" 2> /dev/null ; return 1 ; }
 	AgentsToolsSessionChatStamp "$1" "$markNo" - "$3"
 	case "$markLine" in ''|*[!A-Za-z0-9_-]*) return 0 ;; esac
-	type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" || return 0
+	type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
 	printf '%s\n' "your post of block $markNo was not posted, $3: ${markWhy:-no reason was given}" \
 		| AgentsToolsSessionChatAppend "$1" tooling "$markLine" - "printback:$1" own > /dev/null 2>&1 || :
 	return 0

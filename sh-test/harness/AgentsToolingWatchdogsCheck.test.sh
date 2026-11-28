@@ -56,7 +56,6 @@ rigLift(){ ## file, function name
 rigLiftBash="$( rigLift <( rigHarnessCat ) AgentsHarnessToolBash )" || rigRefuse "AgentsHarnessToolBash was not found in $rigHarness"
 ## Since S19.2 the tool is a wrapper that runs AgentsHarnessToolBashRun and then waits out a session pause: the run is lifted too.
 rigLiftBashRun="$( rigLift <( rigHarnessCat ) AgentsHarnessToolBashRun )" || rigRefuse "AgentsHarnessToolBashRun was not found in $rigHarness"
-rigLiftNumber="$( rigLift <( rigHarnessCat ) AgentsHarnessWholeNumber )" || rigRefuse "AgentsHarnessWholeNumber was not found in $rigHarness"
 rigLiftMcpRun="$( rigLift "$rigMcpClient" AgentsHarnessMcpRun )" || rigRefuse "AgentsHarnessMcpRun was not found in $rigMcpClient"
 
 ## THE RIG'S CLOCK, for the retry alone: its 180 seconds pass in RIG_WATCH_SECONDS; every other wait is the host's.
@@ -137,7 +136,7 @@ rigBash(){ ## scenario, bound in seconds, seconds the command stays, what the ri
 		## no `timeout` command, whatever the host of this check has: the watchdog is what is measured
 		harnessTimeoutCmd=""
 		export RIG_DIR="$rigDir" RIG_PS="$4" RIG_STAYS="$3" RIG_REAL_SLEEP="$rigRealSleep" RIG_REAL_PS="$rigRealPs" RIG_WATCH_SECONDS=2
-		eval "$rigLiftNumber" ; eval "$rigLiftBash" ; eval "$rigLiftBashRun"
+		eval "$rigLiftBash" ; eval "$rigLiftBashRun"
 		## the stand-ins: the working directory of the call is the rig's own, and allowed (AgentsHarnessCwdAllowed); the session
 		## pause the wrapper waits out is none; the two kill guards of the tool's include (AgentsHarnessBashKillByPattern,
 		## AgentsHarnessBashKillForeign, S10.20), which the lift does not carry, refuse nothing here: they have their own check

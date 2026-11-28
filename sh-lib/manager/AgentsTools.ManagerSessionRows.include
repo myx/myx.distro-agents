@@ -103,7 +103,6 @@ AgentsToolsManagerSessionControls(){ ## session id (every session of the workspa
 ## neither takes this path. Fails, printing nothing, where the store's registries cannot be rebuilt.
 AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for the active sessions only (may be empty)
 	type AgentsSessionRowsInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local rowsOp="$1" rowsActive="${2:-}" rowsLearn="" rowsFile rowsPending rowsSpawned rowsLine measuredDated="" rowsTtl=30 rowsFresh=""
 	local rowsDated=()
 	[ "$rowsOp" != --schedule-learning ] || rowsLearn=1
@@ -149,8 +148,8 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 			;;
 		esac
 	fi
-	rowsFile="$( AgentsToolsRegistryFile spawned-sessions )"
-	rowsPending="$( AgentsToolsRegistryFile pending-replies )"
+	rowsFile="$MMDAPP/.local/agents/spawned-sessions.registry"
+	rowsPending="$MMDAPP/.local/agents/pending-replies.registry"
 	AgentsSpawnedStoreDirInto rowsSpawned "${MMDAPP:-}" || rowsSpawned=""
 	AgentsSessionRowsInto rowsDated "${MMDAPP:-}" || {
 		echo "⛔ ERROR: $MDSC_CMD $rowsOp: the session registries could not be rebuilt in ${rowsFile%/*} -- nothing is listed" >&2
@@ -187,8 +186,7 @@ AgentsToolsManagerSessionRowsRender(){ ## measured rows text, pending registry f
 ## one form AgentsToolsRegistryMeasureRows reads, and nothing of a store is walked for it.
 AgentsToolsManagerSessionStoreRows(){ ## stored rows text, the operation as it was called, "active" or empty, kept copy or empty, control text or empty
 	local storeRows="$1" storeOp="$2" storeActive="${3:-}" storeKept="${4:-}" storeControl="${5:-}" storeFile storePending
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-	storePending="$( AgentsToolsRegistryFile pending-replies )"
+	storePending="$MMDAPP/.local/agents/pending-replies.registry"
 	## THE ASKS ARE THE ONE REGISTRY THIS READ STILL ASKS FOR: its own writers rebuild it as an ask opens and closes, so it is
 	## read as it lies. Built once here only where it has never been built, so the first read of a fresh workspace counts the
 	## asks it has rather than none.
@@ -234,7 +232,7 @@ AgentsToolsManagerSessionLiveControl(){ ## the blocks' text
 AgentsToolsManagerSessionClosedRows(){ ## the operation as it was called, page
 	local closedPage="${2:-0}" closedRows closedText=""
 	type AgentsToolsSessionClosedWindow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStores.include"
-	type AgentsToolsSpawnRowsBlockText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStores.include"
+	type AgentsToolsSessionClosedWindow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStores.include"
 	closedRows="$( AgentsToolsSessionClosedWindow "$closedPage" 40 )" || closedRows=""
 	[ -n "$closedRows" ] || return 0
 	closedText="$( printf '%s\n' "$closedRows" | LC_ALL=C awk -F'\t' '{

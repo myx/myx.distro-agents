@@ -289,9 +289,6 @@ AgentsToolsSessionChatViaWriter(){ ## kind, the arguments of the direct write
 ## goes into `<session>/session.chat.stamps`, `<block>\t<ts>\t<conversation:thread>\t<seen>`, and AgentsToolsSessionChatResolve
 ## lays it over the index for whoever reads. A ts of `-` is a block that is not posted yet, as the index says it.
 AgentsToolsSessionChatStamp(){ ## session, block number, ts, conversation:thread
-	AgentsToolsSessionChatStampDirect "$@"
-}
-AgentsToolsSessionChatStampDirect(){ ## session, block number, ts, conversation:thread
 	local stampDir stampFile chatLock=""
 	stampDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
 	stampFile="$stampDir/$agentsSessionChatName.index"
@@ -460,9 +457,6 @@ AgentsToolsSessionChatPointerInto(){ ## variable, session, reader
 ## fifth, against the three of the direct write (mktemp, awk, mv). The thread takes `pointer-set` and `pointer-unset` all the
 ## same, for the day an ask costs less than the lock (one reply fifo a caller process, S12.11).
 AgentsToolsSessionChatPointerSet(){ ## session, reader, value, max (optional)
-	AgentsToolsSessionChatPointerSetDirect "$@"
-}
-AgentsToolsSessionChatPointerSetDirect(){ ## session, reader, value, max (optional)
 	local pointerDir pointerFile pointerTmp chatLock="" pointerMember
 	pointerMember="$( AgentsToolsSessionChatPointerMember "$2" )"
 	if [ -n "$pointerMember" ] ; then
@@ -493,9 +487,6 @@ AgentsToolsSessionChatPointerSetDirect(){ ## session, reader, value, max (option
 
 ## Removes a reader's pointer line, where one is kept. Quiet, and no error where there is none.
 AgentsToolsSessionChatPointerUnset(){ ## session, reader -- direct, as the pointer set above
-	AgentsToolsSessionChatPointerUnsetDirect "$@"
-}
-AgentsToolsSessionChatPointerUnsetDirect(){ ## session, reader
 	local unsetDir unsetFile unsetTmp chatLock=""
 	unsetDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
 	unsetFile="$unsetDir/$agentsSessionChatName.pointers"
@@ -524,7 +515,9 @@ AgentsToolsSessionChatFloorRemove(){ ## session, member, seconds
 AgentsToolsSessionChatThread(){ ## session
 	local threadLine="" threadDir
 	[ -z "${MDAT_SESSION_THREAD:-}" ] || { printf '%s' "$MDAT_SESSION_THREAD" ; return 0 ; }
-	threadDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
+	case "$1" in ''|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	threadDir="$MMDAPP/.local/agents/sessions/$1"
 	[ -f "$threadDir/session.thread" ] && IFS= read -r threadLine < "$threadDir/session.thread" || return 1
 	[ -n "$threadLine" ] || return 1
 	printf '%s' "$threadLine"

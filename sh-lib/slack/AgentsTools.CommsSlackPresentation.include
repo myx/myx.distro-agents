@@ -38,10 +38,9 @@ AgentsToolsCommsSlackMemberPresentationRow(){ ## member, registry file
 ## (AgentsToolsMemberInvitedWorkspace, AgentsTools.MemberWorkspace.include). A member with
 ## no row in either, or no registry at all, returns 1.
 AgentsToolsCommsSlackMemberPresentation(){ ## member
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local presentationRoot="$MMDAPP"
 	while : ; do
-		! AgentsToolsCommsSlackMemberPresentationRow "$1" "$( MMDAPP="$presentationRoot" ; AgentsToolsRegistryFile team-members-names )" || return 0
+		! AgentsToolsCommsSlackMemberPresentationRow "$1" "$presentationRoot/.local/agents/team-members-names.registry" || return 0
 		## No row in the workspace this runs from: an invited member's is where it is set up.
 		[ "$presentationRoot" = "$MMDAPP" ] || return 1
 		type AgentsToolsMemberInvitedWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
@@ -53,12 +52,11 @@ AgentsToolsCommsSlackMemberPresentation(){ ## member
 ## client's row is not asked for its alias: that one is its persona's, for the other
 ## organisation, and inside our team a client goes by its member name.
 AgentsToolsCommsSlackAliasTakenHere(){ ## alias, the member that would take it
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	LC_ALL=C awk -v want="$1" -v who="$2" '
 		$1 == who { next ; }
 		$1 == want || ( $1 !~ /^client-/ && $5 == want ) { taken = 1 ; exit ; }
 		END { exit taken ? 0 : 1 ; }
-	' "$( AgentsToolsRegistryFile team-members-names )" 2> /dev/null
+	' "$MMDAPP/.local/agents/team-members-names.registry" 2> /dev/null
 }
 ## A member as our own team sees it, "<mark> TAB <alias>", neither ever empty: what the
 ## author line of a message shows for its sender, and for a member it is addressed to, in
@@ -75,7 +73,6 @@ AgentsToolsCommsSlackAliasTakenHere(){ ## alias, the member that would take it
 ##   - a member with no row anywhere is shown by its member name, and for a sender one
 ##     line on stderr says so.
 AgentsToolsCommsSlackMemberTeamPresentation(){ ## member, its part in the send (sender|addressee)
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local teamPres teamMark="" teamAlias=""
 	if teamPres="$( AgentsToolsCommsSlackMemberPresentation "$1" )" ; then
 		teamMark="$( AgentsToolsCommsSlackPresentationField 1 "$teamPres" )"
@@ -85,7 +82,7 @@ AgentsToolsCommsSlackMemberTeamPresentation(){ ## member, its part in the send (
 				teamAlias="$( AgentsToolsCommsSlackPresentationField 4 "$teamPres" )"
 				## Its row is another workspace's where this one's registry holds none for it.
 				if [ -n "$teamAlias" ] && [ "$teamAlias" != "$1" ] \
-					&& ! AgentsToolsCommsSlackMemberPresentationRow "$1" "$( AgentsToolsRegistryFile team-members-names )" > /dev/null \
+					&& ! AgentsToolsCommsSlackMemberPresentationRow "$1" "$MMDAPP/.local/agents/team-members-names.registry" > /dev/null \
 					&& AgentsToolsCommsSlackAliasTakenHere "$teamAlias" "$1" ; then
 					echo "# $MDSC_CMD --slack-send-message: member '$1' is invited from another workspace, where its alias is '$teamAlias', which a member of ${MMDAPP%/} already goes by, so here it is shown by its member name" >&2
 					teamAlias=""

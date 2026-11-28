@@ -4,9 +4,8 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 runsAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/schedule/AgentsRoutineRunsAtScan.awk"
-runsLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/routine/AgentsTools.RoutineKey.include"
 [ -f "$runsAwk" ] || { echo "⛔ ERROR: the awk is not at the origin: $runsAwk" >&2 ; exit 1 ; }
-runsTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsRoutineRunsAtScanCheck.XXXXXX" )" || exit 1
+runsTmp="$( mkdir -p "${MMDAPP:?⛔ ERROR: MMDAPP is not set}/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsRoutineRunsAtScanCheck.XXXXXX" )" || exit 1
 trap 'rm -rf -- "$runsTmp" 2> /dev/null || :' EXIT
 mkdir -p "$runsTmp/a"
 printf -- '---\nruns-at: daily 09:00\n---\n' > "$runsTmp/a/one.routine.md"

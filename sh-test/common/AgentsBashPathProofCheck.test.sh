@@ -150,10 +150,10 @@ rigAssert "control: started by its path, a hook whose first line names an interp
 	"$( case "$( cat "$rigTmp/nosuch.rc" )" in (126|127) echo not-startable ;; (*) cat "$rigTmp/nosuch.rc" ;; esac ) [$( cat "$rigTmp/nosuch.out" )]" "not-startable []"
 ## The argument-table functions the refusal reads through, lifted out of the harness.
 rigLift="$( LC_ALL=C awk '
-	/^(AgentsHarnessWholeNumber|AgentsHarnessArgParse|AgentsHarnessArgFind|AgentsHarnessArgValue)\(\)\{/ { inFn = 1 ; }
+	/^(AgentsHarnessArgParse|AgentsHarnessArgFind|AgentsHarnessArgValue)\(\)\{/ { inFn = 1 ; }
 	inFn { print ; }
 	inFn && /^\}$/ { inFn = 0 ; seen++ ; }
-	END { if ( seen != 4 ) exit 1 ; }
+	END { if ( seen != 3 ) exit 1 ; }
 ' <( rigHarnessCat ) )" || rigRefuse "the argument-table functions were not all found in $rigHarness"
 rigRefusal(){ ## run name, timeout command or "", tool name, raw arguments -- the harness's own decision, its hooks from the rig's copy of sh-lib
 	local refusalDir="$rigTmp/$1"

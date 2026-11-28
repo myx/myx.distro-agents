@@ -8,28 +8,14 @@ type AgentsToolsSessionPauseWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 ## The document-contract guard's one decision function, shared by the Write and Edit doors here and by the native hook.
 type AgentsToolsDocGuardDecide > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocGuard.include"
 
-## Digits only, by explicit enumeration: a bracket range is collation-dependent.
-AgentsHarnessWholeNumber(){
-	local scanRest="$1" scanChar
-	[ -n "$scanRest" ] || return 1
-	while [ -n "$scanRest" ] ; do
-		scanChar="${scanRest%"${scanRest#?}"}"
-		scanRest="${scanRest#?}"
-		case "$scanChar" in
-			0|1|2|3|4|5|6|7|8|9) ;;
-			*) return 1 ;;
-		esac
-	done
-}
-
 ## A line range is the only way past the byte cap, so it states what it showed. Read and
 ## Skill both take one; Read passes numbered, for cat -n lines, and Skill does not.
 AgentsHarnessReadRange(){ ## path, offset, limit, optional numbered
 	local rangeOffset="${2:-1}" rangeLimit="$3"
-	if ! AgentsHarnessWholeNumber "$rangeOffset" || [ "$rangeOffset" -lt 1 ] ; then
+	if { case "$rangeOffset" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } || [ "$rangeOffset" -lt 1 ] ; then
 		printf 'ERROR: offset must be a whole line number counting from 1, got: %s\n' "$rangeOffset" ; return 0
 	fi
-	if [ -n "$rangeLimit" ] && { ! AgentsHarnessWholeNumber "$rangeLimit" || [ "$rangeLimit" -lt 1 ] ; } ; then
+	if [ -n "$rangeLimit" ] && { { case "$rangeLimit" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } || [ "$rangeLimit" -lt 1 ] ; } ; then
 		printf 'ERROR: limit must be a whole number of lines, at least 1, got: %s\n' "$rangeLimit" ; return 0
 	fi
 	## Digits by the checks above and the mode a literal, so there is nothing here for -v to backslash-decode.
@@ -80,7 +66,7 @@ AgentsHarnessToolRead(){
 			## N or N-M, at most 20 pages. Without pages the first 11 are read, only to prove there are no more than 10.
 			pdfFirst="${toolPages%%-*}" ; pdfLast="${toolPages#*-}"
 			[ -n "$toolPages" ] || { pdfFirst=1 ; pdfLast=11 ; }
-			if ! AgentsHarnessWholeNumber "$pdfFirst" || ! AgentsHarnessWholeNumber "$pdfLast" || [ "$pdfFirst" -lt 1 ] || [ "$pdfLast" -lt "$pdfFirst" ] || [ $(( 10#$pdfLast - 10#$pdfFirst )) -ge 20 ] ; then
+			if { case "$pdfFirst" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } || { case "$pdfLast" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } || [ "$pdfFirst" -lt 1 ] || [ "$pdfLast" -lt "$pdfFirst" ] || [ $(( 10#$pdfLast - 10#$pdfFirst )) -ge 20 ] ; then
 				printf 'ERROR: pages must be one page number or a range such as 1-5, counting from 1, at most 20 pages per request, got: %s\n' "$toolPages" ; return 0
 			fi
 			## Pages each ended by a form feed, from PDFKit on macOS or pdftotext elsewhere.
@@ -659,16 +645,16 @@ AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, 
 	## A per-side value wins over -C, which otherwise sets both sides.
 	[ -n "$toolBefore" ] || toolBefore="$toolContext"
 	[ -n "$toolAfter" ] || toolAfter="$toolContext"
-	if [ -n "$toolBefore" ] && ! AgentsHarnessWholeNumber "$toolBefore" ; then
+	if [ -n "$toolBefore" ] && { case "$toolBefore" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 		printf 'ERROR: -B/before/-C/context must be a whole number of lines, got: %s\n' "$toolBefore" ; return 0
 	fi
-	if [ -n "$toolAfter" ] && ! AgentsHarnessWholeNumber "$toolAfter" ; then
+	if [ -n "$toolAfter" ] && { case "$toolAfter" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 		printf 'ERROR: -A/after/-C/context must be a whole number of lines, got: %s\n' "$toolAfter" ; return 0
 	fi
-	if ! AgentsHarnessWholeNumber "$toolHeadLimit" ; then
+	if { case "$toolHeadLimit" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 		printf 'ERROR: head_limit must be a whole number of lines or entries, got: %s\n' "$toolHeadLimit" ; return 0
 	fi
-	if ! AgentsHarnessWholeNumber "$toolOffset" ; then
+	if { case "$toolOffset" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 		printf 'ERROR: offset must be a whole number of lines or entries, got: %s\n' "$toolOffset" ; return 0
 	fi
 	if [ "$toolMode" = content ] ; then

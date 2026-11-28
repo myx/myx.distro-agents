@@ -257,6 +257,7 @@ case "$1" in
 						'')
 							;;
 						*)
+							type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingPaths.include"
 							if ownRecord="$( AgentsToolsPendingRecordPath "$ownFirst" 2> /dev/null )" \
 								&& [ "$( AgentsToolsDecisionsField "$ownRecord" status )" = "reply-received" ] ; then
 								AgentsToolsPermissionIsHumanOwner "$( AgentsToolsDecisionsField "$ownRecord" answered-by )" && ownSourced="his verdict $ownFirst"

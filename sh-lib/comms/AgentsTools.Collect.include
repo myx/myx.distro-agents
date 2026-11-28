@@ -391,9 +391,12 @@ AgentsToolsCollectEnsure(){ ## member, kind, since (dd-Mon-yyyy, or empty)
 	## A scan used a source: the thread is wanted, and where other sources are long expired, with none to update them, one is started.
 	## What the check says is of no use to the scan, and its failure no fault of it.
 	local ensureLine="$agentsCollectLine" ensureNew="$agentsCollectNew" ensureWhy="$agentsCollectWhy"
-	type AgentsToolsCollectThreadCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CollectThread.include"
-	type AgentsToolsCollectThreadCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CollectThread.include"
-	AgentsToolsCollectThreadCheck scan "$1" > /dev/null 2>&1 || :
+	## At most once a minute a process: a Wait round scans every ten seconds, and the thread counts a want over ten minutes.
+	if [ -z "${agentsCollectCheckedAt:-}" ] || [ $(( SECONDS - agentsCollectCheckedAt )) -ge 60 ] ; then
+		agentsCollectCheckedAt="$SECONDS"
+		type AgentsToolsCollectThreadCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CollectThread.include"
+		AgentsToolsCollectThreadCheck scan "$1" > /dev/null 2>&1 || :
+	fi
 	agentsCollectLine="$ensureLine" ; agentsCollectNew="$ensureNew" ; agentsCollectWhy="$ensureWhy"
 	return "$ensureRc"
 }

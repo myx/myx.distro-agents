@@ -67,6 +67,7 @@ AgentsTranscriptNote(){ ## session id, author, text, time given (optional)
 
 ## The spawn proxy's close: the END line with the session's tokens, and the last milestone.
 AgentsTranscriptSpawnEnd(){ ## session id, outcome, exit code
+	type AgentsSessionTokensHeaderValue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTokens.include"
 	AgentsTranscriptEvent "$1" END "" 0 outcome "$2" exit "$3" tokens "$( AgentsSessionTokensHeaderValue "$1" )"
 	AgentsTranscriptMilestone "$1" "end"
 	return 0

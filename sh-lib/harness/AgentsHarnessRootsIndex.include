@@ -62,7 +62,7 @@ AgentsHarnessRootsDec(){ ## encoded -- never `printf -v` an empty result: bash 3
 ## cannot be summed -- the caller then computes.
 agentsRootsPrint=""
 AgentsHarnessRootsFingerprint(){ ## workspace
-	local printWorkspace="$1" printEntry printFiles=() printSums printCrc printSize printRest printCount=0
+	local printWorkspace="$1" printEntry printFiles=() printSums printLine printRest printCount=0
 	agentsRootsPrint="v4"$'\n'"MMDAPP=$printWorkspace"$'\n'"HOME=${HOME:-}"$'\n'"MDAT_SKILLSET_ROOT=${MDAT_SKILLSET_ROOT:-}"$'\n'
 	## The names in the member set root -- the member index's own members/ view.
 	if [ -n "${MDAT_SKILLSET_ROOT:-}" ] && [ -d "$MDAT_SKILLSET_ROOT" ] ; then
@@ -72,11 +72,15 @@ AgentsHarnessRootsFingerprint(){ ## workspace
 	## view is generated from, the shared grant pointers, and each grant file they name --
 	## never a vendor link folder. Named by role, not path: the producer and this file are
 	## the same code in either origin.
-	local printGrantRoot printGrants=()
-	while IFS= read -r printGrantRoot ; do
+	## Each short list is taken a line at a time by parameter expansion: no here-string, so no file on a call.
+	local printGrantRoot printGrantList printGrants=()
+	printGrantList="$( AgentsToolsTeamGrantWorkspaces "$printWorkspace" )"
+	while [ -n "$printGrantList" ] ; do
+		printGrantRoot="${printGrantList%%$'\n'*}"
+		case "$printGrantList" in *$'\n'*) printGrantList="${printGrantList#*$'\n'}" ;; *) printGrantList="" ;; esac
 		[ -n "$printGrantRoot" ] || continue
 		printGrants+=( "grants:$printGrantRoot/.local/agents/permissions.registry" )
-	done <<< "$( AgentsToolsTeamGrantWorkspaces "$printWorkspace" )"
+	done
 	for printEntry in \
 		"producer:$agentsRootsIndexHere/client/AgentsTools.ClientAccessRoots.include" \
 		"index:$agentsRootsIndexHere/harness/AgentsHarnessRootsIndex.include" \
@@ -97,10 +101,13 @@ AgentsHarnessRootsFingerprint(){ ## workspace
 	done
 	[ "${#printFiles[@]}" -gt 0 ] || return 0
 	printSums="$( LC_ALL=C cksum ${printFiles[@]+"${printFiles[@]}"} 2>/dev/null )" || return 1
-	while read -r printCrc printSize printRest ; do
-		agentsRootsPrint="${agentsRootsPrint}sum:$printCrc $printSize"$'\n'
+	while [ -n "$printSums" ] ; do
+		printLine="${printSums%%$'\n'*}"
+		case "$printSums" in *$'\n'*) printSums="${printSums#*$'\n'}" ;; *) printSums="" ;; esac
+		printRest="${printLine#* }"
+		agentsRootsPrint="${agentsRootsPrint}sum:${printLine%% *} ${printRest%% *}"$'\n'
 		printCount=$(( printCount + 1 ))
-	done <<< "$printSums"
+	done
 	[ "$printCount" = "${#printFiles[@]}" ] || return 1
 }
 
@@ -209,7 +216,7 @@ AgentsHarnessRootsIndexUse(){ ## workspace, member name, write roots already giv
 	## against the disk, the member's extras put in their sorted place, so this call does no work per root and starts no process.
 	case "$useBody" in *$'\n'"readyroots"$'\t'*)
 		case "$useRaw" in *$'\n'end|*$'\n'end$'\n') ;; *) return 1 ;; esac
-		local LC_ALL=C useKind useField useTest useLow useHigh useMid useAt useTests=() useMergedRoots=() useMergedReals=()
+		local LC_ALL=C IFS useKind useField useTest useLow useHigh useMid useAt useTests=() useMergedRoots=() useMergedReals=()
 		## THE ROWS LEFT OPEN, the only ones the harness start resolves: a root made since the index, and the member's extras.
 		local useOpenRead=() useOpenWref=() useOpenGrant=() useOpenWrite=() useOpenShifted=() useOpenPlaced="" useOpenAt useOpenBase="${#harnessAccessRoots[@]}${#harnessWriteAccessRoots[@]}"
 		harnessRootsReadyRead="" harnessRootsReadyWrite=""
@@ -221,21 +228,24 @@ AgentsHarnessRootsIndexUse(){ ## workspace, member name, write roots already giv
 				for useField in roots reals ; do
 					IFS=$'\t' read -r useTag useRest useLine || return 1
 					[ "$useTag $useRest" = "ready$useField $useKind" ] || return 1
+					## A row is split by a noglob word split on the unit separator: no here-string, so no file per row.
+					IFS=$'\037' ; set -f
 					case "$useField:$useKind" in
-						roots:read) IFS=$'\037' read -r -a useReadRoots <<< "$useLine" ;;
-						reals:read) IFS=$'\037' read -r -a useReadReals <<< "$useLine" ;;
-						roots:wref) IFS=$'\037' read -r -a useWrefRoots <<< "$useLine" ;;
-						reals:wref) IFS=$'\037' read -r -a useWrefReals <<< "$useLine" ;;
-						roots:grant) IFS=$'\037' read -r -a useGrantRoots <<< "$useLine" ;;
-						reals:grant) IFS=$'\037' read -r -a useGrantReals <<< "$useLine" ;;
+						roots:read) useReadRoots=( $useLine ) ;;
+						reals:read) useReadReals=( $useLine ) ;;
+						roots:wref) useWrefRoots=( $useLine ) ;;
+						reals:wref) useWrefReals=( $useLine ) ;;
+						roots:grant) useGrantRoots=( $useLine ) ;;
+						reals:grant) useGrantReals=( $useLine ) ;;
 					esac
+					set +f ; unset IFS
 				done
 			done
 			IFS=$'\t' read -r useTag useRest useLine || return 1
 			[ "$useTag $useRest" = "readytests all" ] || return 1
 		} <<< "$useRaw"
+		IFS=$'\037' ; set -f ; useTests=( $useLine ) ; set +f ; unset IFS
 		[ "${#useReadRoots[@]}" = "${#useReadReals[@]}" ] && [ "${#useWrefRoots[@]}" = "${#useWrefReals[@]}" ] && [ "${#useGrantRoots[@]}" = "${#useGrantReals[@]}" ] || return 1
-		IFS=$'\037' read -r -a useTests <<< "$useLine"
 		## A stored resolution holds only while its root is still a directory; a root that is none resolves to itself.
 		for useTest in ${useTests[@]+"${useTests[@]}"} ; do
 			useAt="${useTest%?}" ; useAt="${useAt#?}"

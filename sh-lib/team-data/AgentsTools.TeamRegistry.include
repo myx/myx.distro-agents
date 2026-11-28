@@ -91,12 +91,14 @@ AgentsToolsTeamGrantWorkspaces(){ ## workspace
 ## cannot be read -- an unmounted volume -- contributes nothing, and the caller's
 ## revocation, which removes only what a rewrite dropped, never reads that as revoked.
 AgentsToolsTeamGrantRows(){ ## workspace, permissions.registry|permissions-tags.registry
-	local rowsRoot
+	## The readable files first, then one awk over all of them, in that order: a process for each workspace was one a file.
+	local rowsRoot rowsFiles=()
 	while IFS= read -r rowsRoot ; do
 		[ -n "$rowsRoot" ] || continue
 		[ -r "$rowsRoot/.local/agents/$2" ] || continue
-		LC_ALL=C awk -F: 'NF >= 4' "$rowsRoot/.local/agents/$2"
+		rowsFiles+=( "$rowsRoot/.local/agents/$2" )
 	done <<< "$( AgentsToolsTeamGrantWorkspaces "$1" )"
+	[ "${#rowsFiles[@]}" -eq 0 ] || LC_ALL=C awk -F: 'NF >= 4' "${rowsFiles[@]}"
 }
 
 ## Adds a workspace root to the shared grant pointers when it is not there yet, under a

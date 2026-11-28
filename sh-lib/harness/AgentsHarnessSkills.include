@@ -12,8 +12,7 @@ AgentsHarnessToolToolSearch(){ ## query, max_results
 		printf 'ERROR: ToolSearch: query is required and was empty. Nothing was searched.\n' ; return 0
 	fi
 	if [ -n "$toolMax" ] ; then
-		type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
-		if ! AgentsHarnessWholeNumber "$toolMax" || [ "$toolMax" -lt 1 ] ; then
+		if { case "$toolMax" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } || [ "$toolMax" -lt 1 ] ; then
 			printf 'ERROR: ToolSearch: max_results must be a whole number of tools, at least 1, got: %s\n' "$toolMax" ; return 0
 		fi
 	else

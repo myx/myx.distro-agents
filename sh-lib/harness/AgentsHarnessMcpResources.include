@@ -167,7 +167,6 @@ AgentsHarnessToolReadMcpResourceTool(){ ## server, uri
 }
 
 AgentsHarnessToolReadMcpResourceDirTool(){ ## server, uri_prefix, limit
-	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 	local toolServer="$1" toolPrefix="$2" toolLimit="$3" dirServers="" dirServerRc=0 dirRc=0
 	local dirCount dirIndex dirUri dirMatched=0 dirRead=0 dirMatches="" dirErr
 	if [ -z "$toolServer" ] ; then
@@ -177,7 +176,7 @@ AgentsHarnessToolReadMcpResourceDirTool(){ ## server, uri_prefix, limit
 		printf 'ERROR: ReadMcpResourceDirTool: uri_prefix is required and was empty. An empty prefix matches every resource a server publishes, which is a listing rather than a read -- use ListMcpResourcesTool for that.\n' ; return 0
 	fi
 	if [ -n "$toolLimit" ] ; then
-		if ! AgentsHarnessWholeNumber "$toolLimit" || [ "$toolLimit" -lt 1 ] ; then
+		if { case "$toolLimit" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } || [ "$toolLimit" -lt 1 ] ; then
 			printf 'ERROR: ReadMcpResourceDirTool: limit must be a whole number of resources, at least 1, got: %s\n' "$toolLimit" ; return 0
 		fi
 	else

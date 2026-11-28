@@ -3,6 +3,8 @@
 ## compares the current one against: it escapes session_id and cwd per call, re-reads each
 ## argument through its own subshell, and reads the decision and its reason in two passes.
 ## Its field reader is the legacy engine at $rigLegacyField. Nothing in sh-lib loads this.
+## The digits-only test the code of its time called, kept here so this reference stands on its own: the live code tests the digits in place.
+AgentsHarnessWholeNumber(){ case "$1" in ''|*[!0123456789]*) return 1 ;; esac ; }
 
 ## AgentsHarnessHooks.sh -- PreToolUse hooks for the universal harness. Sourced by
 ## AgentsUniversalHarness.sh and never executed: everything here runs in the core's

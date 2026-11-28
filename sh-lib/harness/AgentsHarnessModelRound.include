@@ -22,8 +22,7 @@ AgentsHarnessRefreshBearer(){
 	## Two fields or none: a single field is the bearer, and its expiry is then unknown.
 	local exchangeExpiry=0
 	case "$exchangeOut" in *' '*) exchangeExpiry="${exchangeOut#* }" ;; esac
-	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
-	AgentsHarnessWholeNumber "$exchangeExpiry" || exchangeExpiry=0
+	case "$exchangeExpiry" in ''|*[!0123456789]*) exchangeExpiry=0 ;; esac
 	## Both numbers below are chosen policy values and not derived ones -- nothing here
 	## bounds a single stream, that curl carrying no --max-time -- so tuning either is a
 	## policy decision rather than a correction.
@@ -52,7 +51,6 @@ harnessCallIds=()
 harnessCallNames=()
 harnessCallArgs=()
 AgentsHarnessToolCallsRead(){ ## tool call count
-	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 	type AgentsHarnessFileText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRun.include"
 	local readCount="$1" readIdx=0 readBlock=0 readBlocks="" readType="" readFrom=""
 	harnessCallIds=()
@@ -75,7 +73,7 @@ AgentsHarnessToolCallsRead(){ ## tool call count
 			AnthropicMessages)
 				AgentsHarnessFileText "$harnessScratch/stream.block.count"
 				readBlocks="$harnessFileText"
-				if AgentsHarnessWholeNumber "$readBlocks" ; then
+				if { case "$readBlocks" in ''|*[!0123456789]*) false ;; *) true ;; esac ; } ; then
 					readFrom=files
 					while [ "$readBlock" -lt "$readBlocks" ] ; do
 						AgentsHarnessFileText "$harnessScratch/stream.block.$readBlock.type"

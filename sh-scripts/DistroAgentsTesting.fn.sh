@@ -24,6 +24,10 @@ if [ -z "$MMDAPP" ] ; then
 	echo "$0: Working in: $MMDAPP" >&2
 	[ -d "$MMDAPP/.local" ] || ( echo "⛔ ERROR: expecting '.local' directory." >&2 && exit 1 )
 fi
+## No workspace is a relative path, the tooling tree itself, or a folder of its packages: the tooling writes its stores under
+## $MMDAPP/.local, and there they would stand in the source tree.
+case "$MMDAPP" in /?*) ;; *) echo "⛔ ERROR: ${0##*/}: MMDAPP is not an absolute workspace path: $MMDAPP" >&2 ; return 1 2> /dev/null || exit 1 ;; esac
+case "${MMDAPP%/}/" in "${MDLT_ORIGIN:-/nonexistent}/"|"${MDLT_ORIGIN:-/nonexistent}/myx/"*) echo "⛔ ERROR: ${0##*/}: MMDAPP is inside the tooling tree, so it is no workspace: $MMDAPP" >&2 ; return 1 2> /dev/null || exit 1 ;; esac
 
 ## Every child finds the bash this runs in, as DistroAgentsTools.fn.sh does.
 case "$BASH" in
@@ -321,11 +325,12 @@ DistroAgentsTestingApplyKey(){ ## <namespace>/<package>/<relative-path>
 ## A human at the console acts as no member, and nothing is refused for them.
 DistroAgentsTestingApplyGrantRefused(){ ## absolute live path
 	local grantMember grantSession grantStore grantDir
-	type AgentsToolsActingMember > /dev/null 2>&1 || . "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ActingMember.include"
 	grantMember="$( AgentsToolsActingMember )"
 	[ -n "$grantMember" ] || return 1
-	grantSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-}}"
-	type AgentsToolsPermissionHolds > /dev/null 2>&1 || . "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	## The session by the chain the acting member is read by (AgentsToolsActingMember), so a member found is looked up in its own session.
+	grantSession="${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
+	type AgentsToolsPermissionGrantScan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 	if [ -n "$grantSession" ] ; then
 		while IFS= read -r grantStore ; do
 			[ -n "$grantStore" ] || continue

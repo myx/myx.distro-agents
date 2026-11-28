@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-type AgentsToolsManagerSessionRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
+type AgentsToolsManagerSessionActiveRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionRows.include"
 
 ## AgentsTools.OpManagerSessionActiveList.include -- the operation `--manager-session-active-list`, sourced by
 ## AgentsTools.ManagerSession.include with the operation's arguments. The sessions whose thread runs now, each with its runs,

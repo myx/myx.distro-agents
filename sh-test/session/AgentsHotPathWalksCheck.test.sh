@@ -40,8 +40,9 @@ rigReasons(){
 ## THE LIST. One line a function: file under the package|function (empty for top-level code)|how many walks it holds|reason.
 rigList(){
 	printf '%s\n' \
-		'sh-lib/board/AgentsTools.BoardHousekeeping.include|AgentsToolsAdvanceSpawnHousekeeping|2|@housekeeping' \
+		'sh-lib/board/AgentsTools.BoardHousekeeping.include|AgentsToolsAdvanceSpawnHousekeeping|3|@housekeeping' \
 		'sh-lib/board/AgentsTools.BoardHousekeeping.include|AgentsToolsReviewUnseenEscalate|1|@housekeeping' \
+		'sh-lib/board/AgentsTools.ProcessedRetention.include|AgentsToolsProcessedRetentionRun|2|@housekeeping' \
 		'sh-lib/board/AgentsTools.BoardRoundScan.include|AgentsToolsBoardRecheckDueSection|1|@call-path' \
 		'sh-lib/board/AgentsTools.BoardStates.include|AgentsToolsBoardStateCounts|2|@one-off' \
 		'sh-lib/board/AgentsTools.ReviewFlow.include|AgentsReviewItemsForRoutine|1|@call-path' \
@@ -50,12 +51,9 @@ rigList(){
 		'sh-lib/manager/AgentsTools.ManagerSessionRows.include|AgentsToolsManagerSessionRows|1|@kept' \
 		'sh-lib/session/AgentsTools.SessionStore.include|AgentsSessionRowsInto|1|@rebuild' \
 		'sh-lib/manager/AgentsTools.OpManagerSessionControlStart.include||1|@rebuild' \
-		'sh-lib/wait/AgentsTools.MemberWaitSources.include||1|@call-path' \
 		'sh-lib/inbox/AgentsTools.OpUpsertInboxInquiry.include||1|@call-path' \
-		'sh-lib/session/AgentsTools.SessionChatCopies.include|AgentsToolsSessionChatThreadSessions|1|@call-path' \
-		'sh-lib/session/AgentsTools.SessionComms.include|AgentsToolsSessionCommsSessions|1|@call-path' \
+		'sh-lib/session/AgentsTools.SessionComms.include|AgentsToolsSessionCommsSessions|1|@one-off' \
 		'sh-lib/session/AgentsTools.SessionComms.include|AgentsToolsSessionCommsTakeAll|1|@call-path' \
-		'sh-lib/session/AgentsTools.SessionComms.include|AgentsToolsSessionCommsWork|1|@call-path' \
 		'sh-lib/session/AgentsTools.SessionControlStart.include|AgentsToolsSessionControlCheckWorkspace|1|@rebuild' \
 		'sh-lib/session/AgentsTools.ChildrenIndex.include|AgentsToolsChildrenIndexRepair|1|@housekeeping' \
 		'sh-lib/spawn/AgentsTools.InternOpAgentSpawnProxy.include||3|@rebuild' \

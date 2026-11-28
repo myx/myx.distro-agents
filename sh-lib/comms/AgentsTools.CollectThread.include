@@ -10,7 +10,7 @@
 ## collects and how: AgentsTools.Collect.include.
 ##
 ## ONE A WORKSPACE ON A HOST. Its files are in $MMDAPP/.local/agents/collect/, beside the state of the sources:
-##   thread.lock     a symlink whose target is `<pid> <start>`, held for the life of the process, as the control thread's and the
+##   thread.lock     a file holding `<pid> <start>`, made by set -C and held for the life of the process, as the control thread's and the
 ##                   communications reader's (a second start is refused at once; a holder that is gone, or whose number another
 ##                   process has, is taken over by a rename only one can make)
 ##   thread.log      what it did, a line an event, never a line a tick; bounded to 128 KiB, cut back to its last 64
@@ -189,7 +189,7 @@ AgentsToolsCollectThreadStart(){
 AgentsToolsCollectThreadWant(){
 	local wantDir
 	[ -n "${MMDAPP:-}" ] && wantDir="$MMDAPP/.local/agents/collect" || return 0
-	{ mkdir -p "$wantDir" && date +%s > "$wantDir/thread.wanted" ; } 2> /dev/null || :
+	{ { [ -d "$wantDir" ] || mkdir -p "$wantDir" ; } && date +%s > "$wantDir/thread.wanted" ; } 2> /dev/null || :
 	return 0
 }
 
@@ -197,7 +197,7 @@ AgentsToolsCollectThreadWant(){
 AgentsToolsCollectThreadWantedAge(){
 	local ageDir ageAt
 	[ -n "${MMDAPP:-}" ] && ageDir="$MMDAPP/.local/agents/collect" || { printf '%s\n' 999999 ; return 0 ; }
-	ageAt="$( { cat "$ageDir/thread.wanted" ; } 2> /dev/null )" || ageAt=""
+	{ IFS= read -r ageAt < "$ageDir/thread.wanted" ; } 2> /dev/null || ageAt=""
 	case "$ageAt" in ''|*[!0123456789]*) printf '%s\n' 999999 ; return 0 ;; esac
 	printf '%s\n' $(( $( date +%s ) - ageAt ))
 }
@@ -218,13 +218,13 @@ AgentsToolsCollectThreadCheck(){ ## who, except member (for a scan: the member w
 	[ -n "${MMDAPP:-}" ] && chkDir="$MMDAPP/.local/agents/collect" || { printf 'failed - %s\n' "no workspace is selected" ; return 1 ; }
 	chkLive="$( AgentsToolsCollectThreadLive )" && { printf 'alive %s\n' "$chkLive" ; return 0 ; }
 	chkNow="$( date +%s )"
-	chkChecked="$( { cat "$chkDir/thread.checked" ; } 2> /dev/null )" || chkChecked=""
+	{ IFS= read -r chkChecked < "$chkDir/thread.checked" ; } 2> /dev/null || chkChecked=""
 	case "$chkChecked" in ''|*[!0123456789]*) chkChecked=0 ;; esac
 	if [ $(( chkNow - chkChecked )) -lt 300 ] ; then
 		printf 'waiting\n'
 		return 0
 	fi
-	{ mkdir -p "$chkDir" && printf '%s\n' "$chkNow" > "$chkDir/thread.checked" ; } 2> /dev/null || :
+	{ { [ -d "$chkDir" ] || mkdir -p "$chkDir" ; } && printf '%s\n' "$chkNow" > "$chkDir/thread.checked" ; } 2> /dev/null || :
 	case "$chkWho" in
 		main-loop) chkFound="$( AgentsToolsCollectSources | head -n 1 )" ;;
 		*) chkFound="$( AgentsToolsCollectStaleReport "$chkExcept" | head -n 1 )" ;;

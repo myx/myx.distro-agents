@@ -266,8 +266,7 @@ agentsWireThinkGutter="${harnessProgressGutter:-18}"
 ## as the harness speaking. Forks nothing -- this runs per streamed delta.
 AgentsWireThinkingWrap(){ ## sanitised text
 	local wrapWord wrapGlobWasOff wrapWidth="${COLUMNS:-100}"
-	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
-	AgentsHarnessWholeNumber "$wrapWidth" || wrapWidth=100
+	case "$wrapWidth" in ''|*[!0123456789]*) wrapWidth=100 ;; esac
 	[ "$wrapWidth" -ge 40 ] || wrapWidth=100
 	## Word-splitting is wanted here; pathname expansion is not. An unquoted $1
 	## would glob a model's `*` or `?` against the filesystem and print filenames

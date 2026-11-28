@@ -49,13 +49,17 @@ AgentsHarnessHooksDec(){ ## encoded text -- never `printf -v` an empty result: b
 ## policy, then this file. Non-zero when either is unreadable.
 agentsHooksSum=""
 AgentsHarnessHooksSum(){
-	local sumOut sumCrc sumSize sumRest sumCount=0
+	local sumOut sumLine sumRest sumCount=0
 	agentsHooksSum=""
 	sumOut="$( LC_ALL=C cksum "$agentsHooksLoadHere/client/AgentsTools.ClientToolPolicy.include" "$agentsHooksLoadHere/harness/AgentsHarnessHooksLoad.include" 2>/dev/null )" || return 1
-	while read -r sumCrc sumSize sumRest ; do
-		agentsHooksSum="$agentsHooksSum$sumCrc $sumSize"$'\n'
+	## The two lines are taken by parameter expansion: no here-string, so no file on a call.
+	while [ -n "$sumOut" ] ; do
+		sumLine="${sumOut%%$'\n'*}"
+		case "$sumOut" in *$'\n'*) sumOut="${sumOut#*$'\n'}" ;; *) sumOut="" ;; esac
+		sumRest="${sumLine#* }"
+		agentsHooksSum="$agentsHooksSum${sumLine%% *} ${sumRest%% *}"$'\n'
 		sumCount=$(( sumCount + 1 ))
-	done <<< "$sumOut"
+	done
 	[ "$sumCount" = 2 ]
 }
 

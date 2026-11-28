@@ -18,12 +18,6 @@ type AgentsSessionRunDead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-age
 type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 type AgentsToolsSessionPauseHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionPause.include"
 
-## The registry of that name, its path. A caller in another concern must ask it, never build the agents store's path
-## itself.
-AgentsToolsRegistryFile(){ ## registry name
-	printf '%s\n' "$MMDAPP/.local/agents/$1.registry"
-}
-
 ## Rewrites one registry whole, from a function that prints its rows. Never edited in
 ## place: a rebuild that merged would keep a row nobody can delete alive forever.
 AgentsToolsRegistryWrite(){ ## registry name, rows function

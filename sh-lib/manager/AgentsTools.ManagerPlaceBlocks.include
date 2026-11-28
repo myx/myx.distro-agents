@@ -11,13 +11,12 @@
 ## FOR VIEWING. Nothing here writes, and nothing reaches another host.
 ##
 
-type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 type LocalToolsManagerField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerField.include"
 
 ## The registry of the sessions of this workspace, a path. sh-lib/config/place-blocks.list names it and .local runs it by
 ## that name, so it must stay a function.
 AgentsToolsManagerPlaceSessions(){
-	AgentsToolsRegistryFile spawned-sessions
+	printf '%s\n' "$MMDAPP/.local/agents/spawned-sessions.registry"
 }
 
 ## What stands in a place that is there: the members whose home the machine keeps in it, then the team data root of this workspace where it lies in the place.

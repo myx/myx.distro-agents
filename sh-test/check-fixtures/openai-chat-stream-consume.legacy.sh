@@ -3,6 +3,8 @@
 ## helpers, kept ONLY as the reference AgentsWireStreamDiffCheck.test.sh compares the
 ## single-awk consumer against. It forks AgentsHarnessJsonField.awk per field per event;
 ## here that reader is the legacy engine at $rigLegacyField. Nothing in sh-lib loads this.
+## The digits-only test the code of its time called, kept here so this reference stands on its own: the live code tests the digits in place.
+AgentsHarnessWholeNumber(){ case "$1" in ''|*[!0123456789]*) return 1 ;; esac ; }
 
 ## Column this block has reached, owned here rather than passed in and out across a
 ## function boundary. Set to the gutter where a block opens, advanced by the wrap, and

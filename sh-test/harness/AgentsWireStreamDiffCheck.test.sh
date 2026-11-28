@@ -33,13 +33,6 @@ done
 rigTmp="$( rigTempDir AgentsWireStreamDiffCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
-## The one core helper the thinking-line wrap calls, lifted out of the harness by name.
-rigLift="$( LC_ALL=C awk '
-	/^AgentsHarnessWholeNumber\(\)\{/ { inFn = 1 ; }
-	inFn { print ; }
-	inFn && /^\}$/ { inFn = 0 ; seen++ ; }
-	END { if ( seen != 1 ) exit 1 ; }
-' <( rigHarnessCat ) )" || rigRefuse "AgentsHarnessWholeNumber was not found in $rigHarness"
 
 rigPass=0
 rigFail=0
@@ -55,7 +48,6 @@ rigConsume(){ ## OpenAiChat|AnthropicMessages, legacy|current, stream file, out 
 		harnessReadCap=100000
 		COLUMNS=60
 		rigLegacyField="$rigTest/check-fixtures/AgentsHarnessJsonField.legacy.awk"
-		eval "$rigLift"
 		if [ "$2" = legacy ] ; then
 			case "$1" in
 				OpenAiChat) . "$rigTest/check-fixtures/openai-chat-stream-consume.legacy.sh" ;;

@@ -270,7 +270,7 @@ rigOwnerData="$rigScenarioDir/data" rigOwnerBoardWrite running "task-20261012T00
 rigOwnerData="$rigScenarioDir/data" rigOwnerBoardWrite running "dispatch-20261012T0100Z-rig-widget.md" -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: rig-report-session\ntracks: task-20261012T0000Z-rig-widget\n---\n\n# rig dispatch\n' "$rigMember"
 ## Its run reports to magic-coordinator, as a start writes it now: the item, which names no
 ## reviewer, is reviewed there, so no review prompt is posted among the posts counted below.
-rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/spawn/AgentsTools.SpawnSandbox.include" )"
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/member/AgentsTools.RunRoute.include" )"
 [ -n "$rigReportsTo" ] || rigRefuse "the package names no field for where a run reports to (agentsRunRouteField)"
 printf -- '---\nsession-id: rig-report-session\nspawn-id: rig-report-session\nparent-spawn-id: none\n%s: magic-coordinator\nowner: %s\nstatus: spawn-started\nspawns: dispatch-20261012T0100Z-rig-widget\n---\n' "$rigReportsTo" "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session/rig-report-session.spawn.md"
 ## Its session has a thread: the handback of a run that reports to a member goes there, addressed to that member.

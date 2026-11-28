@@ -37,14 +37,14 @@ AgentsToolsSessionChatThreadRoots(){
 ## workspace, and only where it holds none, those of the other roots (AgentsToolsSessionChatThreadRoots). The sending session
 ## itself is never listed. rc 1, nothing printed, for a thread no other session keeps.
 AgentsToolsSessionChatThreadSessions(){ ## conversation:thread, the sending session (may be empty)
-	local ownerThread="$1" ownerRoot="" ownerFile="" ownerSession="" ownerFound=""
+	local ownerThread="$1" ownerRoot="" ownerSession="" ownerFound=""
 	case "$ownerThread" in [ABCDEFGHIJKLMNOPQRSTUVWXYZ]*:[0123456789]*.[0123456789]*) ;; *) return 1 ;; esac
 	while IFS= read -r ownerRoot ; do
 		[ -n "$ownerRoot" ] || continue
 		## The first match wins: this workspace's sessions are asked first, and another root only where it has none.
 		[ -z "$ownerFound" ] || break
-		for ownerFile in $( LC_ALL=C grep -l -x -F -- "$ownerThread" "$ownerRoot"/.local/agents/sessions/*/session.thread 2> /dev/null ) ; do
-			ownerSession="${ownerFile%/session.thread}" ; ownerSession="${ownerSession##*/}"
+		## The spawned-sessions registry carries each session's thread in its tenth column, so no session folder is opened.
+		for ownerSession in $( LC_ALL=C awk -v ownerThread="$ownerThread" '$10 == ownerThread { print $2 ; }' "$ownerRoot/.local/agents/spawned-sessions.registry" 2> /dev/null | LC_ALL=C sort -u ) ; do
 			[ "$ownerRoot" != "${MMDAPP%/}" ] || [ "$ownerSession" != "${2:-}" ] || continue
 			printf '%s\t%s\n' "$ownerRoot" "$ownerSession"
 			ownerFound="true"

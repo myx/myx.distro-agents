@@ -420,11 +420,10 @@ AgentsToolsSessionControlCheck(){ ## -- stdin: measured rows
 ## rebuilt.
 AgentsToolsSessionControlCheckWorkspace(){
 	type AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local measuredRows="" measuredDated="" measuredAny="false"
 	[ -d "$MMDAPP/.local/agents/spawned" ] || return 0
 	AgentsToolsRegistrySpawnedSessionsRebuild || return 1
-	AgentsToolsRegistryMeasureRows "$( AgentsToolsRegistryFile spawned-sessions )"
+	AgentsToolsRegistryMeasureRows "$MMDAPP/.local/agents/spawned-sessions.registry"
 	printf '%s' "$measuredRows" | AgentsToolsSessionControlCheck
 }
 

@@ -11,6 +11,10 @@ if [ -z "$MMDAPP" ] ; then
 	echo "$0: Working in: $MMDAPP" >&2
 	[ -d "$MMDAPP/.local" ] || ( echo "⛔ ERROR: expecting '.local' directory." >&2 && exit 1 )
 fi
+## No workspace is a relative path, the tooling tree itself, or a folder of its packages: the tooling writes its stores under
+## $MMDAPP/.local, and there they would stand in the source tree.
+case "$MMDAPP" in /?*) ;; *) echo "⛔ ERROR: ${0##*/}: MMDAPP is not an absolute workspace path: $MMDAPP" >&2 ; return 1 2> /dev/null || exit 1 ;; esac
+case "${MMDAPP%/}/" in "${MDLT_ORIGIN:-/nonexistent}/"|"${MDLT_ORIGIN:-/nonexistent}/myx/"*) echo "⛔ ERROR: ${0##*/}: MMDAPP is inside the tooling tree, so it is no workspace: $MMDAPP" >&2 ; return 1 2> /dev/null || exit 1 ;; esac
 
 : "${MDLT_ORIGIN:=$MMDAPP/.local}"
 export MDLT_ORIGIN

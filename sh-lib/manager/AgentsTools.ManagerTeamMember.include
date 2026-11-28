@@ -37,11 +37,10 @@ type AgentsToolsTeamMemberIsTeam > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.dis
 ## as the file holds them: `member workspace link-kind skillset-path`. rc 1, with one line,
 ## where the registry cannot be rebuilt: a stale file is never read as though it were fresh.
 AgentsToolsManagerTeamMemberOwn(){ ## the operation as it was called
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	type AgentsToolsRegistryTeamMembersRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryTeamMembers.include"
 	local ownFile
 	ownRows=""
-	ownFile="$( AgentsToolsRegistryFile team-members )"
+	ownFile="$MMDAPP/.local/agents/team-members.registry"
 	if ! AgentsToolsRegistryTeamMembersRebuild ; then
 		echo "⛔ ERROR: $MDSC_CMD $1: the registry team-members could not be rebuilt in ${ownFile%/*} -- nothing is shown" >&2
 		return 1
@@ -151,7 +150,6 @@ AgentsToolsManagerTeamMemberStatus(){ ## member set root, member
 ## (AgentsToolsTeamMemberKindIcon), which that table reads through
 ## AgentsToolsInstallReportIcon and is given no mark for.
 AgentsToolsManagerTeamMemberRow(){ ## member, set-up, member set root, workspace root, the members with a live run between newlines
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	type AgentsToolsTeamMemberKindIcon > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 	local rowKind="${1%%-*}" rowWorkspace="-" rowLive="no-process" namesRow="" statusWord="-" rowFolder="-"
 	[ "$rowKind" != "$1" ] || rowKind="-"
@@ -160,7 +158,7 @@ AgentsToolsManagerTeamMemberRow(){ ## member, set-up, member set root, workspace
 		rowWorkspace="${4%/}" ; rowWorkspace="${rowWorkspace##*/}"
 		rowWorkspace="${rowWorkspace//[[:space:]]/_}"
 		## Its names are those of the workspace it is set up in, as the author line of a message reads them.
-		AgentsToolsManagerTeamMemberNames "$1" "$( MMDAPP="${4%/}" ; AgentsToolsRegistryFile team-members-names )"
+		AgentsToolsManagerTeamMemberNames "$1" "${4%/}/.local/agents/team-members-names.registry"
 		AgentsToolsManagerTeamMemberStatus "$3" "$1"
 		## Its own folder: its link in the member set followed, to where its skillset lies in a source.
 		rowFolder="$( cd -P -- "${3%/}/$1" 2>/dev/null && pwd -P )" || rowFolder="-"
@@ -265,7 +263,6 @@ AgentsToolsManagerTeamMemberSettingRows(){ ## member, set-up
 ## cannot be read.
 AgentsToolsManagerTeamMemberReadRows(){ ## the operation as it was called, member -- its name already known to be a bare one
 	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local readOp="$1" readMember="$2" readOwn=$'\n' readName readWorkspace readKind readPath readRest readText readFile
 	local readLinkKind="-" readLinkPath="-" readHome="-" readDescription="-" readBullets="" readSessions readGrants readSettings readLive
 	local ownRows="" sessionRows="" placedSetUp placedRoot placedWorkspace placedFolder
@@ -291,7 +288,7 @@ AgentsToolsManagerTeamMemberReadRows(){ ## the operation as it was called, membe
 	## Its row of the team-members registry of the workspace it is set up in: this one's,
 	## rebuilt now, or that one's as it lies.
 	readText="$ownRows"
-	[ "$placedSetUp" = "here" ] || readText="$( cat "$( MMDAPP="$placedWorkspace" ; AgentsToolsRegistryFile team-members )" 2> /dev/null )" || readText=""
+	[ "$placedSetUp" = "here" ] || readText="$( cat "$placedWorkspace/.local/agents/team-members.registry" 2> /dev/null )" || readText=""
 	while read -r readName readWorkspace readKind readPath readRest ; do
 		[ "$readName" = "$readMember" ] || continue
 		readLinkKind="${readKind:--}" ; readLinkPath="${readPath:--}"

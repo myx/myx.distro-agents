@@ -514,10 +514,10 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 		if [ ! -f "$processDir/$toolHandle.out" ] && [ ! -f "$processDir/$toolHandle.err" ] ; then
 			printf 'ERROR: no detached process named %s was started by this session, so there is no output to read. This is a handle naming nothing, never a process that wrote nothing.\n' "$toolHandle" ; return 0
 		fi
-		if [ -n "$toolOffset" ] && ! AgentsHarnessWholeNumber "$toolOffset" ; then
+		if [ -n "$toolOffset" ] && { case "$toolOffset" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 			printf 'ERROR: offset must be a whole number of bytes, got: %s\n' "$toolOffset" ; return 0
 		fi
-		if [ -n "$toolLimit" ] && { ! AgentsHarnessWholeNumber "$toolLimit" || [ "$toolLimit" -lt 1 ] ; } ; then
+		if [ -n "$toolLimit" ] && { { case "$toolLimit" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } || [ "$toolLimit" -lt 1 ] ; } ; then
 			printf 'ERROR: limit must be a whole number of bytes above zero, got: %s\n' "$toolLimit" ; return 0
 		fi
 		[ -n "$toolLimit" ] || toolLimit="$harnessReadCap"
@@ -794,7 +794,7 @@ AgentsHarnessToolBashRun(){ ## cwd, command, timeout, detach, handle, stop, offs
 	fi
 	## Per-call override of the harness-wide bound, validated the way that bound is.
 	if [ -n "$toolTimeout" ] ; then
-		if ! AgentsHarnessWholeNumber "$toolTimeout" ; then
+		if { case "$toolTimeout" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 			printf 'ERROR: timeout must be a whole number of seconds, got: %s\n' "$toolTimeout" ; return 0
 		fi
 	else
@@ -947,7 +947,7 @@ AgentsHarnessToolWorkspaceContextExecuteRun(){ ## command, workspace, timeout
 		toolArgs+=( --workspace "$toolWorkspace" )
 	fi
 	if [ -n "$toolTimeout" ] ; then
-		if ! AgentsHarnessWholeNumber "$toolTimeout" ; then
+		if { case "$toolTimeout" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 			printf 'ERROR: timeout must be a whole number of seconds, got: %s. Nothing was run.\n' "$toolTimeout" ; return 0
 		fi
 	else

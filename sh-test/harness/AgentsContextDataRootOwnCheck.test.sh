@@ -6,7 +6,8 @@
 ## default root is kept, and nothing is said; in a workspace with no configured directory a root of another shape (a rig's
 ## `<tmp>/data`, a configured directory) is kept as given; with no root set, the workspace's own is resolved as before; in a
 ## workspace configured with a team data directory (a rig) an inherited root that is not it becomes it, said once, and the
-## configured one itself is kept with nothing said.
+## configured one itself is kept with nothing said. A root resolved for this workspace is kept, whatever its shape; a workspace
+## configured with another workspace's default root keeps it, and says nothing.
 ## Red: a context load that keeps the inherited root fails `another workspace's default root is re-resolved`; one that
 ## keeps another rig's configured directory in a rig fails `a rig uses its configured directory`.
 ## Offline: a temp folder of this check alone, removed at its end; nothing is requested.
@@ -57,6 +58,11 @@ rigAssert "a resolution marks the workspace it is for"      "$( rigLoadOf "$rigT
 rigAssert "a call marked for this workspace keeps its root and reads nothing" "$( rigLoad "$rigTmp/data" "$rigTmp/wsA" ):$( LC_ALL=C grep -c 'so this call uses' "$rigTmp/load.err" )" "$rigTmp/data:0"
 rigAssert "a call marked for another workspace resolves its own" "$( rigLoad "$rigTmp/data" "$rigTmp/wsB" ):$( LC_ALL=C grep -c 'so this call uses' "$rigTmp/load.err" )" "$rigTmp/dataA:1"
 rigAssert "and marks it for its children"                   "$( rigLoadOf "$rigTmp/data" "$rigTmp/wsB" )" "$rigTmp/wsA"
+rigAssert "a default-shape root marked for this workspace is kept, and reads nothing" "$( rigLoad "$rigTmp/wsB/.local/agents/team-data-root" "$rigTmp/wsA" ):$( LC_ALL=C grep -c 'so this call uses' "$rigTmp/load.err" )" "$rigTmp/wsB/.local/agents/team-data-root:0"
+
+echo "-- 5. a workspace configured with another workspace's default root keeps it, quietly --"
+printf 'TEAM_DATA_DIRECTORY=%s\n' "$rigTmp/wsB/.local/agents/team-data-root" > "$rigTmp/wsA/.local/.agents/magic-coordinator.agent.env"
+rigAssert "the configured root is kept, and nothing is said" "$( rigLoad "$rigTmp/wsB/.local/agents/team-data-root" ):$( LC_ALL=C grep -c 'so this call uses' "$rigTmp/load.err" )" "$rigTmp/wsB/.local/agents/team-data-root:0"
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ CONTEXT DATA ROOT OWN CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2

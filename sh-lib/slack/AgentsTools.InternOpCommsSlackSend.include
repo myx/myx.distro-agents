@@ -520,7 +520,7 @@ blocks|verbatim|caller|stdin file"
 			externalPres="$( AgentsToolsCommsSlackMemberPresentation "$memberName" )" || externalPres=""
 			## The persona member's name is the registries include's, and its own reader sources it in the subshell
 			## of a command substitution only: a shell that has read neither has no name to fall back on.
-			type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+			type AgentsToolsRegistryWrite > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 			type AgentsToolsMemberInvited > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 			[ -n "$externalPres" ] || ! AgentsToolsMemberInvited "$memberName" || externalPres="$( AgentsToolsCommsSlackMemberPresentation "$registryPersonaMember" )" || externalPres=""
 			externalMark="$( AgentsToolsCommsSlackPresentationField 1 "$externalPres" )"

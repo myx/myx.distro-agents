@@ -772,11 +772,6 @@ rigMarksFn="$( rigFnCut "$rigRegInclude" AgentsToolsCommsSlackMemberMarks )"
 rigAssert "the marks function is byte for byte as recorded (cksum, bytes)" "$( printf '%s\n' "$rigMarksFn" | cksum )" "45624737 261"
 rigAssert "its awk is byte for byte as recorded"                           "$( cksum < "$rigHere/slack/AgentsToolsCommsSlackMemberMarks.awk" )" "175965626 570"
 rigAssert "control: another function text gives another checksum"          "$( [ "$( printf 'x\n' | cksum )" = "45624737 261" ] && printf blind || printf notices )" notices
-rigRegistryName(){ ## registry name -- the file name AgentsToolsRegistryFile gives it in the rig workspace
-	( MMDAPP="$rigWs" ; . "$rigRegInclude" ; . "${rigRegInclude%/*}/AgentsTools.RegistryTeamMembers.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryMemberNames.include" ; . "${rigRegInclude%/*}/../session/AgentsTools.RegistrySpawnedSessions.include" ; . "${rigRegInclude%/*}/AgentsTools.RegistryPendingReplies.include" ; . "${rigRegInclude%/*}/../questions/AgentsTools.RegistryPendingRepliesRows.include" && AgentsToolsRegistryFile "$1" )
-}
-rigAssert "every registry name, the earlier three and the new two, gives <name>.registry" "$( for rigReg in team-members team-members-names spawned-sessions pending-replies ; do rigRegistryName "$rigReg" ; done | LC_ALL=C tr '\n' ' ' )" "$rigAgentsDir/team-members.registry $rigAgentsDir/team-members-names.registry $rigAgentsDir/spawned-sessions.registry $rigAgentsDir/pending-replies.registry "
-rigAssert "control: a name is not used as given, whatever it holds"        "$( rigRegistryName member-presentation.index )" "$rigAgentsDir/member-presentation.index.registry"
 
 echo "-- 19. the two call places of the build --"
 rigBuilder="$rigPackage/builders/source-prepare/$rigBuilderName"

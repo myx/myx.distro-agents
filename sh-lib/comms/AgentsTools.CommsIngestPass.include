@@ -90,7 +90,7 @@ AgentsCommsIngestPass(){ ## most (0 for no bound), the caller's epoch (optional)
 		[ "${passLine##*/}" != "$passTurn" ] || { passStart=$(( passAt + 1 )) ; break ; }
 		passAt=$(( passAt + 1 ))
 	done
-	type AgentsToolsSourceTtlOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.SourceTtl.include"
+	type AgentsToolsSourceTtlInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.SourceTtl.include"
 	while [ "$passStep" -lt "${#passRows[@]}" ] ; do
 		[ "$passMost" -eq 0 ] || [ "$passServed" -lt "$passMost" ] || break
 		passLine="${passRows[$(( ( passStart + passStep ) % ${#passRows[@]} ))]}"

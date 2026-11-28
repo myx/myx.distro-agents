@@ -56,11 +56,15 @@ AgentsToolsClientAccessRootsMembers(){
 	set --
 	[ -z "${MDAT_SKILLSET_ROOT:-}" ] || [ ! -d "$MDAT_SKILLSET_ROOT" ] || set -- "$MDAT_SKILLSET_ROOT"/*/
 	local memberEntry memberName memberReal
+	## Resolved by builtins, in the one subshell the loop already runs in: `cd -P .` leaves PWD at what `pwd -P` prints, so no member
+	## costs a process of its own. Each entry is entered from the same start, as every relative entry expects.
+	local memberStart="$PWD"
 	for memberEntry in "$@" ; do
 		[ -d "${memberEntry%/}" ] || continue
 		memberName="${memberEntry%/}" ; memberName="${memberName##*/}"
 		[ "$memberName" != "trash" ] || continue
-		memberReal="$( cd "${memberEntry%/}" 2>/dev/null && pwd -P )" || continue
+		cd "$memberStart" 2>/dev/null && cd "${memberEntry%/}" 2>/dev/null && cd -P . 2>/dev/null || continue
+		memberReal="$PWD"
 		[ -n "$memberReal" ] || continue
 		if [ "$memberPurpose" = "acting" ] && [ -f "$memberReal/SKILL.md" ] && grep -q '^status: reference-only' "$memberReal/SKILL.md" 2>/dev/null ; then
 			continue

@@ -132,7 +132,7 @@ AgentsToolsLnGuardMake(){ ## folder -- writes the guard `ln` there, for a run to
 	guardText='#!/usr/bin/env bash'$'\n'"[ -f \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include\" ] || MDLT_ORIGIN='${guardHere%/myx/myx.distro-agents/sh-lib/spawn/*}'"$'\n'". '$guardHere' || exit 1"$'\n''AgentsToolsLnGuard "$@"'
 	[ "$( cat "$1/ln" 2> /dev/null )" = "$guardText" ] && [ -x "$1/ln" ] && return 0
 	type AgentsToolsTempClaim > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.TempFiles.include"
-	mkdir -p "$1" && guardTemp="$( mktemp "$1/ln.XXXXXX" )" && AgentsToolsTempClaim "$guardTemp" && printf '%s\n' "$guardText" > "$guardTemp" && chmod +x "$guardTemp" && mv -f "$guardTemp" "$1/ln"
+	{ [ -d "$1" ] || mkdir "$1" ; } && guardTemp="$( mktemp "$1/ln.XXXXXX" )" && AgentsToolsTempClaim "$guardTemp" && printf '%s\n' "$guardText" > "$guardTemp" && chmod +x "$guardTemp" && mv -f "$guardTemp" "$1/ln"
 }
 
 ## The guard `grep` (epic S10.26): a shell `grep -r` over a `.local` tree blocks for ever on a session's request fifo. The
@@ -169,7 +169,7 @@ done
 exec /usr/bin/grep "$@"'
 	[ "$( cat "$1/grep" 2> /dev/null )" = "$guardText" ] && [ -x "$1/grep" ] && return 0
 	type AgentsToolsTempClaim > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.TempFiles.include"
-	mkdir -p "$1" && guardTemp="$( mktemp "$1/grep.XXXXXX" )" && AgentsToolsTempClaim "$guardTemp" && printf '%s\n' "$guardText" > "$guardTemp" && chmod +x "$guardTemp" && mv -f "$guardTemp" "$1/grep"
+	{ [ -d "$1" ] || mkdir "$1" ; } && guardTemp="$( mktemp "$1/grep.XXXXXX" )" && AgentsToolsTempClaim "$guardTemp" && printf '%s\n' "$guardText" > "$guardTemp" && chmod +x "$guardTemp" && mv -f "$guardTemp" "$1/grep"
 }
 
 AgentsToolsSandboxLinkScan(){ ## roots, folder...

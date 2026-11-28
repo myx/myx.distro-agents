@@ -7,9 +7,33 @@
 ## call parses and which the context show is no part of.
 ##
 
+type AgentsToolsTeamMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
+
 ## --intern-context-show: the context this call resolves, a line each in one form, `<name>: <value>`: the five resolved values first (team-member, session-id,
 ## spawn-id, select-workspace, tooling-origin), then every MDAT_* and MDLT_* variable the tooling reads, by name. A variable that holds a secret (its name has
 ## TOKEN, KEY, PASSWORD, PASSWD, SECRET or CREDENTIAL) is printed in the one form of a credential (AgentsToolsCredentialShown, F11.8). A value of several lines is
 ## one line, its breaks written \n. Read-only; takes only the common options, which the entry has consumed.
-type AgentsToolsTeamMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
-
+AgentsToolsContextShow(){ ## operation, arguments...
+	local showOp="$1" showMember showName showValue
+	shift
+	[ $# -eq 0 ] || { echo "$MDSC_CMD: ${showOp#--}: ⛔ ERROR: takes only the common options, got: $1 -- nothing was done" >&2 ; return 1 ; }
+	showMember="$( AgentsToolsTeamMember )"
+	if [ -z "$showMember" ] ; then
+		echo "$MDSC_CMD: ${showOp#--}: ⛔ ERROR: needs --team-member: no MDAT_SPAWN_AGENT in this context and no account (USER) -- nothing was done" >&2
+		return 1
+	fi
+	type AgentsToolsCredentialShown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.CredentialDisplay.include"
+	printf 'team-member: %s\n' "$showMember"
+	printf 'session-id: %s\n' "${MDAT_SESSION_ID:-}"
+	printf 'spawn-id: %s\n' "${MDAT_SPAWN_SESSION_ID:-${MDAT_SPAWNED_ID:-shell-console}}"
+	printf 'select-workspace: %s\n' "$( AgentsToolsCommonAbsolute "${MMDAPP%/}" 2> /dev/null || printf '%s' "${MMDAPP:-}" )"
+	printf 'tooling-origin: %s\n' "$( AgentsToolsCommonAbsolute "${MDLT_ORIGIN:-}" 2> /dev/null || printf '%s' "${MDLT_ORIGIN:-}" )"
+	for showName in $( { for showName in ${!MDAT_*} ${!MDLT_*} ; do printf '%s\n' "$showName" ; done ; } | LC_ALL=C sort -u ) ; do
+		showValue="${!showName}"
+		case "$showName" in
+			*TOKEN*|*KEY*|*PASSWORD*|*PASSWD*|*SECRET*|*CREDENTIAL*) showValue="$( AgentsToolsCredentialShown "$showValue" )" ;;
+		esac
+		showValue="${showValue//$'\n'/\\n}"
+		printf '%s: %s\n' "$showName" "$showValue"
+	done
+}

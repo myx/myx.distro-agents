@@ -20,17 +20,21 @@
 ## one already answered, and no extra network call once the cache covers it.
 ## A reply is taken into its record by that record's collect (AgentsTools.PendingReplyCollect.include), because the harness resolve needs `harnessAgent`.
 AgentsToolsPendingReplyPollOwn(){ ## <team-member>
-	local pollMember="$1" pollFile pollId pollOut pollRc pollTs
+	local pollMember="$1" pollFile pollId pollOut pollRc pollTs pollCacheOnly=false
 	type AgentsWaitProbeAsk > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/wait/AgentsTools.MemberWaitAsk.include"
 	set -- "$MMDAPP/.local/agents/pending"/*.md
 	[ -f "$1" ] || return 0
+	## The reads a live Wait makes (AgentsTools.MemberWaitRun.include): of the comms cache alone while a comms thread is live, so that
+	## one thread pulls each ask's thread and no probe calls Slack itself; with none, each probe reads as it can.
+	type AgentsToolsSessionCommsLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include"
+	! AgentsToolsSessionCommsLive > /dev/null 2>&1 || pollCacheOnly=true
 	## The member's open asks, chosen in one pass over every record: the first status and owner lines above the record's first heading,
 	## and an id that is a bare name.
 	while IFS= read -r pollId ; do
 		pollFile="$MMDAPP/.local/agents/pending/$pollId.md"
 		pollOut="$( mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && mktemp "$MMDAPP/.local/temp/mdat-pending-poll.XXXXXX" 2> /dev/null )" || continue
 		pollRc=0
-		AgentsWaitProbeAsk "$pollMember" "$pollId" "" "$pollOut" > /dev/null 2>&1 || pollRc=$?
+		MDAT_COMMS_CACHE_ONLY="$pollCacheOnly" AgentsWaitProbeAsk "$pollMember" "$pollId" "" "$pollOut" > /dev/null 2>&1 || pollRc=$?
 		if [ "$pollRc" = "0" ] && LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' "$pollOut" 2>/dev/null ; then
 			## A reply whose ts the record keeps already, as a clarification, is taken: only a newer one, or a click, is collected.
 			pollTs="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { print ts ; }' "$pollOut" 2> /dev/null )" || pollTs=""

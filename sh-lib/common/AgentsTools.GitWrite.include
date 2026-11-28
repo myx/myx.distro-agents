@@ -68,8 +68,8 @@ AgentsToolsGitDestructive(){ ## subcommand, then the words from the subcommand o
 ## a tree the answer cannot compute -- a check's rig -- and it can only add a refusal, never lift one.
 AgentsToolsGitSourceRoots(){
 	local rootsPlain="" rootsExtra=""
-	type AgentsToolsSourceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" 2> /dev/null || return 0
-	rootsPlain="$( AgentsToolsSourceRoots 2> /dev/null )"
+	type AgentsToolsSourceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SandboxLinks.include" || return 1
+	rootsPlain="$( AgentsToolsSourceRoots )" || return 1
 	[ -z "${MDAT_GIT_SOURCE_ROOTS:-}" ] || rootsExtra="${MDAT_GIT_SOURCE_ROOTS//:/$'\n'}"
 	printf '%s\n%s\n' "$rootsPlain" "$rootsExtra" | LC_ALL=C awk 'NF' | LC_ALL=C sort -u
 }
@@ -77,7 +77,7 @@ AgentsToolsGitSourceRoots(){
 ## Whether a path lies in a source tree, with its real path in agentsGitWriteTree. A path that is not there yet is resolved
 ## through its parent, so the name a write would create answers as the tree it would land in.
 AgentsToolsGitTreeIsSource(){ ## path
-	local treePath="$1" treeParent="" treeRoot=""
+	local treePath="$1" treeParent="" treeRoot="" treeRoots=""
 	agentsGitWriteTree=""
 	case "$treePath" in ''|.) treePath="${agentsGitWriteBase:-$PWD}" ;; esac
 	case "$treePath" in
@@ -101,11 +101,13 @@ AgentsToolsGitTreeIsSource(){ ## path
 			agentsGitWriteTree="$treePath"
 		fi
 	fi
+	## A roots list that cannot be made answers as a source tree, so the write is refused rather than let through.
+	treeRoots="$( AgentsToolsGitSourceRoots )" || return 0
 	while IFS= read -r treeRoot ; do
 		[ -n "$treeRoot" ] || continue
 		treeRoot="${treeRoot%/}"
 		case "$agentsGitWriteTree" in "$treeRoot"|"$treeRoot"/*) return 0 ;; esac
-	done <<< "$( AgentsToolsGitSourceRoots )"
+	done <<< "$treeRoots"
 	return 1
 }
 
@@ -191,14 +193,12 @@ AgentsToolsGitWriteMessage(){ ## tree, subcommand
 AgentsToolsGitWriteRefused(){ ## session, member, tree, subcommand, where
 	local refusedSession="$1" refusedMember="${2:-this run}" refusedTree="$3" refusedSub="$4" refusedWhere="${5:-an unnamed place}"
 	[ -n "$refusedSession" ] || return 0
-	if type AgentsTranscriptEvent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" 2> /dev/null ; then
-		AgentsTranscriptEvent "$refusedSession" NOTE "stopped a git $refusedSub over a source tree" 4096 \
-			tree "$refusedTree" by "$refusedMember" where "$refusedWhere" 2> /dev/null || :
-	fi
-	if type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null ; then
-		printf 'STOPPED: a git %s over a source tree (%s), refused before the write landed. Nothing was run.\n' "$refusedSub" "$refusedTree" \
-			| AgentsToolsSessionChatAppend "$refusedSession" "$refusedMember" "$refusedMember" - "$refusedWhere" notice > /dev/null 2>&1 || :
-	fi
+	type AgentsTranscriptEvent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+	AgentsTranscriptEvent "$refusedSession" NOTE "stopped a git $refusedSub over a source tree" 4096 \
+		tree "$refusedTree" by "$refusedMember" where "$refusedWhere" 2> /dev/null || :
+	type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	printf 'STOPPED: a git %s over a source tree (%s), refused before the write landed. Nothing was run.\n' "$refusedSub" "$refusedTree" \
+		| AgentsToolsSessionChatAppend "$refusedSession" "$refusedMember" "$refusedMember" - "$refusedWhere" notice > /dev/null 2>&1 || :
 	return 0
 }
 
@@ -246,7 +246,8 @@ AgentsToolsGitGuardMake(){ ## folder -- writes the guard `git` and its BASH_ENV 
 	guardHere="$( cd -P "${BASH_SOURCE[0]%/*}" 2> /dev/null && pwd -P )/${BASH_SOURCE[0]##*/}"
 	guardText='#!/usr/bin/env bash'$'\n'"[ -f \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.GitWrite.include\" ] || MDLT_ORIGIN='${guardHere%/myx/myx.distro-agents/sh-lib/common/*}'"$'\n'". '$guardHere' || exit 1"$'\n''AgentsToolsGitGuard "$@"'
 	if [ "$( cat "$1/git" 2> /dev/null )" != "$guardText" ] || [ ! -x "$1/git" ] ; then
-		mkdir -p "$1" || return 1
+		## The folder alone is made, never its parents: a guard folder stands only in a workspace's own existing .local/agents.
+		{ [ -d "$1" ] || mkdir "$1" ; } || return 1
 		guardTemp="$( mktemp "$1/git.XXXXXX" 2> /dev/null )" || return 1
 		printf '%s\n' "$guardText" > "$guardTemp" && chmod +x "$guardTemp" && mv -f "$guardTemp" "$1/git" || return 1
 	fi
@@ -267,7 +268,8 @@ AgentsToolsGitGuardMake(){ ## folder -- writes the guard `git` and its BASH_ENV 
 ## because a shell function named `git` would shadow the very guard the folder holds.
 AgentsToolsGitGuardPath(){ ## [<workspace>]
 	local pathWorkspace="${1:-${MMDAPP:-}}" pathFolder=""
-	[ -n "$pathWorkspace" ] || return 0
+	## An absolute workspace only: a relative one would name a folder under wherever the process stands, a source tree included.
+	case "$pathWorkspace" in /?*) ;; *) return 0 ;; esac
 	pathFolder="${pathWorkspace%/}/.local/agents/guard-bin"
 	AgentsToolsGitGuardMake "$pathFolder" || return 0
 	case ":$PATH:" in *":$pathFolder:"*) ;; *) PATH="$pathFolder:$PATH" ; export PATH ;; esac
@@ -281,7 +283,7 @@ AgentsToolsGitGuardPath(){ ## [<workspace>]
 AgentsToolsGitGuardEnvFile(){ ## folder
 	local envFolder="$1" envTemp
 	[ -s "$envFolder/bash-env.sh" ] && [ -x "$envFolder/git" ] && return 0
-	mkdir -p "$envFolder" || return 1
+	{ [ -d "$envFolder" ] || mkdir "$envFolder" ; } || return 1
 	envTemp="$( mktemp "$envFolder/bash-env.XXXXXX" 2> /dev/null )" || return 1
 	cat > "$envTemp" <<'GITGUARDENV'
 ## The git guard of a run (AgentsTools.GitWrite.include, AgentsToolsGitGuardEnvFile). A non-interactive bash reads this

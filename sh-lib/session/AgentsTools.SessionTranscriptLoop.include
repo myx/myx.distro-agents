@@ -45,6 +45,7 @@ AgentsTranscriptHarnessRound(){ ## round number, scratch dir
 	[ ! -s "$2/stream.content" ] || roundText="$( cat "$2/stream.content" 2>/dev/null )"
 	agentsTranscriptRoundText="$( printf '%s' "$roundText" | tr '\n\t\r' '   ' )"
 	agentsTranscriptRoundText="${agentsTranscriptRoundText:0:400}"
+	type AgentsSessionTokensAdd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTokens.include"
 	AgentsSessionTokensAdd "$roundSession" "${roundIn:-0}" "${roundCr:-0}" "${roundCw:-0}" "${roundOut:-0}"
 	## Kept context: the ROUND line is written from the log (AgentsHarnessContextFeed).
 	[ -z "${agentsTranscriptFromLog:-}" ] || return 0

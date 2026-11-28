@@ -226,7 +226,6 @@ AgentsToolsSpawnSessionParentPost(){ ## parent record, mark, --intern-op-event-t
 AgentsToolsSpawnSessionParentChildDead(){ ## child record
 	type AgentsToolsFrontmatterKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.FrontmatterKey.include"
 	type AgentsToolsRegistryPendingSessionOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	local deadId deadSession deadHost
 	deadId="${1##*/}" ; deadId="${deadId%.spawn.md}"
 	deadSession="$( AgentsToolsFrontmatterKey "$1" session-id )"

@@ -99,7 +99,6 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	type AgentsToolsHousekeepingReport > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnSandbox.include"
 	type AgentsToolsRegistryRenderSpawnedSessionsKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RegistrySpawnedSessions.include"
 	type AgentsToolsRegistryPendingSessionOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.RegistryPendingReplies.include"
-	type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	type AgentsToolsRunRecordedSupervisor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
 	type AgentsToolsSpawnProxyCloseSandbox > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/spawn/AgentsTools.SpawnProxyClose.include"
 	local staleHours="$1" spawnRoot="$MMDAPP/.local/agents/spawned"
@@ -247,6 +246,8 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 			&& housekeepingLog="${housekeepingLog}housekeeping: closed sandbox $emptyName as a failed launch, which wrote no record"$'\n'
 	done
 	## A review item that has waited past the limit for a verdict is raised to its reviewer (S27.3).
+	## A wait folder no Wait has touched for 7 days is abandoned state, swept on this pass and never on a Wait round.
+	find "$MMDAPP/.local/agents/sessions" -maxdepth 2 -type d -name wait -mtime +7 -exec rm -rf {} + 2> /dev/null || :
 	housekeepingLog="${housekeepingLog}$( AgentsToolsReviewUnseenEscalate "$2" )
 "
 	## A review item whose named reviewer session has ended goes to the coordinator. A bare member name, `human-owner`, a live session and a missing review-by stay as they are.

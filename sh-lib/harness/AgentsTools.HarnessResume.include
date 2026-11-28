@@ -39,6 +39,7 @@ AgentsReviewContextResumeEligible(){ ## record path (may be empty)
 		*-native) printf 'the old session ran on %s, a native CLI, not the universal harness' "$ctxCli" ; return 1 ;;
 	esac
 	## As its restart will read them: in the workspace that paid for it, on the service it was started on by name (AgentsReviewRecordCliNow).
+	type AgentsReviewRecordCliNow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
 	ctxNowBoth="$( AgentsReviewRecordCliNow "$ctxRecord" )"
 	ctxNow="${ctxNowBoth%%$'\t'*}"
 	[ "$ctxNow" = "$ctxCli" ] || { printf 'the cli is now %s, the old session ran on %s' "$ctxNow" "$ctxCli" ; return 1 ; }
@@ -81,6 +82,7 @@ AgentsToolsSpawnProxyHarnessResumeRun(){ ## session id, session thread, conversa
 	## Each record in a subshell of its own, here and below: the tooling it calls leaves set -e
 	## behind, and this is the shell that supervises the run. With set -e on, it ended at its
 	## next command that failed, before it had closed the run's record.
+	type AgentsReviewRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
 	while kill -0 "$runPid" 2>/dev/null ; do
 		if [ -z "$runSeen" ] && [ -e "$runMark" ] ; then
 			runSeen=yes

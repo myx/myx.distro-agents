@@ -647,7 +647,7 @@ if [ -z "$harnessFromContext" ] && [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the access-root mechanism is missing from this package: $harnessRootsInclude" >&2
 		exit 1
 	fi
-	. "$harnessRootsInclude"
+	## Loaded by the arms below that compute the set: a set the index vouches for needs none of it.
 	## The installer's own index of this same set, already resolved, when it vouches for
 	## this run (AgentsHarnessRootsIndex.include says when); the producer below otherwise.
 	harnessRootsFromIndex=""
@@ -675,6 +675,7 @@ if [ -z "$harnessFromContext" ] && [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 	## below keeps absolute paths only. Under --intern-tool stdout is all a caller sees.
 	## A named member reads its floor and its own Edit and Read rows only; a read outside
 	## them is asked of the grants and, refused, recorded (AgentsHarnessReadGate).
+	[ -n "$harnessRootsFromIndex" ] || type AgentsToolsClientAccessRoots > /dev/null 2>&1 || . "$harnessRootsInclude"
 	if [ -n "$harnessRootsFromIndex" ] ; then
 		:
 	elif ! harnessOwnRoots="$( AgentsToolsClientAccessRoots "${MMDAPP:-}" "$harnessAgent" "$harnessGrantMember" 2>&1 )" ; then
@@ -704,6 +705,7 @@ if [ -z "$harnessFromContext" ] && [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 	## declared Edit grants, never the whole read set, so the skills root stays read-only.
 	## A named member's declared grants are its own rows only, never every member's.
 	if [ "${#harnessWriteAccessRoots[@]}" -eq 0 ] || [ -n "$harnessWriteFromIndex" ] ; then
+		[ -n "$harnessWriteFromIndex" ] || type AgentsToolsClientAccessReferenceRoots > /dev/null 2>&1 || . "$harnessRootsInclude"
 		if [ -n "$harnessWriteFromIndex" ] ; then
 			:
 		elif ! harnessOwnRoots="$( { AgentsToolsClientAccessReferenceRoots write "${MMDAPP:-}" "$harnessAgent" && AgentsToolsClientAccessGrantRoots "$harnessGrantMember" ; } 2>&1 )" ; then
@@ -860,6 +862,7 @@ if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
 	while IFS= read -r harnessChildRecord ; do
 		[ -n "$harnessChildRecord" ] || continue
 		harnessChildRoot="${harnessChildRecord%/*}"
+		type AgentsSpawnedFolderNameInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 		if AgentsSpawnedFolderNameInto harnessChildName "$harnessChildRoot" \
 			&& [ ! -L "$harnessChildRoot" ] && [ -d "$harnessChildRoot/output" ] && [ ! -L "$harnessChildRoot/output" ] && [ -d "$harnessChildRoot/input" ] && [ ! -L "$harnessChildRoot/input" ] ; then
 			[ -n "$harnessSpawnedReal" ] || AgentsHarnessResolveDir "$MMDAPP/.local/agents/spawned" harnessSpawnedReal
@@ -1266,7 +1269,6 @@ harnessToolSearchFloorFile="$harnessScratch/toolsearch.floor"
 ## member with no armed file are as they were, and so is any run started with MDAT_HARNESS_PREFETCH=off (as MDAT_HARNESS_CONTEXT=off
 ## keeps no context). Nothing is written into the dispatch, its input/ or the spawn record; the routine's text leaves a marker in the
 ## root of the sandbox (AgentsToolsPrefetchMarkerWrite) for the process that prints it.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.PrefetchRoutine.include"
 harnessPrefetch="" harnessPrefetchWhat="" harnessPrefetchReads="" harnessPrefetchRoutineSum="" harnessPrefetchRoutineFiles=""
 ## The prefix layers are the team layer (the team's basic and armed files in the system text), the tool floor, the member
 ## layer, and the session layer. A work-duty session has two more (sketch 8, epic S18.8): the Team+ layer, the optional
@@ -1359,7 +1361,6 @@ if [ -n "$harnessToolOnly" ] ; then
 	AgentsHarnessWindowedRead(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessWindowedRead "$@" ; }
 	AgentsHarnessWorkDuty(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" ; AgentsHarnessWorkDuty "$@" ; }
 	AgentsHarnessReadRange(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include" ; AgentsHarnessReadRange "$@" ; }
-	AgentsHarnessWholeNumber(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include" ; AgentsHarnessWholeNumber "$@" ; }
 	AgentsHarnessActivityWrite(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessActivityWrite "$@" ; }
 	AgentsHarnessDismissWaits(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessDismissWaits "$@" ; }
 	AgentsHarnessDismissedAfter(){ . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessWait.include" ; AgentsHarnessDismissedAfter "$@" ; }
@@ -1544,8 +1545,6 @@ if [ ! -f "$harnessMcpFile" ] ; then
 	exit 1
 fi
 [ -z "$harnessNeedsMcp" ] || . "$harnessMcpFile"
-## The local lock primitive Write and Edit take; absent, every write is refused as unlockable.
-[ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.LocalLock.include"
 ## The session transcript and token hooks; every one returns 0, and is called with || : besides.
 
 [ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
@@ -1648,7 +1647,6 @@ if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
 ## coworking session itself rather than being spawned into it, has no spawner to carry the rule above --
 ## so it is checked here instead, straight against the session's other live participants.
 elif [ -n "${MDAT_SESSION_ID:-}" ] ; then
-	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 	type AgentsToolsSessionOthersRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
 	harnessExecutorRecord=""
 	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
@@ -1762,6 +1760,7 @@ harnessCacheSeenTools="" ; harnessCacheSeenSystem=""
 AgentsHarnessCacheWatch(){
 	local watchFile watchValue="" watchAsked="" watchOld watchNew watchTools watchSystem watchWhy=""
 	if [ -n "${MMDAPP:-}" ] ; then
+		type AgentsSessionEffortInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 		for watchFile in "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" "${MDAT_SESSION_ID:-}" ; do
 			[ -n "$watchFile" ] && AgentsHarnessBareName "$watchFile" || continue
 			AgentsSessionEffortInto watchValue "$watchFile" || continue
@@ -1842,7 +1841,7 @@ done
 ## THE QUIET-ROUND BOUND, BY NAME: MDAT_HARNESS_MAX_QUIET_ROUNDS rounds in a row with nothing arriving stop the idling,
 ## 20 unless another is named, 0 for no bound. AgentsHarnessIdleWait reads it, and both the wait and the duty loop obey it.
 harnessMaxQuiet="${MDAT_HARNESS_MAX_QUIET_ROUNDS:-20}"
-if ! AgentsHarnessWholeNumber "$harnessMaxQuiet" ; then
+if { case "$harnessMaxQuiet" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: MDAT_HARNESS_MAX_QUIET_ROUNDS must be a whole number of rounds, got: $harnessMaxQuiet" >&2
 	exit 1
 fi
@@ -1851,15 +1850,15 @@ fi
 ## or by eviction -- the model judges what is worth carrying. 0 turns it off entirely.
 ## $harnessContextTokens is resolved with the tier above: the stub's own window for that
 ## model less its output maximum, and the core's 400000 only for a stub that declares none.
-if ! AgentsHarnessWholeNumber "$harnessContextTokens" ; then
+if { case "$harnessContextTokens" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the restart threshold (MDAT_HARNESS_CONTEXT_TOKENS or PRESET_CONTEXT_MAX_SIZE) must be a whole number of tokens, got: $harnessContextTokens" >&2
 	exit 1
 fi
-if [ -n "$harnessMaxRestarts" ] && ! AgentsHarnessWholeNumber "$harnessMaxRestarts" ; then
+if [ -n "$harnessMaxRestarts" ] && { case "$harnessMaxRestarts" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: MDAT_HARNESS_MAX_RESTARTS must be a whole number of restarts, got: $harnessMaxRestarts" >&2
 	exit 1
 fi
-if [ -n "$harnessOutputTokens" ] && ! AgentsHarnessWholeNumber "$harnessOutputTokens" ; then
+if [ -n "$harnessOutputTokens" ] && { case "$harnessOutputTokens" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: HARNESS_OUTPUT_TOKENS_* for the $harnessTier tier must be a whole number of tokens, got: $harnessOutputTokens" >&2
 	exit 1
 fi
@@ -2440,6 +2439,7 @@ while : ; do
 		## a coordinator that started the session natively, with another participant still running, is checked live here too, against the same
 		## executor record the task-block note above was built from (harnessExecutorRecord).
 		type AgentsToolsSessionOthersRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionSeats.include"
+		type AgentsSessionMarked > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
 		if [ -z "$harnessDismissedEnd" ] && [ "${harnessDutyPlainRuns:-0}" -lt 10 ] && { [ "$harnessMaxQuiet" = 0 ] || [ "$harnessQuietRounds" -lt "$harnessMaxQuiet" ] ; } \
 			&& { AgentsHarnessWorkDuty || AgentsHarnessOthersRunning || { [ -n "$harnessExecutorRecord" ] && AgentsToolsSessionOthersRunning "$harnessExecutorRecord" > /dev/null 2>&1 ; } ; } \
 			&& ! AgentsSessionMarked "${MDAT_SPAWN_SESSION_ID:-}" dismissed ; then

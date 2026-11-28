@@ -29,10 +29,10 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 
 ## The argument-table functions the refusal reads through, lifted out of the harness.
 rigLift="$( LC_ALL=C awk '
-	/^(AgentsHarnessWholeNumber|AgentsHarnessArgParse|AgentsHarnessArgFind|AgentsHarnessArgValue)\(\)\{/ { inFn = 1 ; }
+	/^(AgentsHarnessArgParse|AgentsHarnessArgFind|AgentsHarnessArgValue)\(\)\{/ { inFn = 1 ; }
 	inFn { print ; }
 	inFn && /^\}$/ { inFn = 0 ; seen++ ; }
-	END { if ( seen != 4 ) exit 1 ; }
+	END { if ( seen != 3 ) exit 1 ; }
 ' <( rigHarnessCat ) )" || rigRefuse "the argument-table functions were not all found in $rigHarness"
 
 ## A workspace whose one hook records its stdin and answers with the canned document.

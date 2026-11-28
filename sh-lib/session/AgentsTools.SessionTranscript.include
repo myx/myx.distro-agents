@@ -589,15 +589,14 @@ AgentsTranscriptReplyFloor(){
 	  exit 0
 	) > /dev/null 2>&1 || :
 	floorText="$( AgentsToolsSessionChatFloor "$floorKey" "$floorMember" "" deliver 2> /dev/null )" || floorText=""
-	[ -z "$floorText" ] || printf '# new for you in your session (its floor), from its chat file:\n%s' "$floorText"
+	[ -z "$floorText" ] || printf '\n# new for you in your session (its floor), from its chat file:\n%s' "$floorText"
 }
 
-## What a reply carries beside its result: the host's time, and the floor's new messages where there are any.
+## What a reply carries beside its result: the host's time, and the floor's new messages on the lines after it where there are any.
+## Both print in this shell: the floor loads the chat include, which a capture would parse inside its own fork and throw away.
 AgentsTranscriptReplyBeside(){
-	local besideFloor
 	AgentsTranscriptReplyDate
-	besideFloor="$( AgentsTranscriptReplyFloor )" || besideFloor=""
-	[ -z "$besideFloor" ] || printf '\n%s' "$besideFloor"
+	AgentsTranscriptReplyFloor
 }
 
 ## The reply to one tool result: kept when long. Skill and ToolSearch are never

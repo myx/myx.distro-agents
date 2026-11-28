@@ -130,7 +130,6 @@ AgentsHarnessDismissedNext(){
 }
 
 AgentsHarnessDismissedAfter(){ ## tool name
-	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 	type AgentsHarnessSessionWordPids > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include"
 	local afterFile afterDelay afterSession afterGrace="${MDAT_DISMISSED_END_GRACE:-60}"
 	case "$1" in SubagentHandback|Wait|SendMessage) ;; *) return 0 ;; esac
@@ -139,7 +138,7 @@ AgentsHarnessDismissedAfter(){ ## tool name
 		harnessDismissedEnd=1
 		return 0
 	fi
-	AgentsHarnessWholeNumber "$afterGrace" || afterGrace=60
+	case "$afterGrace" in ''|*[!0123456789]*) afterGrace=60 ;; esac
 	afterDelay=2 ; [ "$1" != "SubagentHandback" ] || afterDelay="$afterGrace"
 	afterSession="$MDAT_SPAWN_SESSION_ID"
 	type AgentsToolsRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
@@ -436,7 +435,6 @@ AgentsHarnessWaitFloorRewind(){ ## the sources the Wait named, the wait result f
 
 AgentsHarnessToolWait(){
 	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 	type AgentsHarnessSessionThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMessages.include"
 	type AgentsHarnessCheckListCounts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessBatch.include"
 	local toolSources="$1" toolTimeout="$2" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitDiag="" waitSource waitStateful="false" waitSession waitName waitThread waitOwnSources="$1" waitIdleReturn=""
@@ -529,7 +527,7 @@ AgentsHarnessToolWait(){
 	## Either is cut down to a ceiling rather than refused: a bound that is too long is a
 	## bound, and refusing it would turn a waitable question into an error.
 	if [ -n "$toolTimeout" ] ; then
-		if ! AgentsHarnessWholeNumber "$toolTimeout" ; then
+		if { case "$toolTimeout" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 			printf 'ERROR: timeout must be a whole number of seconds, got: %s\n' "$toolTimeout" ; return 0
 		fi
 	else
@@ -578,10 +576,10 @@ AgentsHarnessToolWait(){
 		esac
 	fi
 	if [ -n "$toolSince" ] ; then
-		if ! AgentsHarnessWholeNumber "${toolSince%%.*}" ; then
+		if { case "${toolSince%%.*}" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 			printf 'ERROR: since_utime must be epoch seconds, or a Slack message ts written <epoch>.<micros>, got: %s\n' "$toolSince" ; return 0
 		fi
-		if [ "$toolSince" != "${toolSince#*.}" ] && ! AgentsHarnessWholeNumber "${toolSince#*.}" ; then
+		if [ "$toolSince" != "${toolSince#*.}" ] && { case "${toolSince#*.}" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } ; then
 			printf 'ERROR: since_utime must be epoch seconds, or a Slack message ts written <epoch>.<micros>, got: %s\n' "$toolSince" ; return 0
 		fi
 	fi

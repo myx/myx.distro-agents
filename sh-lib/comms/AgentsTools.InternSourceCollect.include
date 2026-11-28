@@ -8,7 +8,7 @@
 ## keeps and where, and when it ends: AgentsTools.CollectThread.include. A sibling of --intern-session-comms: a usage blurb on no mode,
 ## the same set +e/set -e discipline, `--run` stays and `--one` makes one pass and ends.
 ##
-## ONE A WORKSPACE ON A HOST. Its lock is $MMDAPP/.local/agents/collect/thread.lock, a symlink to `<pid> <start>` held for the life of
+## ONE A WORKSPACE ON A HOST. Its lock is $MMDAPP/.local/agents/collect/thread.lock, a file holding `<pid> <start>` (set -C) for the life of
 ## the process: a second start is refused at once, and a holder that is gone is taken over. Nothing but TERM ends it, but for its two
 ## own ends -- nobody has wanted it for MDAT_COLLECT_IDLE_SECONDS (ten minutes), and its folder gone -- and a hangup, an interrupt or a
 ## quit from a terminal, a stop from one, an alarm, are ignored, by it and by what it starts. A broken pipe and the two user signals are
@@ -101,7 +101,7 @@ case "$1" in
 		done
 
 		## This process, with when it began: the pid of the shell that runs these lines, also where that is a subshell.
-		local colThreadPid colThreadMe colThreadLine colThreadDir="" colThreadLock="" colThreadHolder="" colThreadTookOver="" colThreadLeave=""
+		local colThreadPid colThreadMe colThreadLine colThreadDir="" colThreadLock="" colThreadHeld="" colThreadHolder="" colThreadTookOver="" colThreadLeave=""
 		colThreadPid="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || colThreadPid=""
 		case "$colThreadPid" in ''|*[!0123456789]*) colThreadPid="" ;; esac
 		type AgentsToolsRunProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/run/AgentsTools.RunProcesses.include"
@@ -181,7 +181,14 @@ case "$1" in
 				colThreadLeave="nobody has wanted it for ${colThreadIdleLimit}s"
 				break
 			fi
-			if [ ! -d "$colThreadDir" ] || [ "$( AgentsToolsCollectThreadLockHolder "$colThreadLock" )" != "$colThreadMe" ] ; then
+			## The lock's identity, read by the shell as the communications reader reads its own: no process on a tick.
+			colThreadHeld=""
+			if [ -L "$colThreadLock" ] ; then
+				colThreadHeld="$( readlink "$colThreadLock" 2> /dev/null )" || colThreadHeld=""
+			else
+				IFS= read -r colThreadHeld < "$colThreadLock" 2> /dev/null || :
+			fi
+			if [ ! -d "$colThreadDir" ] || [ "$colThreadHeld" != "$colThreadMe" ] ; then
 				colThreadLeave="its folder or its lock is gone"
 				colThreadLock=""
 				break

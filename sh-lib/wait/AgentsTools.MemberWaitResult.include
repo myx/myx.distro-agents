@@ -178,12 +178,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 		echo "WAIT-RESULT: $waitOutcome"
 		## THE REPLIES THE MEMBER OWES open every result (AgentsTools.OwedReplies.include): those older than the bound are listed here.
 		## They are noted in the received part below, once for the wait, as the member is handed each person's message.
-		local owedLoaded="false"
-		if [ -n "$waitMode" ] || [ -n "$waitCollect" ] ; then
-			type AgentsToolsOwedRepliesNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include" || echo "⛔ ERROR: the owed-replies include could not be loaded, so this wait notes and lists no owed reply" >&2
-			! type AgentsToolsOwedRepliesNote > /dev/null 2>&1 || owedLoaded="true"
-		fi
-		[ "$owedLoaded" != "true" ] || [ -z "$waitMode" ] || AgentsToolsOwedRepliesPrint "$memberName" "$waitEnd"
+		[ -z "$waitMode" ] || { type AgentsToolsOwedRepliesPrint > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include" ; AgentsToolsOwedRepliesPrint "$memberName" "$waitEnd" ; }
 		[ -z "$waitMode" ] || echo "WAIT-MODE: $waitMode"
 		[ -z "$seenFailed" ] || echo "# ERROR: the seen reaction (eyes) failed on ${seenFailed% }, so those messages show no sign that they were read"
 		[ -z "$waitNeverRead" ] || echo "WAIT-NEVER-READ: ${waitNeverRead% }"
@@ -236,7 +231,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 				done
 				## THE OWED REPLIES ARE NOTED HERE, once for the wait, before the sender mark hides a person's message from the noting.
 				## An inbox item is noted by the thread address in its own header. Only an item new against the baseline of the same hit is noted.
-				if [ "$owedLoaded" = "true" ] && { [ -n "$waitMode" ] || [ -n "$waitCollect" ] ; } ; then
+				if [ -n "$waitMode" ] || [ -n "$waitCollect" ] ; then
 					local owedFiles=() owedHit owedIndex owedSource owedInboxMember owedInboxFolder owedInboxName owedInboxLine owedInboxBase owedInboxLines owedInboxAddr owedInboxUser owedInboxText owedInboxState owedInboxRead owedInboxHaveBase owedInboxBound owedInboxEpoch owedInboxNoted=""
 					for owedHit in $waitHits ; do
 						owedIndex="${owedHit%%=*}" ; owedSource="${owedHit#*=}"
@@ -294,6 +289,7 @@ type AgentsSlackIdentityId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 						esac
 					done
 					[ -z "$owedInboxNoted" ] || { printf '%s' "$owedInboxNoted" > "$waitDir/owed.inbox" && owedFiles[${#owedFiles[@]}]="$waitDir/owed.inbox" ; } || echo "⛔ ERROR: the inbox arrivals of this wait could not be written, so none is noted as owed" >&2
+					type AgentsToolsOwedRepliesNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.OwedReplies.include"
 					[ "${#owedFiles[@]}" -eq 0 ] || cat "${owedFiles[@]}" 2> /dev/null | AgentsToolsOwedRepliesNote "$memberName" "$waitEnd"
 				fi
 				## EVERY MESSAGE FROM A PERSON OUTSIDE THE TEAM CARRIES WHO THAT PERSON IS (AgentsWaitSenderMark.awk). The contact store is asked here, by the

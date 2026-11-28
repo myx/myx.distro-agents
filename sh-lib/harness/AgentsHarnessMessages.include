@@ -375,7 +375,6 @@ AgentsHarnessSendSeatRefused(){ ## target as given
 ## acts; rc 1 it ends here, what became of it said.
 AgentsHarnessAuthorityAsk(){ ## what (words), the run's spawn id, tool, the call's arguments JSON
 	type AgentsSessionRunRecordInto > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionStore.include"
-	type AgentsHarnessWholeNumber > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessToolsFile.include"
 	local askRecord=""
 	type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
 	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.RunRoute.include"
@@ -384,7 +383,7 @@ AgentsHarnessAuthorityAsk(){ ## what (words), the run's spawn id, tool, the call
 	case "${harnessArgV_escalate:-}" in
 		enqueue|wait) agentsAuthorityMode="$harnessArgV_escalate" ;;
 	esac
-	[ "$agentsAuthorityMode" != wait ] || ! AgentsHarnessWholeNumber "${harnessArgV_timeout:-}" || agentsAuthorityTimeout="$harnessArgV_timeout"
+	[ "$agentsAuthorityMode" != wait ] || { case "${harnessArgV_timeout:-}" in ''|*[!0123456789]*) true ;; *) false ;; esac ; } || agentsAuthorityTimeout="$harnessArgV_timeout"
 	agentsAuthorityStream="out"
 	AgentsToolsAuthorityGate "$1" "$2" "$askRecord" "" tool "@harness" "$3" "$4" || :
 	agentsAuthorityStream=""
